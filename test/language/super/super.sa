@@ -1,0 +1,36 @@
+
+class A
+  function _init()
+    print("A init")
+  end
+  function foo()
+    print("A foo")
+    ret = self.bar()
+    assert(ret == "B.bar")
+    return "A.foo"
+  end
+  function bar()
+    print("A bar")
+    return "A.bar"
+  end
+end
+
+class B is A
+  function _init()
+    super()
+    print("B init")
+  end  
+  function foo()
+    print("B foo")
+    ret = super()
+    assert(ret == "A.foo")
+    return super.bar()
+  end
+  function bar()
+    print("B bar")
+    return "B.bar"
+  end
+end
+
+b = B()
+assert(b.foo() == "A.bar")

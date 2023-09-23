@@ -1,0 +1,36 @@
+
+# heterogenous
+l1 = [true, null, "Hello", "World!",
+      function(p1, p2) return p1+p2 end ]
+
+assert(list_join(l1[2..3], " ") == "Hello World!")
+assert(l1[0])
+assert(l1[4](4, 3) == 7)
+
+
+# homogeneous
+l2 = [4, 8, 7, 9, 0, 2, 6, 3, 1, 5]
+l2.sort()
+
+# sort l2
+assert(l2 == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+assert(l2[-1] == 9)
+assert(l2[-6] == l2[4])
+
+l2[4] = 5
+assert(l2 == [0, 1, 2, 3, 5, 5, 6, 7, 8, 9])
+assert(l2[3..5] == [3, 5, 5])
+
+l3 = [1, false, null, fn print('hello') end, true]
+assert(l3[4])
+l3[3] = null; assert(!l3[3])
+l3 = [] + [] ; assert(l3.length == 0)
+l3 = [] + [1]; assert(l3.length == 1); assert(l3[0] == 1)
+l3 = [1] + []; assert(l3.length == 1); assert(l3[0] == 1)
+l4 = l3 + [1,2,3]; assert(l4.length == 4); assert(l4 == [1,1,2,3])
+l3 = l4 + l3 + l4; assert(l3 == [1,1,2,3,1,1,1,2,3])
+
+## list references are shared.
+l1 = [1];l2 = l1;l1 += [2]
+assert(l2[1] == 2)
+assert(l1 == l2)

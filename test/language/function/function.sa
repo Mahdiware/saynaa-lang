@@ -1,0 +1,33 @@
+
+## Function Tests.
+
+function f1 return 'f1' end assert(f1() == 'f1')
+function f2() return 'f2' end assert(f2() == 'f2')
+function f3(a, b, c, d) return c end
+assert(f3('a', 'b', 'c', 'd') == 'c')
+
+## Local variables of inner funcions.
+function f4
+  l1 = 3.14
+  f5 = function
+    l2 = 42
+    return l2
+  end
+  f6 = fn
+    l2 = 42
+    return l2
+  end
+  assert(f5() == 42 and f6() == 42)
+end
+f4()
+
+function foo()
+  "a docstring to test"
+end
+assert(foo._docs == "a docstring to test")
+
+class Foo
+  "Testing for
+  class docstring"
+end
+assert(Foo._docs == "Testing for\n  class docstring")

@@ -1,0 +1,25 @@
+
+assert("${2}", "2")
+a = 10
+b = 20
+assert("${a+b}" == "30")
+
+function add(p1, p2)
+  return p1+p2
+end
+
+assert("${add(20, 30)}" == "50")
+assert("${!true}" == "false")
+assert("${eval('20+30')}" == "50")
+
+function getLength(test)
+  assert(test == "test")
+  return 4
+end
+assert("${getLength('${"test"}')}" == "${2 + 2}")
+
+name = "World"
+assert("Hello $name!" == "Hello World!")
+b = 'vb'; d = 'vd'; f = 'vf'
+assert("a ${ b + ' c ${d + " e ${f}"}' }" == "a vb c vd e vf")
+assert("$b$d$f" == "vbvdvf")

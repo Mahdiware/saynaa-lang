@@ -1,0 +1,118 @@
+
+class Vec2
+  function _init(x, y)
+    self.x = x; self.y = y
+  end
+  function _str
+    return "<${self.x}, ${self.y}>"
+  end
+  function +(other)
+    return Vec2(self.x + other.x,
+                self.y + other.y)
+  end
+  function +=(other)
+    self.x += other.x
+    self.y += other.y
+    return self
+  end
+  function ==(other)
+    return self.x == other.x and self.y == other.y
+  end
+end
+
+v1 = Vec2(1, 2); assert(v1.x == 1 and v1.y == 2)
+print("v1 = $v1")
+
+assert(str(v1) == "<1, 2>")
+
+v2 = Vec2(3, 4); assert(v2.x == 3 and v2.y == 4)
+print("v2 = $v2")
+
+v3 = v1 + v2
+print("v3 = $v3")
+
+assert(v1 == Vec2(1, 2))
+
+v1 += v2
+assert(v1 == v3)
+
+class Path
+  function _init(path)
+    self.path = path
+  end
+  function /(other)
+    if other is String
+      return Path(self.path + "/" + other)
+    elif other is Path
+      return Path(self.path + "/" + other.path)
+    else
+      assert(false, "Invalid type")
+    end
+  end
+  function _str
+    return self.path
+  end
+end
+
+local = Path("/usr/local")
+saynaa = Path("bin/saynaa")
+print('local/saynaa = "${local/saynaa}"')
+assert(str(local/saynaa) == "/usr/local/bin/saynaa")
+assert(str(local/"lib") == "/usr/local/lib")
+
+class N
+  function _init(val)
+    self.val = val
+  end
+  function _str()
+    return "N(${self.val})"
+  end
+  function +(other)
+    return N(self.val + other.val)
+  end
+  function +=(other)
+    self.val += other.val
+    return self
+  end
+  function %=(num)
+    self.val %= num
+    return self
+  end
+  function ==(other)
+    return self.val == other.val
+  end
+  function <<(num)
+    self.val *= 10
+    self.val += num
+    return self
+  end
+  function >>(other)
+    other.val = self.val % 10
+    self.val = (self.val - other.val) / 10
+  end
+  
+  function !self()
+    self.val -= 1
+    return self.val + 1
+  end
+end
+
+n1 = N(12)
+n2 = N(23)
+assert(n1 + n2 == N(n1.val + n2.val))
+n1 %= 5
+assert(n1.val == 2)
+
+n3 = N(4) << 8 << 3 << 6
+assert(n3 == N(4836))
+
+n4 = N(0)
+n3 >> n4; assert(n4.val == 6)
+n3 >> n4; assert(n4.val == 3)
+n3 >> n4; assert(n4.val == 8)
+n3 >> n4; assert(n4.val == 4)
+
+n5 = N(3)
+assert(!n5 == 3)
+assert(!n5 == 2)
+assert(!n5 == 1)

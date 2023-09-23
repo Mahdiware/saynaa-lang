@@ -1,0 +1,6 @@
+
+m1 = {0: 10, true: false, null: fn return null end }
+assert(m1[0] == 10)
+assert(m1[true] == false)
+assert(m1[null] is Closure)
+assert(m1[null].name == "@anonymous")

@@ -1,0 +1,26 @@
+
+# Enum in Class
+class Day end
+Day.SATURDAY  = 0
+Day.SUNDAY    = 1
+Day.MONDAY    = 2
+Day.TUESDAY   = 3
+Day.WEDNESDAY = 4
+Day.THURSDAY  = 5
+Day.FRIDAY    = 6
+
+assert(Day.MONDAY == 2)
+assert(Day.FRIDAY == 6)
+
+# Enum in Variable
+
+SATURDAY  = 0
+SUNDAY    = 1
+MONDAY    = 2
+TUESDAY   = 3
+WEDNESDAY = 4
+THURSDAY  = 5
+FRIDAY    = 6
+
+assert(SATURDAY == 0)
+assert(THURSDAY == 5)

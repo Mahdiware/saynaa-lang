@@ -1,0 +1,4 @@
+
+import foobar
+
+assert(foobar.year() == 2023)

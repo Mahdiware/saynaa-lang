@@ -1,0 +1,53 @@
+import io, time, math
+
+function percent_complete(step, total_steps=10, bar_width=20, title="", print_perc=true)
+
+  # UTF-8 left blocks: 1, 1/8, 1/4, 3/8, 1/2, 5/8, 3/4, 7/8
+  utf_8s = ["█", "▏", "▎", "▍", "▌", "▋", "▊", "█"]
+  perc = 100 * (step) / (total_steps)
+  max_ticks = bar_width * 8
+  num_ticks = (math.round(perc / 100 * max_ticks))
+
+  full_ticks = num_ticks / 8    # Number of full blocks
+  part_ticks = num_ticks % 8    # Size of partial block (array index)
+  
+  disp = ""
+  bar = disp   # Blank out variables
+  bar += utf_8s[0] * int(full_ticks)  # Add full blocks into Progress Bar
+
+  # If part_ticks is zero, then no partial block, else append part char
+  if part_ticks > 0 then
+    bar += utf_8s[part_ticks]
+  end
+  
+  # Pad Progress Bar with fill character
+  bar += "▒" * int((max_ticks/8 - (num_ticks)/8.0))
+
+  if title.length > 0 then
+    disp = title + ": "     # Optional title to progress display
+  end
+
+  disp += "\x1b[0;32m"      # Color Green
+  disp += bar               # Progress bar to progress display
+  disp += "\x1b[0m"         # Color Reset
+
+  if print_perc then
+    # If requested, append percentage complete to progress display
+    if perc > 100.0 then
+      perc = 100.0
+    end
+    disp += "  %6.2f" % [perc] + " %"
+  end
+
+  # Output to terminal repetitively over the same line using '\r'.
+  io.write(io.stdout, "\r${disp}")
+end
+
+for i in 0..100 do
+  time.sleep(50)                  // sleep 50 nanosecond
+  io.write(io.stdout, '\x1b[2K')  // Erase the line.
+  percent_complete(i, 99, 50, "progress bar")
+  io.flush()
+end
+
+print("")  //newline

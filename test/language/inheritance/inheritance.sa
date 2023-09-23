@@ -1,0 +1,64 @@
+
+class A
+end
+
+class B is A
+end
+
+a = A()
+print(a)
+
+b = B()
+assert((b is B) and (b is A))
+
+assert(B.parent == A)
+
+class Shape
+  function display()
+    return "${self.name} shape"
+  end
+end
+
+class Circle is Shape
+  function _init(r)
+    self.r = r
+    self.name = "circle"
+  end
+  function area()
+    return 3.14 * self.r * self.r
+  end
+end
+
+class Rectangle is Shape
+  function _init(w, h)
+    self.w = w; self.h = h
+    self.name = "rectangle"
+  end
+  function area()
+    return self.w * self.h
+  end
+end
+
+class Square is Rectangle
+  function _init(w)
+    # TODO: Currently there is no way of calling super(w, h)
+    # so we're setting our self here.
+    self.w = w; self.h = w
+    self.name = "square"
+  end
+end
+
+c = Circle(1)
+assert(c.display() == "circle shape")
+assert(c is Circle)
+assert(c is Shape)
+
+r = Rectangle(2, 3)
+assert(r is Shape)
+assert(r.area() == 6)
+
+s = Square(4)
+assert(s is Square)
+assert(s is Rectangle)
+assert(s is Shape)
+assert(s.area() == 16)
