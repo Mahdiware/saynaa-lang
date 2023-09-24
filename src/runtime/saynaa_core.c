@@ -2772,6 +2772,8 @@ void varsetSubscript(VM* vm, Var on, Var key, Var value) {
   switch (obj->type) {
     case OBJ_STRING: {
       // TODO: Simplify This String Subscript
+      // FIXME: A new string cannot be added to its hash
+      //        already contains the previous String's hash.
       int64_t index;
       String* str = ((String*)obj);
 
@@ -2793,10 +2795,11 @@ void varsetSubscript(VM* vm, Var on, Var key, Var value) {
 
       Object* objValue = AS_OBJ(value);
       if(objValue->type == OBJ_STRING) {
-        String* strValue = ((String*)objValue);
-        strncpy(str->data + index, strValue->data, strValue->length);
-        String* output = newString(vm, str->data);
-        str = output;
+        String* strReplace = ((String*)objValue);
+        str = replaceSubstring(vm, index, str, strReplace);
+        str->hash = utilHashString(str->data);
+
+        on = VAR_OBJ(str);
 
         return;
       }

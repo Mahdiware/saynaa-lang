@@ -912,6 +912,18 @@ String* stringJoin(VM* vm, String* str1, String* str2) {
   return string;
 }
 
+String* replaceSubstring(VM* vm, uint32_t index,
+                         String* str, String* replace) {
+  char* stringValue = str->data;
+  strncpy(stringValue + index, replace->data, replace->length);
+
+  String* string = _allocateString(vm, strlen(stringValue));
+  memcpy(string->data, stringValue, strlen(stringValue));
+
+  string->hash = utilHashString(string->data);
+  return string;
+}
+
 void listInsert(VM* vm, List* self, uint32_t index, Var value) {
 
   // Add an empty slot at the end of the buffer.
