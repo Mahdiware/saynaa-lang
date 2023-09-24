@@ -746,6 +746,16 @@ String* stringFormat(VM* vm, const char* fmt, ...);
 // Which would be faster than using "@@" format.
 String* stringJoin(VM* vm, String* str1, String* str2);
 
+// You replace a string by specifying the place you want to replace and
+// you replace one or more strings, if it is one, it will be replaced
+// by the index you specified, otherwise the index you specified and
+// the next strings will be replaced as long as the replace is similar.
+//     for example: x = "Hello World"
+//                  x[6] = "Ok"
+//                  print(x)     output: "Hello Okrld"
+String* replaceSubstring(VM* vm, uint32_t index,
+                         String* str, String* replace);
+
 // An inline function/macro implementation of listAppend(). Set below 0 to 1,
 // to make the implementation a static inline function, it's totally okey to
 // define a function inside a header as long as it's static (but not a fan).
