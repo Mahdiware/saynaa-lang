@@ -2771,7 +2771,35 @@ void varsetSubscript(VM* vm, Var on, Var key, Var value) {
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
     case OBJ_STRING: {
-      vm->config.stdout_write(vm, varToString(vm, on, true)->data);
+      // TODO: Simplify This String Subscript
+      int64_t index;
+      String* str = ((String*)obj);
+
+      if (isInteger(key, &index)) {
+        // Normalize index.
+        if (index < 0) index = str->length + index;
+        if (index >= str->length || index < 0) {
+          VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
+          return;
+        }
+      }
+
+      if (!IS_OBJ(value)) {
+        VM_SET_ERROR(vm, stringFormat(vm,
+                         "String subscript type $ is not allowed.",
+                         varTypeName(value)));
+        return;
+      }
+
+      Object* objValue = AS_OBJ(value);
+      if(objValue->type == OBJ_STRING) {
+        String* strValue = ((String*)objValue);
+        strncpy(str->data + index, strValue->data, strValue->length);
+        String* output = newString(vm, str->data);
+        str = output;
+
+        return;
+      }
     } break;
 
     case OBJ_LIST: {

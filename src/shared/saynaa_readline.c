@@ -14,7 +14,7 @@
 #include <readline/tilde.h>
 
 // Array of character names
-char *character_names[] = {"print(", "exit();", "exec(", NULL};
+char *character_names[] = {"print(", "input(", "exit();", NULL};
 
 // Generator function for character name completion
 char *character_name_generator(const char *text, int state) {
