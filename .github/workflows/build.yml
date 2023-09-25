@@ -22,6 +22,12 @@ jobs:
       - name: Run tests.
         run: |
           python3 util/test.py
+        working-directory: ./
+      - uses: actions/upload-artifact@v2
+        with:
+          name: saynaa-linux
+          path: |
+            saynaa
 
   ## Compile and run tests on windows.
   windows-build:
@@ -34,6 +40,12 @@ jobs:
       - name: Run tests.
         run: |
           python3 util/test.py
+        working-directory: ./
+      - uses: actions/upload-artifact@v2
+        with:
+          name: saynaa-windows
+          path: |
+            saynaa.exe
 
   ## Compile and run tests on macos.
   macos-build:
@@ -46,3 +58,9 @@ jobs:
       - name: Run tests.
         run: |
           python3 util/test.py
+        working-directory: ./
+      - uses: actions/upload-artifact@v2
+        with:
+          name: saynaa-mac
+          path: |
+            saynaa
