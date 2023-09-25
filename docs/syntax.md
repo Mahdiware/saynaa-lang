@@ -14,8 +14,8 @@ What Saynaa code looks like:
 ### Comments
 Saynaa supports both line comments:
 ```ruby
-  // This is a line comment
   #  This is a line comment
+  // This is a line comment
 ```
 and block comments:
 ```ruby
@@ -66,7 +66,9 @@ with the `do` keyword.
 ### Reserved Keywords
 Like many other programming languages Saynaa has some reserved keywords that assume a very specific meaning in the context of the source code:
 ```ruby
-  if elif else class import fn function do end while for
+  if elif else class import fn function do end
+  from as null in is and or not true false self
+  super break while for continue return then
 ```
 
 ### Identifiers
