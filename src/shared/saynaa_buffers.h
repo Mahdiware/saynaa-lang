@@ -25,78 +25,78 @@
   } m_name##Buffer;                                                           \
                                                                               \
   /* Initialize a new buffer int instance. */                                 \
-  void m_name##BufferInit(m_name##Buffer* self);                              \
+  void m_name##BufferInit(m_name##Buffer* this);                              \
                                                                               \
   /* Clears the allocated elements from the VM's realloc function. */         \
-  void m_name##BufferClear(m_name##Buffer* self, VM* vm);                     \
+  void m_name##BufferClear(m_name##Buffer* this, VM* vm);                     \
                                                                               \
   /* Ensure the capacity is greater than [size], if not resize. */            \
-  void m_name##BufferReserve(m_name##Buffer* self, VM* vm,                    \
+  void m_name##BufferReserve(m_name##Buffer* this, VM* vm,                    \
                                  size_t size);                                \
                                                                               \
   /* Fill the buffer at the end of it with provided data if the capacity */   \
   /* isn't enough using VM's realloc function. */                             \
-  void m_name##BufferFill(m_name##Buffer* self, VM* vm,                       \
+  void m_name##BufferFill(m_name##Buffer* this, VM* vm,                       \
                               m_type data, int count);                        \
                                                                               \
   /* Write to the buffer with provided data at the end of the buffer.*/       \
-  void m_name##BufferWrite(m_name##Buffer* self,                              \
+  void m_name##BufferWrite(m_name##Buffer* this,                              \
                                VM* vm, m_type data);                          \
                                                                               \
   /* Concatenate the contents of another buffer at the end of this buffer.*/  \
-  void m_name##BufferConcat(m_name##Buffer* self, VM* vm,                     \
+  void m_name##BufferConcat(m_name##Buffer* this, VM* vm,                     \
                                 m_name##Buffer* other);                       \
 
 // The buffer "template" implementation of different types.
 #define DEFINE_BUFFER(m_name, m_type)                                         \
-  void m_name##BufferInit(m_name##Buffer* self) {                             \
-    self->data = NULL;                                                        \
-    self->count = 0;                                                          \
-    self->capacity = 0;                                                       \
+  void m_name##BufferInit(m_name##Buffer* this) {                             \
+    this->data = NULL;                                                        \
+    this->count = 0;                                                          \
+    this->capacity = 0;                                                       \
   }                                                                           \
                                                                               \
-  void m_name##BufferClear(m_name##Buffer* self,                              \
+  void m_name##BufferClear(m_name##Buffer* this,                              \
               VM* vm) {                                                       \
-    vmRealloc(vm, self->data, self->capacity * sizeof(m_type), 0);            \
-    self->data = NULL;                                                        \
-    self->count = 0;                                                          \
-    self->capacity = 0;                                                       \
+    vmRealloc(vm, this->data, this->capacity * sizeof(m_type), 0);            \
+    this->data = NULL;                                                        \
+    this->count = 0;                                                          \
+    this->capacity = 0;                                                       \
   }                                                                           \
                                                                               \
-  void m_name##BufferReserve(m_name##Buffer* self, VM* vm,                    \
+  void m_name##BufferReserve(m_name##Buffer* this, VM* vm,                    \
                                  size_t size) {                               \
-    if (self->capacity < size) {                                              \
+    if (this->capacity < size) {                                              \
       int capacity = utilPowerOf2Ceil((int)size);                             \
       if (capacity < MIN_CAPACITY) capacity = MIN_CAPACITY;                   \
-      self->data = (m_type*) vmRealloc(vm, self->data,                        \
-        self->capacity * sizeof(m_type), capacity * sizeof(m_type));          \
-      self->capacity = capacity;                                              \
+      this->data = (m_type*) vmRealloc(vm, this->data,                        \
+        this->capacity * sizeof(m_type), capacity * sizeof(m_type));          \
+      this->capacity = capacity;                                              \
     }                                                                         \
   }                                                                           \
                                                                               \
-  void m_name##BufferFill(m_name##Buffer* self, VM* vm,                       \
+  void m_name##BufferFill(m_name##Buffer* this, VM* vm,                       \
                               m_type data, int count) {                       \
                                                                               \
-    m_name##BufferReserve(self, vm, self->count + count);                     \
+    m_name##BufferReserve(this, vm, this->count + count);                     \
                                                                               \
     for (int i = 0; i < count; i++) {                                         \
-      self->data[self->count++] = data;                                       \
+      this->data[this->count++] = data;                                       \
     }                                                                         \
   }                                                                           \
                                                                               \
-  void m_name##BufferWrite(m_name##Buffer* self,                              \
+  void m_name##BufferWrite(m_name##Buffer* this,                              \
                                VM* vm, m_type data) {                         \
-    m_name##BufferFill(self, vm, data, 1);                                    \
+    m_name##BufferFill(this, vm, data, 1);                                    \
   }                                                                           \
                                                                               \
-  void m_name##BufferConcat(m_name##Buffer* self, VM* vm,                     \
+  void m_name##BufferConcat(m_name##Buffer* this, VM* vm,                     \
                                 m_name##Buffer* other) {                      \
-    m_name##BufferReserve(self, vm, self->count + other->count);              \
+    m_name##BufferReserve(this, vm, this->count + other->count);              \
                                                                               \
-    memcpy(self->data + self->count,                                          \
+    memcpy(this->data + this->count,                                          \
            other->data,                                                       \
            other->count * sizeof(m_type));                                    \
-    self->count += other->count;                                              \
+    this->count += other->count;                                              \
   }
 
 #endif // __SAYNAA_BUFFERS__

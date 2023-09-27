@@ -28,27 +28,27 @@ function(_dummyInit,
   double val;
   if (!ValidateSlotNumber(vm, 1, &val)) return;
 
-  Dummy* self = (Dummy*) GetSelf(vm);
-  self->val = val;
+  Dummy* this = (Dummy*) GetThis(vm);
+  this->val = val;
 }
 
 function(_dummyGetter, "dummy.Dummy._getter()", "") {
 
   const char* name = GetSlotString(vm, 1, NULL);
-  Dummy* self = (Dummy*)GetSelf(vm);
+  Dummy* this = (Dummy*)GetThis(vm);
   if (strcmp("val", name) == 0) {
-    setSlotNumber(vm, 0, self->val);
+    setSlotNumber(vm, 0, this->val);
     return;
   }
 }
 
 function(_dummySetter, "dummy.Dummy._setter()", "") {
   const char* name = GetSlotString(vm, 1, NULL);
-  Dummy* self = (Dummy*)GetSelf(vm);
+  Dummy* this = (Dummy*)GetThis(vm);
   if (strcmp("val", name) == 0) {
     double val;
     if (!ValidateSlotNumber(vm, 2, &val)) return;
-    self->val = val;
+    this->val = val;
     return;
   }
 }
@@ -56,19 +56,19 @@ function(_dummySetter, "dummy.Dummy._setter()", "") {
 function(_dummyAdd,
   "dummy.Dummy.+(other:dummy.Dummy) -> dummy.Dummy",
   "Adds two dummy instances.") {
-  Dummy* self = (Dummy*) GetSelf(vm);
+  Dummy* this = (Dummy*) GetThis(vm);
 
   reserveSlots(vm, 4); // Now we have slots [0, 1, 2, 3].
 
-  PlaceSelf(vm, 2); // slot[2] = self
+  PlaceThis(vm, 2); // slot[2] = this
   GetClass(vm, 2, 2); // slot[2] = Dummy class.
 
   // slots[1] = other.
   if (!ValidateSlotInstanceOf(vm, 1, 2)) return;
   Dummy* other = (Dummy*) GetSlotNativeInstance(vm, 1);
 
-  // slot[3] = self.val + other.val
-  setSlotNumber(vm, 3, self->val + other->val);
+  // slot[3] = this.val + other.val
+  setSlotNumber(vm, 3, this->val + other->val);
 
   // slot[0] = Dummy(slot[3]) => return value.
   if (!NewInstance(vm, 2, 0, 1, 3)) return;
@@ -79,13 +79,13 @@ function(_dummyEq,
   "Check if two dummy instances are the equal.") {
 
   // TODO: Currently there is no way of getting another native instance
-  // So, it's impossible to check self == other. So for now checking with
+  // So, it's impossible to check this == other. So for now checking with
   // number.
   double value;
   if (!ValidateSlotNumber(vm, 1, &value)) return;
 
-  Dummy* self = (Dummy*)GetSelf(vm);
-  setSlotBool(vm, 0, value == self->val);
+  Dummy* this = (Dummy*)GetThis(vm);
+  setSlotBool(vm, 0, value == this->val);
 }
 
 function(_dummyGt,
@@ -93,13 +93,13 @@ function(_dummyGt,
   "Check if the dummy instance is greater than [other].") {
 
   // TODO: Currently there is no way of getting another native instance
-  // So, it's impossible to check self == other. So for now checking with
+  // So, it's impossible to check this == other. So for now checking with
   // number.
   double value;
   if (!ValidateSlotNumber(vm, 1, &value)) return;
 
-  Dummy* self = (Dummy*)GetSelf(vm);
-  setSlotBool(vm, 0, self->val > value);
+  Dummy* this = (Dummy*)GetThis(vm);
+  setSlotBool(vm, 0, this->val > value);
 }
 
 function(_dummyMethod,

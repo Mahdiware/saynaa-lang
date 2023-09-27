@@ -171,25 +171,25 @@ void initializeModule(VM* vm, Module* module, bool is_main) {
 /* INTERNAL FUNCTIONS                                                        */
 /*****************************************************************************/
 
-String* varToString(VM* vm, Var self, bool repr) {
-  if (IS_OBJ_TYPE(self, OBJ_INST)) {
+String* varToString(VM* vm, Var this, bool repr) {
+  if (IS_OBJ_TYPE(this, OBJ_INST)) {
 
-    // The closure is retrieved from [self] thus, it doesn't need to be push
-    // on the VM's temp references (since [self] should already be protected
+    // The closure is retrieved from [this] thus, it doesn't need to be push
+    // on the VM's temp references (since [this] should already be protected
     // from GC).
     Closure* closure = NULL;
 
     if (!repr) {
-      closure = getMagicMethod(getClass(vm, self), METHOD_STR);
+      closure = getMagicMethod(getClass(vm, this), METHOD_STR);
     }
 
     if (closure == NULL) {
-      closure = getMagicMethod(getClass(vm, self), METHOD_REPR);
+      closure = getMagicMethod(getClass(vm, this), METHOD_REPR);
     }
 
     if (closure != NULL) {
       Var ret = VAR_NULL;
-      Result result = vmCallMethod(vm, self, closure, 0, NULL, &ret);
+      Result result = vmCallMethod(vm, this, closure, 0, NULL, &ret);
       if (result != RESULT_SUCCESS) return NULL;
 
       if (!IS_OBJ_TYPE(ret, OBJ_STRING)) {
@@ -205,8 +205,8 @@ String* varToString(VM* vm, Var self, bool repr) {
     // "fall throught" and call 'toString()' bellow.
   }
 
-  if (repr) return toRepr(vm, self);
-  return toString(vm, self);
+  if (repr) return toRepr(vm, this);
+  return toString(vm, this);
 }
 
 Var varSprintf(VM* vm, String* string, List* args) {
@@ -329,34 +329,34 @@ Var varSprintf(VM* vm, String* string, List* args) {
 // Calls a unary operator overload method. If the method does not exists it'll
 // return false, otherwise it'll call the method and return true. If any error
 // occures it'll set an error.
-static inline bool _callUnaryOpMethod(VM* vm, Var self,
+static inline bool _callUnaryOpMethod(VM* vm, Var this,
                                       const char* method_name, Var* ret) {
   Closure* closure = NULL;
   String* name = newString(vm, method_name);
   vmPushTempRef(vm, &name->_super); // name.
-  bool has_method = hasMethod(vm, self, name, &closure);
+  bool has_method = hasMethod(vm, this, name, &closure);
   vmPopTempRef(vm); // name.
 
   if (!has_method) return false;
 
-  vmCallMethod(vm, self, closure, 0, NULL, ret);
+  vmCallMethod(vm, this, closure, 0, NULL, ret);
   return true;
 }
 
 // Calls a binary operator overload method. If the method does not exists it'll
 // return false, otherwise it'll call the method and return true. If any error
 // occures it'll set an error.
-static inline bool _callBinaryOpMethod(VM* vm, Var self, Var other,
+static inline bool _callBinaryOpMethod(VM* vm, Var this, Var other,
                                       const char* method_name, Var* ret) {
   Closure* closure = NULL;
   String* name = newString(vm, method_name);
   vmPushTempRef(vm, &name->_super); // name.
-  bool has_method = hasMethod(vm, self, name, &closure);
+  bool has_method = hasMethod(vm, this, name, &closure);
   vmPopTempRef(vm); // name.
 
   if (!has_method) return false;
 
-  vmCallMethod(vm, self, closure, 1, &other, ret);
+  vmCallMethod(vm, this, closure, 1, &other, ret);
   return true;
 }
 
@@ -615,7 +615,7 @@ function(coreHex,
   }
 
   // TODO: sprintf limits only to 8 character hex value, we need to do it
-  // outself for a maximum of 16 character long (see bin() for reference).
+  // outthis for a maximum of 16 character long (see bin() for reference).
   uint32_t _x = (uint32_t)((value < 0) ? -value : value);
   int length = sprintf(ptr, "%x", _x);
 
@@ -854,8 +854,8 @@ function(coreEval,
 // ---------------
 
 function(coreListAppend,
-  "list_append(self:List, value:Var) -> List",
-  "Append the [value] to the list [self] and return the list.") {
+  "list_append(this:List, value:Var) -> List",
+  "Append the [value] to the list [this] and return the list.") {
 
   List* list;
   if (!validateArgList(vm, 1, &list)) return;
@@ -866,7 +866,7 @@ function(coreListAppend,
 }
 
 function(coreListJoin,
-  "list_join(self:List [, sep:String=""]) -> String",
+  "list_join(this:List [, sep:String=""]) -> String",
   "Concatinate the elements of the list and return as a string.") {
 
   int argc = ARGC;
@@ -1170,18 +1170,18 @@ static void _ctorFiber(VM* vm) {
 /* BUILTIN CLASS METHODS                                                     */
 /*****************************************************************************/
 
-#define SELF (vm->fiber->self)
+#define THIS (vm->fiber->this)
 
 function(_objTypeName,
   "Object.typename() -> String",
   "Returns the type name of the object.") {
-  RET(VAR_OBJ(newString(vm, varTypeName(SELF))));
+  RET(VAR_OBJ(newString(vm, varTypeName(THIS))));
 }
 
 function(_objRepr,
   "Object._repr() -> String",
   "Returns the repr string of the object.") {
-  RET(VAR_OBJ(toRepr(vm, SELF)));
+  RET(VAR_OBJ(toRepr(vm, THIS)));
 }
 
 function(_objGetattr,
@@ -1194,7 +1194,7 @@ function(_objGetattr,
   if (!validateArgString(vm, 1, &name)) return;
 
   bool skipGetter = (ARGC >= 2 ? toBool(ARG(2)) : false);
-  RET(varGetAttrib(vm, SELF, name, skipGetter));
+  RET(varGetAttrib(vm, THIS, name, skipGetter));
 }
 
 function(_objSetattr,
@@ -1207,7 +1207,7 @@ function(_objSetattr,
   if (!validateArgString(vm, 1, &name)) return;
 
   bool skipSetter = (ARGC >= 3 ? toBool(ARG(3)) : false);
-  varSetAttrib(vm, SELF, name, ARG(2), skipSetter);
+  varSetAttrib(vm, THIS, name, ARG(2), skipSetter);
 }
 
 function(_numberTimes,
@@ -1215,8 +1215,8 @@ function(_numberTimes,
   "Iterate the function [f] n times. Here n is the integral value of the "
   "number. If the number is not an integer the floor value will be taken.") {
 
-  ASSERT(IS_NUM(SELF), OOPS);
-  double n = AS_NUM(SELF);
+  ASSERT(IS_NUM(THIS), OOPS);
+  double n = AS_NUM(THIS);
 
   Closure* closure;
   if (!validateArgClosure(vm, 1, &closure)) return;
@@ -1233,14 +1233,14 @@ function(_numberTimes,
 function(_numberIsint,
     "Number.isint() -> Bool",
     "Returns true if the number is a whold number, otherwise false.") {
-  double n = AS_NUM(SELF);
+  double n = AS_NUM(THIS);
   RET(VAR_BOOL(floor(n) == n));
 }
 
 function(_numberIsbyte,
   "Number.isbyte() -> bool",
   "Returns true if the number is an integer and is between 0x00 and 0xff.") {
-  double n = AS_NUM(SELF);
+  double n = AS_NUM(THIS);
   RET(VAR_BOOL((floor(n) == n) && (0x00 <= n && n <= 0xff)));
 }
 
@@ -1259,21 +1259,21 @@ function(_stringFind,
     if (!validateInteger(vm, ARG(2), &start, "Argument 2")) return;
   }
 
-  String* self = (String*) AS_OBJ(SELF);
+  String* this = (String*) AS_OBJ(THIS);
 
-  if (self->length <= start) {
+  if (this->length <= start) {
     RET(VAR_NUM((double) -1));
   }
 
   // FIXME:  strings can contain \x00 ie. NULL byte and strstr
   // doesn't support them. However strings always ends with a null
   // byte so the match won't go outside of the string.
-  const char* match = strstr(self->data + start, sub->data);
+  const char* match = strstr(this->data + start, sub->data);
 
   if (match == NULL) RET(VAR_NUM((double) -1));
 
-  ASSERT_INDEX(match - self->data, self->capacity);
-  RET(VAR_NUM((double) (match - self->data)));
+  ASSERT_INDEX(match - this->data, this->capacity);
+  RET(VAR_NUM((double) (match - this->data)));
 }
 
 function(_stringReplace,
@@ -1288,7 +1288,7 @@ function(_stringReplace,
   if (!validateArgString(vm, 1, &old)) return;
   if (!validateArgString(vm, 2, &new_)) return;
 
-  String* self = (String*) AS_OBJ(SELF);
+  String* this = (String*) AS_OBJ(THIS);
 
   int64_t count = -1;
   if (ARGC == 3) {
@@ -1298,7 +1298,7 @@ function(_stringReplace,
     }
   }
 
-  RET(VAR_OBJ(stringReplace(vm, self, old, new_, (int32_t) count)));
+  RET(VAR_OBJ(stringReplace(vm, this, old, new_, (int32_t) count)));
 }
 
 function(_stringSplit,
@@ -1309,28 +1309,28 @@ function(_stringSplit,
   String* sep = NULL;
 
   if (ARGC == 1) sep = varToString(vm, ARG(1), false);
-  RET(VAR_OBJ(stringSplit(vm, (String*)AS_OBJ(SELF), sep)));
+  RET(VAR_OBJ(stringSplit(vm, (String*)AS_OBJ(THIS), sep)));
 }
 
 function(_stringStrip,
   "String.strip() -> String",
   "Returns a copy of the string where the leading and trailing whitespace "
   "removed.") {
-  RET(VAR_OBJ(stringStrip(vm, (String*) AS_OBJ(SELF))));
+  RET(VAR_OBJ(stringStrip(vm, (String*) AS_OBJ(THIS))));
 }
 
 function(_stringLower,
   "String.lower() -> String",
   "Returns a copy of the string where all the characters are converted to "
   "lower case letters.") {
-  RET(VAR_OBJ(stringLower(vm, (String*) AS_OBJ(SELF))));
+  RET(VAR_OBJ(stringLower(vm, (String*) AS_OBJ(THIS))));
 }
 
 function(_stringUpper,
   "String.upper() -> String",
   "Returns a copy of the string where all the characters are converted to "
   "upper case letters.") {
-  RET(VAR_OBJ(stringUpper(vm, (String*) AS_OBJ(SELF))));
+  RET(VAR_OBJ(stringUpper(vm, (String*) AS_OBJ(THIS))));
 }
 
 function(_stingStartswith,
@@ -1338,12 +1338,12 @@ function(_stingStartswith,
   "Returns true if the string starts the specified prefix.") {
 
   Var prefix = ARG(1);
-  String* self = (String*) AS_OBJ(SELF);
+  String* this = (String*) AS_OBJ(THIS);
 
   if (IS_OBJ_TYPE(prefix, OBJ_STRING)) {
     String* pre = (String*) AS_OBJ(prefix);
-    if (pre->length > self->length) RET(VAR_FALSE);
-    RET(VAR_BOOL((strncmp(self->data, pre->data, pre->length) == 0)));
+    if (pre->length > this->length) RET(VAR_FALSE);
+    RET(VAR_BOOL((strncmp(this->data, pre->data, pre->length) == 0)));
 
   } else if (IS_OBJ_TYPE(prefix, OBJ_LIST)) {
 
@@ -1354,8 +1354,8 @@ function(_stingStartswith,
         RET_ERR(newString(vm, "Expected a String for prefix."));
       }
       String* pre = (String*) AS_OBJ(pre_var);
-      if (pre->length > self->length) RET(VAR_FALSE);
-      if (strncmp(self->data, pre->data, pre->length) == 0) RET(VAR_TRUE);
+      if (pre->length > this->length) RET(VAR_FALSE);
+      if (strncmp(this->data, pre->data, pre->length) == 0) RET(VAR_TRUE);
     }
     RET(VAR_FALSE);
 
@@ -1369,13 +1369,13 @@ function(_stingEndswith,
   "Returns true if the string ends with the specified suffix.") {
 
   Var suffix = ARG(1);
-  String* self = (String*)AS_OBJ(SELF);
+  String* this = (String*)AS_OBJ(THIS);
 
   if (IS_OBJ_TYPE(suffix, OBJ_STRING)) {
     String* suf = (String*)AS_OBJ(suffix);
-    if (suf->length > self->length) RET(VAR_FALSE);
+    if (suf->length > this->length) RET(VAR_FALSE);
 
-    const char* start = (self->data + (self->length - suf->length));
+    const char* start = (this->data + (this->length - suf->length));
     RET(VAR_BOOL((strncmp(start, suf->data, suf->length) == 0)));
 
   } else if (IS_OBJ_TYPE(suffix, OBJ_LIST)) {
@@ -1387,9 +1387,9 @@ function(_stingEndswith,
         RET_ERR(newString(vm, "Expected a String for suffix."));
       }
       String* suf = (String*)AS_OBJ(suff_var);
-      if (suf->length > self->length) RET(VAR_FALSE);
+      if (suf->length > this->length) RET(VAR_FALSE);
 
-      const char* start = (self->data + (self->length - suf->length));
+      const char* start = (this->data + (this->length - suf->length));
       if (strncmp(start, suf->data, suf->length) == 0) RET(VAR_TRUE);
     }
     RET(VAR_FALSE);
@@ -1403,10 +1403,10 @@ function(_listAppend,
   "List.append(value:Var) -> List",
   "Append the [value] to the list and return the List.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_LIST), OOPS);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
 
-  listAppend(vm, ((List*) AS_OBJ(SELF)), ARG(1));
-  RET(SELF);
+  listAppend(vm, ((List*) AS_OBJ(THIS)), ARG(1));
+  RET(THIS);
 }
 
 function(_listInsert,
@@ -1414,28 +1414,28 @@ function(_listInsert,
   "Insert the element at the given index. The index should be "
   "0 <= index <= list.length.") {
 
-  List* self = (List*)AS_OBJ(SELF);
+  List* this = (List*)AS_OBJ(THIS);
 
   int64_t index;
   if (!validateInteger(vm, ARG(1), &index, "Argument 1")) return;
 
-  if (index < 0 || index > self->elements.count) {
+  if (index < 0 || index > this->elements.count) {
     RET_ERR(newString(vm, "List.insert index out of bounds."));
   }
 
-  listInsert(vm, self, (uint32_t) index, ARG(2));
+  listInsert(vm, this, (uint32_t) index, ARG(2));
 }
 
 function(_listPop,
   "List.pop(index:Number=-1) -> Var",
   "Removes the last element of the list and return it.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_LIST), OOPS);
-  List* self = (List*) AS_OBJ(SELF);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
+  List* this = (List*) AS_OBJ(THIS);
 
   if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
 
-  if (self->elements.count == 0) {
+  if (this->elements.count == 0) {
     RET_ERR(newString(vm, "Cannot pop from an empty list."));
   }
 
@@ -1443,12 +1443,12 @@ function(_listPop,
   if (ARGC == 1) {
     if (!validateInteger(vm, ARG(1), &index, "Argument 1")) return;
   }
-  if (index < 0) index = self->elements.count + index;
+  if (index < 0) index = this->elements.count + index;
 
-  if (index < 0 || index >= self->elements.count) {
+  if (index < 0 || index >= this->elements.count) {
     RET_ERR(newString(vm, "List.pop index out of bounds."));
   }
-  RET(listRemoveAt(vm, self, (uint32_t) index));
+  RET(listRemoveAt(vm, this, (uint32_t) index));
 }
 
 function(_listFind,
@@ -1456,15 +1456,15 @@ function(_listFind,
   "Find the value and return its index. If the vlaue not exists "
   "it'll return -1.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_LIST), OOPS);
-  List* self = (List*)AS_OBJ(SELF);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
+  List* this = (List*)AS_OBJ(THIS);
 
-  Var* it = self->elements.data;
+  Var* it = this->elements.data;
   if (it == NULL) RET(VAR_NUM(-1)); // Empty list.
 
-  for (; it < self->elements.data + self->elements.count; it++) {
+  for (; it < this->elements.data + this->elements.count; it++) {
     if (isValuesEqual(*it, ARG(1))) {
-      RET(VAR_NUM((double) (it - self->elements.data)));
+      RET(VAR_NUM((double) (it - this->elements.data)));
     }
   }
 
@@ -1475,8 +1475,8 @@ function(_listJoin,
   "List.join([sep:String=""]) -> String",
   "Concatinate the elements of the list and return as a string.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_LIST), OOPS);
-  List* list = (List*)AS_OBJ(SELF);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
+  List* list = (List*)AS_OBJ(THIS);
   String* sep = NULL;
 
   if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
@@ -1488,14 +1488,14 @@ function(_listJoin,
 function(_listClear,
   "List.clear() -> Null",
   "Removes all the entries in the list.") {
-  listClear(vm, (List*) AS_OBJ(SELF));
+  listClear(vm, (List*) AS_OBJ(THIS));
 }
 
 function(_mapClear,
   "Map.clear() -> Null",
   "Removes all the entries in the map.") {
-  Map* self = (Map*) AS_OBJ(SELF);
-  mapClear(vm, self);
+  Map* this = (Map*) AS_OBJ(THIS);
+  mapClear(vm, this);
 }
 
 function(_mapGet,
@@ -1507,9 +1507,9 @@ function(_mapGet,
 
   Var default_ = (ARGC == 1) ? VAR_NULL : ARG(2);
 
-  Map* self = (Map*) AS_OBJ(SELF);
+  Map* this = (Map*) AS_OBJ(THIS);
 
-  Var value = mapGet(self, ARG(1));
+  Var value = mapGet(this, ARG(1));
   if (IS_UNDEF(value)) RET(default_);
   RET(value);
 }
@@ -1518,8 +1518,8 @@ function(_mapHas,
   "Map.has(key:Var) -> Bool",
   "Returns true if the key exists.") {
 
-  Map* self = (Map*)AS_OBJ(SELF);
-  Var value = mapGet(self, ARG(1));
+  Map* this = (Map*)AS_OBJ(THIS);
+  Var value = mapGet(this, ARG(1));
   RET(VAR_BOOL(!IS_UNDEF(value)));
 }
 
@@ -1527,8 +1527,8 @@ function(_mapPop,
   "Map.pop(key:Var) -> Var",
   "Pops the value at the key and return it.") {
 
-  Map* self = (Map*)AS_OBJ(SELF);
-  Var value = mapRemoveKey(vm, self, ARG(1));
+  Map* this = (Map*)AS_OBJ(THIS);
+  Var value = mapRemoveKey(vm, this, ARG(1));
   if (IS_UNDEF(value)) {
     RET_ERR(stringFormat(vm, "Key '@' does not exists.", toRepr(vm, ARG(1))));
   }
@@ -1541,38 +1541,38 @@ function(_methodBindBind,
   "method should be a valid method of the instance. ie. the instance's "
   "interitance tree should contain the method.") {
 
-  MethodBind* self = (MethodBind*) AS_OBJ(SELF);
+  MethodBind* this = (MethodBind*) AS_OBJ(THIS);
 
   // We can only bind the method if the instance has that method.
-  String* method_name = newString(vm, self->method->fn->name);
+  String* method_name = newString(vm, this->method->fn->name);
   vmPushTempRef(vm, &method_name->_super); // method_name.
 
   Var instance = ARG(1);
 
   Closure* method;
   if (!hasMethod(vm, instance, method_name, &method)
-                     || method != self->method) {
+                     || method != this->method) {
     VM_SET_ERROR(vm, newString(vm, "Cannot bind method, instance and method "
                                    "types miss-match."));
     return;
   }
 
-  self->instance = instance;
+  this->instance = instance;
   vmPopTempRef(vm); // method_name.
 
-  RET(SELF);
+  RET(THIS);
 }
 
 function(_classMethods,
   "Class.methods() -> List",
   "Returns a list of unbound MethodBind of the class.") {
 
-  Class* self = (Class*) AS_OBJ(SELF);
+  Class* this = (Class*) AS_OBJ(THIS);
 
-  List* list = newList(vm, self->methods.count);
+  List* list = newList(vm, this->methods.count);
   vmPushTempRef(vm, &list->_super); // list.
-  for (int i = 0; i < (int) self->methods.count; i++) {
-    Closure* method = self->methods.data[i];
+  for (int i = 0; i < (int) this->methods.count; i++) {
+    Closure* method = this->methods.data[i];
     ASSERT(method->fn->name, OOPS);
     if (method->fn->name[0] == SPECIAL_NAME_CHAR) continue;
     MethodBind* mb = newMethodBind(vm, method);
@@ -1591,16 +1591,16 @@ function(_moduleGlobals,
   "Returns a list of all the globals in the module. Since classes and "
   "functinos are also globals to a module it'll contain them too.") {
 
-  Module* self = (Module*) AS_OBJ(SELF);
+  Module* this = (Module*) AS_OBJ(THIS);
 
-  List* list = newList(vm, self->globals.count);
+  List* list = newList(vm, this->globals.count);
   vmPushTempRef(vm, &list->_super); // list.
-  for (int i = 0; i < (int) self->globals.count; i++) {
-    if (moduleGetStringAt(self,
-      self->global_names.data[i])->data[0] == SPECIAL_NAME_CHAR) {
+  for (int i = 0; i < (int) this->globals.count; i++) {
+    if (moduleGetStringAt(this,
+      this->global_names.data[i])->data[0] == SPECIAL_NAME_CHAR) {
       continue;
     }
-    listAppend(vm, list, self->globals.data[i]);
+    listAppend(vm, list, this->globals.data[i]);
   }
   vmPopTempRef(vm); // list.
 
@@ -1612,16 +1612,16 @@ function(_fiberRun,
   "Runs the fiber's function with the provided arguments and returns it's "
   "return value or the yielded value if it's yielded.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_FIBER), OOPS);
-  Fiber* self = (Fiber*) AS_OBJ(SELF);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_FIBER), OOPS);
+  Fiber* this = (Fiber*) AS_OBJ(THIS);
 
   // Switch fiber and start execution. New fibers are marked as running in
   // either it's stats running with vmRunFiber() or here -- inserting a
   // fiber over a running (callee) fiber.
-  if (vmPrepareFiber(vm, self, ARGC, &ARG(1))) {
-    self->caller = vm->fiber;
-    vm->fiber = self;
-    self->state = FIBER_RUNNING;
+  if (vmPrepareFiber(vm, this, ARGC, &ARG(1))) {
+    this->caller = vm->fiber;
+    vm->fiber = this;
+    this->state = FIBER_RUNNING;
   }
 }
 
@@ -1630,20 +1630,20 @@ function(_fiberResume,
   "Resumes a yielded function from a previous call of fiber_run() function. "
   "Return it's return value or the yielded value if it's yielded.") {
 
-  ASSERT(IS_OBJ_TYPE(SELF, OBJ_FIBER), OOPS);
-  Fiber* self = (Fiber*) AS_OBJ(SELF);
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_FIBER), OOPS);
+  Fiber* this = (Fiber*) AS_OBJ(THIS);
 
   if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
 
   Var value = (ARGC == 1) ? ARG(1) : VAR_NULL;
 
   // Switch fiber and resume execution.
-  if (vmSwitchFiber(vm, self, &value)) {
-    self->state = FIBER_RUNNING;
+  if (vmSwitchFiber(vm, this, &value)) {
+    this->state = FIBER_RUNNING;
   }
 }
 
-#undef SELF
+#undef THIS
 
 /*****************************************************************************/
 /* BUILTIN CLASS INITIALIZATION                                              */
@@ -1743,7 +1743,7 @@ static void initializePrimitiveClasses(VM* vm) {
 /* OPERATORS                                                                 */
 /*****************************************************************************/
 
-Var preConstructSelf(VM* vm, Class* cls) {
+Var preConstructThis(VM* vm, Class* cls) {
 
 #define NO_INSTANCE(type_name)   \
   VM_SET_ERROR(vm, newString(vm, \
@@ -1857,8 +1857,8 @@ static inline Closure* clsGetMethod(Class* cls, String* name) {
   return NULL;
 }
 
-bool hasMethod(VM* vm, Var self, String* name, Closure** _method) {
-  Class* cls = getClass(vm, self);
+bool hasMethod(VM* vm, Var this, String* name, Closure** _method) {
+  Class* cls = getClass(vm, this);
   ASSERT(cls != NULL, OOPS);
 
   Closure* method_ = clsGetMethod(cls, name);
@@ -1870,24 +1870,24 @@ bool hasMethod(VM* vm, Var self, String* name, Closure** _method) {
   return false;
 }
 
-Var getMethod(VM* vm, Var self, String* name, bool* is_method) {
+Var getMethod(VM* vm, Var this, String* name, bool* is_method) {
 
   Closure* method;
-  if (hasMethod(vm, self, name, &method)) {
+  if (hasMethod(vm, this, name, &method)) {
     if (is_method) *is_method = true;
     return VAR_OBJ(method);
   }
 
   // If the attribute not found it'll set an error.
   if (is_method) *is_method = false;
-  return varGetAttrib(vm, self, name, false);
+  return varGetAttrib(vm, this, name, false);
 }
 
-Closure* getSuperMethod(VM* vm, Var self, String* name) {
-  Class* super = getClass(vm, self)->super_class;
+Closure* getSuperMethod(VM* vm, Var this, String* name) {
+  Class* super = getClass(vm, this)->super_class;
   if (super == NULL) {
     VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no parent class.", \
-                 varTypeName(self)));
+                 varTypeName(this)));
     return NULL;
   };
 
@@ -1971,27 +1971,27 @@ Closure* getSuperMethod(VM* vm, Var self, String* name) {
 
 Var varPositive(VM* vm, Var v) {
   double n; if (isNumeric(v, &n)) return v;
-  CHECK_INST_UNARY_OP("+self");
+  CHECK_INST_UNARY_OP("+this");
   UNSUPPORTED_UNARY_OP("unary +");
   return VAR_NULL;
 }
 
 Var varNegative(VM* vm, Var v) {
   double n; if (isNumeric(v, &n)) return VAR_NUM(-AS_NUM(v));
-  CHECK_INST_UNARY_OP("-self");
+  CHECK_INST_UNARY_OP("-this");
   UNSUPPORTED_UNARY_OP("unary -");
   return VAR_NULL;
 }
 
 Var varNot(VM* vm, Var v) {
-  CHECK_INST_UNARY_OP("!self");
+  CHECK_INST_UNARY_OP("!this");
   return VAR_BOOL(!toBool(v));
 }
 
 Var varBitNot(VM* vm, Var v) {
   int64_t i;
   if (isInteger(v, &i)) return VAR_NUM((double)(~i));
-  CHECK_INST_UNARY_OP("~self");
+  CHECK_INST_UNARY_OP("~this");
   UNSUPPORTED_UNARY_OP("unary ~");
   return VAR_NULL;
 }

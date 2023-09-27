@@ -5,29 +5,29 @@ from types import ByteBuffer
 ## and run.
 class Config
   function _init()
-    self.title = null
-    self.fps = 60
-    self.hide_cursor = false
-    self.capture_events = false
-    self.new_buffer = false
-    self.init_fn = null
-    self.event_fn = null
-    self.frame_fn = null
-    self.cleanup_fn = null
+    this.title = null
+    this.fps = 60
+    this.hide_cursor = false
+    this.capture_events = false
+    this.new_buffer = false
+    this.init_fn = null
+    this.event_fn = null
+    this.frame_fn = null
+    this.cleanup_fn = null
   end
 end
 ## Interlan context contains draw buffer and other data.
 class _Context
   function _init()
-    self.buff = ByteBuffer()
-    self.clear()
+    this.buff = ByteBuffer()
+    this.clear()
   end
 
   ## Called to reset all the internal for reusing the context.
   function clear()
-    self.config = null
-    self.buff.clear()
-    self.done = false ## If true the main loop ends.
+    this.config = null
+    this.buff.clear()
+    this.done = false ## If true the main loop ends.
   end
 end
 ## Internal global context.

@@ -180,10 +180,10 @@ function(_fileOpen,
   FILE* fp = fopen(path, mode_str);
 
   if (fp != NULL) {
-    File* self = (File*) GetSelf(vm);
-    self->fp = fp;
-    self->mode = mode;
-    self->closed = false;
+    File* this = (File*) GetThis(vm);
+    this->fp = fp;
+    this->mode = mode;
+    this->closed = false;
 
   } else {
     SetRuntimeError(vm, "Error opening the file.");
@@ -217,7 +217,7 @@ function(_fileRead,
     count = (long) count_;
   }
 
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
 
   if (file->closed) {
     SetRuntimeError(vm, "Cannot read from a closed file.");
@@ -281,7 +281,7 @@ function(_fileGetLine,
   "io.File.getline() -> String",
   "Reads a line from the file and return it as string. This function can only "
   "be used for files that are opened with text mode.") {
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
 
   if (file->closed) {
     SetRuntimeError(vm, "Cannot read from a closed file.");
@@ -336,7 +336,7 @@ function(_fileWrite,
   "Write the [data] to the file. Since string support any valid"
   "byte value in it's string, binary data can also be written with strings.") {
 
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
   const char* text; uint32_t length;
   if (!ValidateSlotString(vm, 1, &text, &length)) return;
 
@@ -364,7 +364,7 @@ function(_fileClose,
   "io.File.close()",
   "Closes the opend file.") {
 
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
 
   if (file->closed) {
     ASSERT(file->fp == NULL, OOPS);
@@ -403,7 +403,7 @@ function(_fileSeek,
     }
   }
 
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
 
   if (file->closed) {
     SetRuntimeError(vm, "Cannot seek from a closed file.");
@@ -419,7 +419,7 @@ function(_fileSeek,
 function(_fileTell,
   "io.File.tell() -> Number",
   "Returns the read/write position of the file.") {
-  File* file = (File*) GetSelf(vm);
+  File* file = (File*) GetThis(vm);
 
   if (file->closed) {
     SetRuntimeError(vm, "Cannot tell from a closed file.");

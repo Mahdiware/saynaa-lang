@@ -47,7 +47,6 @@ typedef enum {
   TK_STAR,       // *
   TK_FSLASH,     // /
   TK_STARSTAR,   // **
-  TK_BSLASH,     // \.
   TK_QUESTION,   // ?
   TK_EQ,         // =
   TK_GT,         // >
@@ -92,7 +91,7 @@ typedef enum {
   TK_NOT,        // not / !
   TK_TRUE,       // true
   TK_FALSE,      // false
-  TK_SELF,       // self
+  TK_THIS,       // this
   TK_SUPER,      // super
 
   TK_DO,         // do
@@ -157,7 +156,7 @@ static _Keyword _keywords[] =  {
   { "not",      3, TK_NOT      },
   { "true",     4, TK_TRUE     },
   { "false",    5, TK_FALSE    },
-  { "self",     4, TK_SELF     },
+  { "this",     4, TK_THIS     },
   { "super",    5, TK_SUPER    },
   { "do",       2, TK_DO       },
   { "then",     4, TK_THEN     },
@@ -1607,10 +1606,10 @@ static void exprAttrib(Compiler* compiler);
 static void exprSubscript(Compiler* compiler);
 static void exprIf(Compiler* compiler);
 
-// true, false, null, self.
+// true, false, null, this.
 static void exprValue(Compiler* compiler);
 
-static void exprSelf(Compiler* compiler);
+static void exprThis(Compiler* compiler);
 static void exprSuper(Compiler* compiler);
 
 #define NO_RULE          { NULL,          NULL,           PREC_NONE }
@@ -1643,7 +1642,6 @@ GrammarRule rules[] = { // Prefix         Infix           Infix Precedence
   /* TK_STAR        */ { NULL,          exprBinaryOp,   PREC_FACTOR },
   /* TK_FSLASH      */ { NULL,          exprBinaryOp,   PREC_FACTOR },
   /* TK_STARSTAR    */ { NULL,          exprBinaryOp,   PREC_EXPONENT },
-  /* TK_BSLASH      */   NO_RULE,
   /* TK_QUESTION    */ { NULL,          exprConditional,  PREC_CONDITIONAL },
   /* TK_EQ          */   NO_RULE,
   /* TK_GT          */ { NULL,          exprBinaryOp,   PREC_COMPARISION },
@@ -1680,7 +1678,7 @@ GrammarRule rules[] = { // Prefix         Infix           Infix Precedence
   /* TK_NOT         */ { exprUnaryOp,   NULL,           NO_INFIX },
   /* TK_TRUE        */ { exprValue,     NULL,           NO_INFIX },
   /* TK_FALSE       */ { exprValue,     NULL,           NO_INFIX },
-  /* TK_SELF        */ { exprSelf,      NULL,           NO_INFIX },
+  /* TK_THIS        */ { exprThis,      NULL,           NO_INFIX },
   /* TK_SUPER       */ { exprSuper,     NULL,           NO_INFIX },
   /* TK_DO          */   NO_RULE,
   /* TK_THEN        */   NO_RULE,
@@ -2334,24 +2332,24 @@ static void exprValue(Compiler* compiler) {
   }
 }
 
-static void exprSelf(Compiler* compiler) {
+static void exprThis(Compiler* compiler) {
 
   if (compiler->func->type == FUNC_CONSTRUCTOR ||
       compiler->func->type == FUNC_METHOD) {
-    emitOpcode(compiler, OP_PUSH_SELF);
+    emitOpcode(compiler, OP_PUSH_THIS);
     return;
   }
 
-  // If we reach here 'self' is used in either non method or a closure
+  // If we reach here 'this' is used in either non method or a closure
   // inside a method.
 
   if (!compiler->parser.parsing_class) {
     semanticError(compiler, compiler->parser.previous,
-                  "Invalid use of 'self'.");
+                  "Invalid use of 'this'.");
   } else {
     // FIXME:
     semanticError(compiler, compiler->parser.previous,
-                  "TODO: Closures cannot capture 'self' for now.");
+                  "TODO: Closures cannot capture 'this' for now.");
   }
 }
 
@@ -2385,7 +2383,7 @@ static void exprSuper(Compiler* compiler) {
 
   if (compiler->parser.has_syntax_error) return;
 
-  emitOpcode(compiler, OP_PUSH_SELF);
+  emitOpcode(compiler, OP_PUSH_THIS);
   moduleAddString(compiler->module, compiler->parser.vm,
                   name, name_length, &index);
   _compileCall(compiler, OP_SUPER_CALL, index);
@@ -2789,23 +2787,23 @@ static bool matchOperatorMethod(Compiler* compiler,
   } while (false)
 
   if (match(compiler, TK_PLUS)) {
-    if (match(compiler, TK_SELF)) _RET("+self", 0);
+    if (match(compiler, TK_THIS)) _RET("+this", 0);
     else _RET("+", 1);
   }
   if (match(compiler, TK_MINUS)) {
-    if (match(compiler, TK_SELF)) _RET("-self", 0);
+    if (match(compiler, TK_THIS)) _RET("-this", 0);
     else _RET("-", 1);
   }
   if (match(compiler, TK_TILD)){
-    if (match(compiler, TK_SELF)) _RET("~self", 0);
+    if (match(compiler, TK_THIS)) _RET("~this", 0);
     syntaxError(compiler, compiler->parser.previous,
-                "Expected keyword self for unary operator definition.");
+                "Expected keyword this for unary operator definition.");
     return false;
   }
   if (match(compiler, TK_NOT)) {
-    if (match(compiler, TK_SELF)) _RET("!self", 0);
+    if (match(compiler, TK_THIS)) _RET("!this", 0);
     syntaxError(compiler, compiler->parser.previous,
-                "Expected keyword self for unary operator definition.");
+                "Expected keyword this for unary operator definition.");
     return false;
   }
   if (match(compiler, TK_LBRACKET)) {
@@ -2981,7 +2979,7 @@ static void compileFunction(Compiler* compiler, FuncType fn_type) {
   compileBlockBody(compiler, BLOCK_FUNC);
 
   if (fn_type == FUNC_CONSTRUCTOR) {
-    emitOpcode(compiler, OP_PUSH_SELF);
+    emitOpcode(compiler, OP_PUSH_THIS);
     emitOpcode(compiler, OP_RETURN);
   }
 
@@ -3412,9 +3410,9 @@ static void compileStatement(Compiler* compiler) {
 
     if (matchEndStatement(compiler)) {
 
-      // Constructors will return self.
+      // Constructors will return this.
       if (compiler->func->type == FUNC_CONSTRUCTOR) {
-        emitOpcode(compiler, OP_PUSH_SELF);
+        emitOpcode(compiler, OP_PUSH_THIS);
       } else {
         emitOpcode(compiler, OP_PUSH_NULL);
       }

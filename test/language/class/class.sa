@@ -1,22 +1,22 @@
 
 class Vec2
   function _init(x, y)
-    self.x = x; self.y = y
+    this.x = x; this.y = y
   end
   function _str
-    return "<${self.x}, ${self.y}>"
+    return "<${this.x}, ${this.y}>"
   end
   function +(other)
-    return Vec2(self.x + other.x,
-                self.y + other.y)
+    return Vec2(this.x + other.x,
+                this.y + other.y)
   end
   function +=(other)
-    self.x += other.x
-    self.y += other.y
-    return self
+    this.x += other.x
+    this.y += other.y
+    return this
   end
   function ==(other)
-    return self.x == other.x and self.y == other.y
+    return this.x == other.x and this.y == other.y
   end
 end
 
@@ -38,19 +38,19 @@ assert(v1 == v3)
 
 class Path
   function _init(path)
-    self.path = path
+    this.path = path
   end
   function /(other)
     if other is String
-      return Path(self.path + "/" + other)
+      return Path(this.path + "/" + other)
     elif other is Path
-      return Path(self.path + "/" + other.path)
+      return Path(this.path + "/" + other.path)
     else
       assert(false, "Invalid type")
     end
   end
   function _str
-    return self.path
+    return this.path
   end
 end
 
@@ -62,38 +62,38 @@ assert(str(local/"lib") == "/usr/local/lib")
 
 class N
   function _init(val)
-    self.val = val
+    this.val = val
   end
   function _str()
-    return "N(${self.val})"
+    return "N(${this.val})"
   end
   function +(other)
-    return N(self.val + other.val)
+    return N(this.val + other.val)
   end
   function +=(other)
-    self.val += other.val
-    return self
+    this.val += other.val
+    return this
   end
   function %=(num)
-    self.val %= num
-    return self
+    this.val %= num
+    return this
   end
   function ==(other)
-    return self.val == other.val
+    return this.val == other.val
   end
   function <<(num)
-    self.val *= 10
-    self.val += num
-    return self
+    this.val *= 10
+    this.val += num
+    return this
   end
   function >>(other)
-    other.val = self.val % 10
-    self.val = (self.val - other.val) / 10
+    other.val = this.val % 10
+    this.val = (this.val - other.val) / 10
   end
   
-  function !self()
-    self.val -= 1
-    return self.val + 1
+  function !this()
+    this.val -= 1
+    return this.val + 1
   end
 end
 

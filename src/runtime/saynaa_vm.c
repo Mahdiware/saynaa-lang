@@ -227,9 +227,9 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
   ASSERT(fiber->frame_count == 1, OOPS);
   ASSERT(fiber->frames[0].rbp == fiber->ret, OOPS);
 
-  // Capture self.
-  fiber->frames[0].self = fiber->self;
-  fiber->self = VAR_UNDEFINED;
+  // Capture this.
+  fiber->frames[0].this = fiber->this;
+  fiber->this = VAR_UNDEFINED;
 
   // On success return true.
   return true;
@@ -287,13 +287,13 @@ void vmYieldFiber(VM* vm, Var* value) {
   vm->fiber = caller;
 }
 
-Result vmCallMethod(VM* vm, Var self, Closure* fn,
+Result vmCallMethod(VM* vm, Var this, Closure* fn,
                       int argc, Var* argv, Var* ret) {
   ASSERT(argc >= 0, "argc cannot be negative.");
   ASSERT(argc == 0 || argv != NULL, "argv was NULL when argc > 0.");
 
   Fiber* fiber = newFiber(vm, fn);
-  fiber->self = self;
+  fiber->this = this;
   fiber->native = vm->fiber;
   vmPushTempRef(vm, &fiber->_super); // fiber.
   bool success = vmPrepareFiber(vm, fiber, argc, argv);
@@ -338,7 +338,7 @@ Result vmCallMethod(VM* vm, Var self, Closure* fn,
 Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret) {
 
   // Calling functions and methods are the same, except for the methods have
-  // self defined, and for functions it'll be VAR_UNDEFINED.
+  // this defined, and for functions it'll be VAR_UNDEFINED.
   return vmCallMethod(vm, VAR_UNDEFINED, fn, argc, argv, ret);
 }
 
@@ -633,9 +633,9 @@ static inline void pushCallFrame(VM* vm, const Closure* closure) {
   frame->closure = closure;
   frame->ip = closure->fn->fn->opcodes.data;
 
-  // Capture self.
-  frame->self = vm->fiber->self;
-  vm->fiber->self = VAR_UNDEFINED;
+  // Capture this.
+  frame->this = vm->fiber->this;
+  vm->fiber->this = VAR_UNDEFINED;
 }
 
 static inline void reuseCallFrame(VM* vm, const Closure* closure) {
@@ -650,9 +650,9 @@ static inline void reuseCallFrame(VM* vm, const Closure* closure) {
   frame->closure = closure;
   frame->ip = closure->fn->fn->opcodes.data;
 
-  // Capture self.
-  frame->self = vm->fiber->self;
-  vm->fiber->self = VAR_UNDEFINED;
+  // Capture this.
+  frame->this = vm->fiber->this;
+  vm->fiber->this = VAR_UNDEFINED;
 
   ASSERT(*frame->rbp == VAR_NULL, OOPS);
 
@@ -786,7 +786,7 @@ Result vmRunFiber(VM* vm, Fiber* fiber_) {
   register const uint8_t* ip;
 
   register Var* rbp;         //< Stack base pointer register.
-  register Var* self;        //< Points to the self in the current call frame.
+  register Var* this;        //< Points to the this in the current call frame.
   register CallFrame* frame; //< Current call frame.
   register Module* module;   //< Currently executing module.
   register Fiber* fiber = fiber_;
@@ -848,7 +848,7 @@ Result vmRunFiber(VM* vm, Fiber* fiber_) {
     frame = &fiber->frames[fiber->frame_count-1];  \
     ip = frame->ip;                                \
     rbp = frame->rbp;                              \
-    self = &frame->self;                           \
+    this = &frame->this;                           \
     module = frame->closure->fn->owner;            \
   } while (false)
 
@@ -939,9 +939,9 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(PUSH_SELF):
+    OPCODE(PUSH_THIS):
     {
-      PUSH(*self);
+      PUSH(*this);
       DISPATCH();
     }
 
@@ -1195,10 +1195,10 @@ L_vm_main_loop:
     OPCODE(SUPER_CALL):
         argc = READ_BYTE();
         fiber->ret = (fiber->sp - argc - 1);
-        fiber->self = *fiber->ret; //< Self for the next call.
+        fiber->this = *fiber->ret; //< This for the next call.
         index = READ_SHORT();
         name = moduleGetStringAt(module, (int)index);
-        Closure* super_method = getSuperMethod(vm, fiber->self, name);
+        Closure* super_method = getSuperMethod(vm, fiber->this, name);
         CHECK_ERROR(); // Will return if super_method is NULL.
         callable = VAR_OBJ(super_method);
       goto L_do_call;
@@ -1207,11 +1207,11 @@ L_vm_main_loop:
     {
       argc = READ_BYTE();
       fiber->ret = (fiber->sp - argc - 1);
-      fiber->self = *fiber->ret; //< Self for the next call.
+      fiber->this = *fiber->ret; //< This for the next call.
 
       index = READ_SHORT();
       name = moduleGetStringAt(module, (int)index);
-      callable = getMethod(vm, fiber->self, name, NULL);
+      callable = getMethod(vm, fiber->this, name, NULL);
       CHECK_ERROR();
       goto L_do_call;
     }
@@ -1240,25 +1240,25 @@ L_do_call:
           RUNTIME_ERROR(newString(vm, "Cannot call an unbound method."));
           CHECK_ERROR();
         }*/
-        fiber->self = mb->instance;
+        fiber->this = mb->instance;
         closure = mb->method;
 
       } else if (IS_OBJ_TYPE(callable, OBJ_CLASS)) {
         Class* cls = (Class*)AS_OBJ(callable);
 
-        // Allocate / create a new self before calling constructor on it.
-        fiber->self = preConstructSelf(vm, cls);
+        // Allocate / create a new this before calling constructor on it.
+        fiber->this = preConstructThis(vm, cls);
         CHECK_ERROR();
 
         // Note:
-        // For instance the constructor will update self and return
+        // For instance the constructor will update this and return
         // the instance (which might not be necessary since we're setting it
         // here).
-        *fiber->ret = fiber->self;
+        *fiber->ret = fiber->this;
 
         closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
 
-        // No constructor is defined on the class. Just return self.
+        // No constructor is defined on the class. Just return this.
         if (closure == NULL) {
           if (argc != 0) {
             String* msg = stringFormat(vm, "Expected exactly 0 argument(s) "
@@ -1266,7 +1266,7 @@ L_do_call:
             RUNTIME_ERROR(msg);
           }
 
-          fiber->self = VAR_UNDEFINED;
+          fiber->this = VAR_UNDEFINED;
           DISPATCH();
         }
 
@@ -1285,7 +1285,7 @@ L_do_call:
                         varTypeName(callable)));
 
         } else {
-          fiber->self = callable;
+          fiber->this = callable;
         }
       }
 
@@ -1566,9 +1566,9 @@ L_do_call:
     OPCODE(POSITIVE):
     {
       // Don't pop yet, we need the reference for gc.
-      Var self_ = PEEK(-1);
-      Var result = varPositive(vm, self_);
-      DROP(); // self
+      Var this_ = PEEK(-1);
+      Var result = varPositive(vm, this_);
+      DROP(); // this
       PUSH(result);
 
       CHECK_ERROR();
@@ -1580,7 +1580,7 @@ L_do_call:
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varNegative(vm, v);
-      DROP(); // self
+      DROP(); // this
       PUSH(result);
 
       CHECK_ERROR();
@@ -1592,7 +1592,7 @@ L_do_call:
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varNot(vm, v);
-      DROP(); // self
+      DROP(); // this
       PUSH(result);
 
       CHECK_ERROR();
@@ -1604,7 +1604,7 @@ L_do_call:
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varBitNot(vm, v);
-      DROP(); // self
+      DROP(); // this
       PUSH(result);
 
       CHECK_ERROR();

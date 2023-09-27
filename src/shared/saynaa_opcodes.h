@@ -42,8 +42,8 @@ OPCODE(PUSH_LIST, 2, 1)
 // Push a new map to construct from literal.
 OPCODE(PUSH_MAP, 0, 1)
 
-// Push the self of the current method on the stack.
-OPCODE(PUSH_SELF, 0, 1)
+// Push the this of the current method on the stack.
+OPCODE(PUSH_THIS, 0, 1)
 
 // Pop the value on the stack the next stack top would be a list. Append the
 // value to the list. Used in literal array construction.

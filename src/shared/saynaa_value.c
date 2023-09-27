@@ -36,15 +36,15 @@ DEFINE_BUFFER(Var, Var)
 DEFINE_BUFFER(String, String*)
 DEFINE_BUFFER(Closure, Closure*)
 
-void ByteBufferAddString(ByteBuffer* self, VM* vm, const char* str,
+void ByteBufferAddString(ByteBuffer* this, VM* vm, const char* str,
                            uint32_t length) {
-  ByteBufferReserve(self, vm, (size_t) self->count + length);
+  ByteBufferReserve(this, vm, (size_t) this->count + length);
   for (uint32_t i = 0; i < length; i++) {
-    self->data[self->count++] = *(str++);
+    this->data[this->count++] = *(str++);
   }
 }
 
-void ByteBufferAddStringFmt(ByteBuffer* self, VM* vm,
+void ByteBufferAddStringFmt(ByteBuffer* this, VM* vm,
                               const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -54,23 +54,23 @@ void ByteBufferAddStringFmt(ByteBuffer* self, VM* vm,
   int length = vsnprintf(NULL, 0, fmt, copy);
   va_end(copy);
 
-  ByteBufferReserve(self, vm, self->count + (size_t) length + 1);
-  vsnprintf((char *)(self->data + self->count),
-            self->capacity - self->count, fmt, args);
-  self->count += length;
+  ByteBufferReserve(this, vm, this->count + (size_t) length + 1);
+  vsnprintf((char *)(this->data + this->count),
+            this->capacity - this->count, fmt, args);
+  this->count += length;
   va_end(args);
 }
 
-void varInitObject(Object* self, VM* vm, ObjectType type) {
-  self->type = type;
-  self->is_marked = false;
-  self->next = vm->first;
-  vm->first = self;
+void varInitObject(Object* this, VM* vm, ObjectType type) {
+  this->type = type;
+  this->is_marked = false;
+  this->next = vm->first;
+  vm->first = this;
 }
 
-void markObject(VM* vm, Object* self) {
-  if (self == NULL || self->is_marked) return;
-  self->is_marked = true;
+void markObject(VM* vm, Object* this) {
+  if (this == NULL || this->is_marked) return;
+  this->is_marked = true;
 
   // Add the object to the VM's working_set so that we can recursively mark
   // its referenced objects later.
@@ -82,32 +82,32 @@ void markObject(VM* vm, Object* self) {
                                     vm->config.user_data);
   }
 
-  vm->working_set[vm->working_set_count++] = self;
+  vm->working_set[vm->working_set_count++] = this;
 }
 
-void markValue(VM* vm, Var self) {
-  if (!IS_OBJ(self)) return;
-  markObject(vm, AS_OBJ(self));
+void markValue(VM* vm, Var this) {
+  if (!IS_OBJ(this)) return;
+  markObject(vm, AS_OBJ(this));
 }
 
-void markVarBuffer(VM* vm, VarBuffer* self) {
-  if (self == NULL) return;
-  for (uint32_t i = 0; i < self->count; i++) {
-    markValue(vm, self->data[i]);
+void markVarBuffer(VM* vm, VarBuffer* this) {
+  if (this == NULL) return;
+  for (uint32_t i = 0; i < this->count; i++) {
+    markValue(vm, this->data[i]);
   }
 }
 
-void markStringBuffer(VM* vm, StringBuffer* self) {
-  if (self == NULL) return;
-  for (uint32_t i = 0; i < self->count; i++) {
-    markObject(vm, &self->data[i]->_super);
+void markStringBuffer(VM* vm, StringBuffer* this) {
+  if (this == NULL) return;
+  for (uint32_t i = 0; i < this->count; i++) {
+    markObject(vm, &this->data[i]->_super);
   }
 }
 
-void markClosureBuffer(VM* vm, ClosureBuffer* self) {
-  if (self == NULL) return;
-  for (uint32_t i = 0; i < self->count; i++) {
-    markObject(vm, &self->data[i]->_super);
+void markClosureBuffer(VM* vm, ClosureBuffer* this) {
+  if (this == NULL) return;
+  for (uint32_t i = 0; i < this->count; i++) {
+    markObject(vm, &this->data[i]->_super);
   }
 }
 
@@ -231,7 +231,7 @@ static void popMarkedObjectsInternal(Object* obj, VM* vm) {
       // Mark call frames.
       for (int i = 0; i < fiber->frame_count; i++) {
         markObject(vm, (Object*)&fiber->frames[i].closure->_super);
-        markValue(vm, fiber->frames[i].self);
+        markValue(vm, fiber->frames[i].this);
       }
       vm->bytes_allocated += sizeof(CallFrame) * fiber->frame_capacity;
 
@@ -239,7 +239,7 @@ static void popMarkedObjectsInternal(Object* obj, VM* vm) {
       markObject(vm, &fiber->native->_super);
       markObject(vm, &fiber->error->_super);
 
-      markValue(vm, fiber->self);
+      markValue(vm, fiber->this);
 
     } break;
 
@@ -500,7 +500,7 @@ Fiber* newFiber(VM* vm, Closure* closure) {
   }
 
   fiber->open_upvalues = NULL;
-  fiber->self = VAR_UNDEFINED;
+  fiber->this = VAR_UNDEFINED;
 
   // Initialize the return value to null (doesn't really have to do that here
   // but if we're trying to debut it may crash when dumping the return value).
@@ -579,21 +579,21 @@ Instance* newInstance(VM* vm, Class* cls) {
   return inst;
 }
 
-List* rangeAsList(VM* vm, Range* self) {
+List* rangeAsList(VM* vm, Range* this) {
 
-  if (self->from < self->to) {
-    List* list = newList(vm, (uint32_t)(self->to - self->from));
+  if (this->from < this->to) {
+    List* list = newList(vm, (uint32_t)(this->to - this->from));
     vmPushTempRef(vm, &list->_super); // list.
-    for (double i = self->from; i < self->to; i++) {
+    for (double i = this->from; i < this->to; i++) {
       VarBufferWrite(&list->elements, vm, VAR_NUM(i));
     }
     vmPopTempRef(vm); // list.
 
     return list;
   }else{
-    List* list = newList(vm, (uint32_t)(self->from - self->to));
+    List* list = newList(vm, (uint32_t)(this->from - this->to));
     vmPushTempRef(vm, &list->_super); // list.
-    for (double i = self->from; i > self->to; i--) {
+    for (double i = this->from; i > this->to; i--) {
       VarBufferWrite(&list->elements, vm, VAR_NUM(i));
     }
     vmPopTempRef(vm); // list.
@@ -602,15 +602,15 @@ List* rangeAsList(VM* vm, Range* self) {
   }
 }
 
-double rangeLength(VM* vm, Range* self) {
+double rangeLength(VM* vm, Range* this) {
   double length = 0;
 
-  if (self->from < self->to) {
-    for (double i = self->from; i < self->to; i++) {
+  if (this->from < this->to) {
+    for (double i = this->from; i < this->to; i++) {
       length++;
     }
   }else{
-    for (double i = self->from; i > self->to; i--) {
+    for (double i = this->from; i > this->to; i--) {
       length++;
     }
   }
@@ -618,17 +618,17 @@ double rangeLength(VM* vm, Range* self) {
   return length;
 }
 
-String* stringLower(VM* vm, String* self) {
+String* stringLower(VM* vm, String* this) {
   // If the string itself is already lower, don't allocate new string.
   uint32_t index = 0;
-  for (const char* c = self->data; *c != '\0'; c++, index++) {
+  for (const char* c = this->data; *c != '\0'; c++, index++) {
     if (isupper(*c)) {
 
       // It contain upper case letters, allocate new lower case string .
-      String* lower = newStringLength(vm, self->data, self->length);
+      String* lower = newStringLength(vm, this->data, this->length);
 
       // Start where the first upper case letter found.
-      char* _c = lower->data + (c - self->data);
+      char* _c = lower->data + (c - this->data);
       for (; *_c != '\0'; _c++) *_c = (char) tolower(*_c);
 
       // Since the string is modified re-hash it.
@@ -637,19 +637,19 @@ String* stringLower(VM* vm, String* self) {
     }
   }
   // If we reached here the string itself is lower, return it.
-  return self;
+  return this;
 }
 
-String* stringUpper(VM* vm, String* self) {
+String* stringUpper(VM* vm, String* this) {
   // If the string itself is already upper don't allocate new string.
   uint32_t index = 0;
-  for (const char* c = self->data; *c != '\0'; c++, index++) {
+  for (const char* c = this->data; *c != '\0'; c++, index++) {
     if (islower(*c)) {
       // It contain lower case letters, allocate new upper case string .
-      String* upper = newStringLength(vm, self->data, self->length);
+      String* upper = newStringLength(vm, this->data, this->length);
 
       // Start where the first lower case letter found.
-      char* _c = upper->data + (c - self->data);
+      char* _c = upper->data + (c - this->data);
       for (; *_c != '\0'; _c++) *_c = (char) toupper(*_c);
 
       // Since the string is modified re-hash it.
@@ -658,10 +658,10 @@ String* stringUpper(VM* vm, String* self) {
     }
   }
   // If we reached here the string itself is lower, return it.
-  return self;
+  return this;
 }
 
-String* stringStrip(VM* vm, String* self) {
+String* stringStrip(VM* vm, String* this) {
 
   // Implementation:
   //
@@ -673,7 +673,7 @@ String* stringStrip(VM* vm, String* self) {
   // length of (end - start + 1). For already trimmed string it'll not allocate
   // a new string, instead returns the same string provided.
 
-  const char* start = self->data;
+  const char* start = this->data;
   while (*start && isspace(*start)) start++;
 
   // If we reached the end of the string, it's all white space, return
@@ -682,24 +682,24 @@ String* stringStrip(VM* vm, String* self) {
     return newStringLength(vm, NULL, 0);
   }
 
-  const char* end = self->data + self->length - 1;
+  const char* end = this->data + this->length - 1;
   while (isspace(*end)) end--;
 
   // If the string is already trimmed, return the same string.
-  if (start == self->data && end == self->data + self->length - 1) {
-    return self;
+  if (start == this->data && end == this->data + this->length - 1) {
+    return this;
   }
 
   return newStringLength(vm, start, (uint32_t)(end - start + 1));
 }
 
-String* stringReplace(VM* vm, String* self,
+String* stringReplace(VM* vm, String* this,
                       String* old, String* new_, int32_t count) {
   // The algorithm:
   //
   // We'll first deduce the maximum possible occurence of the old string.
   //
-  //   max_count = floor(self.length / old.length)
+  //   max_count = floor(this.length / old.length)
   //
   // If count == -1 we'll set it to max_count, otherwise we can update our
   // count as follows.
@@ -708,8 +708,8 @@ String* stringReplace(VM* vm, String* self,
   //
   // Now we know the maximum possible length of the new string.
   //
-  //   length = max(self.length,
-  //                self.length + (new.length - old.length) * count)
+  //   length = max(this.length,
+  //                this.length + (new.length - old.length) * count)
   //
   // Finally we use "C" functions strstr() and memcpy() to find and replace.
 
@@ -719,10 +719,10 @@ String* stringReplace(VM* vm, String* self,
   ASSERT(count >= 0 || count == -1, OOPS);
 
   // Optimize case.
-  if (self->length == 0 || old->length == 0 || count == 0) return self;
-  if (IS_STR_EQ(old, new_)) return self;
+  if (this->length == 0 || old->length == 0 || count == 0) return this;
+  if (IS_STR_EQ(old, new_)) return this;
 
-  int32_t max_count = self->length / old->length;
+  int32_t max_count = this->length / old->length;
   count = (count == -1)
     ? max_count
     : _MIN(count, max_count);
@@ -730,13 +730,13 @@ String* stringReplace(VM* vm, String* self,
   // TODO: New length can be overflow if the string is too large
   // we should handle it here.
 
-  uint32_t length = _MAX(self->length,
-                    self->length + (new_->length - old->length) * count);
+  uint32_t length = _MAX(this->length,
+                    this->length + (new_->length - old->length) * count);
 
-  String* replaced = self; // Will be allocated if any match found.
+  String* replaced = this; // Will be allocated if any match found.
   int32_t replacedc = 0; // Replaced count so far.
 
-  const char* s = self->data; // Source: current position in self.
+  const char* s = this->data; // Source: current position in this.
   char* d = NULL; // Destination pointer in replaced.
 
   do {
@@ -767,7 +767,7 @@ String* stringReplace(VM* vm, String* self,
 
   // Copy the rest of the string from [s] till the end.
   if (d != NULL) {
-    uint32_t tail_length = self->length - (int32_t) (s - self->data);
+    uint32_t tail_length = this->length - (int32_t) (s - this->data);
     memcpy(d, s, tail_length);
     d += tail_length;
 
@@ -778,7 +778,7 @@ String* stringReplace(VM* vm, String* self,
     replaced->hash = utilHashString(replaced->data);
 
   } else {
-    ASSERT(self == replaced, OOPS);
+    ASSERT(this == replaced, OOPS);
   }
 
   return replaced;
@@ -812,34 +812,34 @@ void* _memmem(const void *l, size_t l_len, const void *s, size_t s_len)
   return NULL;
 }
 
-List* stringSplit(VM* vm, String* self, String* sep) {
+List* stringSplit(VM* vm, String* this, String* sep) {
 
   List* list = newList(vm, 0);
   vmPushTempRef(vm, &list->_super); // list.
 
   if (sep == NULL || sep->length == 0) {
-    for (uint32_t i = 0; i < self->length; i++) {
-      String* ch = newStringLength(vm, &self->data[i], 1);
+    for (uint32_t i = 0; i < this->length; i++) {
+      String* ch = newStringLength(vm, &this->data[i], 1);
       vmPushTempRef(vm, &ch->_super); // ch
       listAppend(vm, list, VAR_OBJ(ch));
       vmPopTempRef(vm); // ch
     }
   } else {
-    const char* s = self->data; // Current position in self.
+    const char* s = this->data; // Current position in this.
     do {
-      const char* match = (char *)_memmem(s, self->length - (s - self->data),
+      const char* match = (char *)_memmem(s, this->length - (s - this->data),
         sep->data, sep->length);
 
       if (match == NULL) {
 
         // Add the tail string from [s] till the end. Optimize case: if the
-        // string doesn't have any match we can reuse self.
-        if (s == self->data) {
-          listAppend(vm, list, VAR_OBJ(self));
+        // string doesn't have any match we can reuse this.
+        if (s == this->data) {
+          listAppend(vm, list, VAR_OBJ(this));
 
         } else {
           String* tail = newStringLength(vm, s,
-            (uint32_t)(self->length - (s - self->data)));
+            (uint32_t)(this->length - (s - this->data)));
           vmPushTempRef(vm, &tail->_super); // tail.
           listAppend(vm, list, VAR_OBJ(tail));
           vmPopTempRef(vm); // tail.
@@ -947,49 +947,49 @@ String* replaceSubstring(VM* vm, uint32_t index,
   return string;
 }
 
-void listInsert(VM* vm, List* self, uint32_t index, Var value) {
+void listInsert(VM* vm, List* this, uint32_t index, Var value) {
 
   // Add an empty slot at the end of the buffer.
   if (IS_OBJ(value)) vmPushTempRef(vm, AS_OBJ(value));
-  VarBufferWrite(&self->elements, vm, VAR_NULL);
+  VarBufferWrite(&this->elements, vm, VAR_NULL);
   if (IS_OBJ(value)) vmPopTempRef(vm);
 
   // Shift the existing elements down.
-  for (uint32_t i = self->elements.count - 1; i > index; i--) {
-    self->elements.data[i] = self->elements.data[i - 1];
+  for (uint32_t i = this->elements.count - 1; i > index; i--) {
+    this->elements.data[i] = this->elements.data[i - 1];
   }
 
   // Insert the new element.
-  self->elements.data[index] = value;
+  this->elements.data[index] = value;
 }
 
-Var listRemoveAt(VM* vm, List* self, uint32_t index) {
-  ASSERT_INDEX(index, self->elements.count);
+Var listRemoveAt(VM* vm, List* this, uint32_t index) {
+  ASSERT_INDEX(index, this->elements.count);
 
-  Var removed = self->elements.data[index];
+  Var removed = this->elements.data[index];
   if (IS_OBJ(removed)) vmPushTempRef(vm, AS_OBJ(removed));
 
   // Shift the rest of the elements up.
-  for (uint32_t i = index; i < self->elements.count - 1; i++) {
-    self->elements.data[i] = self->elements.data[i + 1];
+  for (uint32_t i = index; i < this->elements.count - 1; i++) {
+    this->elements.data[i] = this->elements.data[i + 1];
   }
 
   // Shrink the size if it's too much excess.
-  if (self->elements.capacity / GROW_FACTOR >= self->elements.count) {
-    self->elements.data = (Var*) vmRealloc(vm, self->elements.data,
-      sizeof(Var) * self->elements.capacity,
-      sizeof(Var) * self->elements.capacity / GROW_FACTOR);
-    self->elements.capacity /= GROW_FACTOR;
+  if (this->elements.capacity / GROW_FACTOR >= this->elements.count) {
+    this->elements.data = (Var*) vmRealloc(vm, this->elements.data,
+      sizeof(Var) * this->elements.capacity,
+      sizeof(Var) * this->elements.capacity / GROW_FACTOR);
+    this->elements.capacity /= GROW_FACTOR;
   }
 
   if (IS_OBJ(removed)) vmPopTempRef(vm);
 
-  self->elements.count--;
+  this->elements.count--;
   return removed;
 }
 
-void listClear(VM* vm, List* self) {
-  VarBufferClear(&self->elements, vm);
+void listClear(VM* vm, List* this) {
+  VarBufferClear(&this->elements, vm);
 }
 
 List* listAdd(VM* vm, List* l1, List* l2) {
@@ -1050,14 +1050,14 @@ uint32_t varHashValue(Var v) {
 // Find the entry with the [key]. Returns true if found and set [result] to
 // point to the entry, return false otherwise and points [result] to where
 // the entry should be inserted.
-static bool _mapFindEntry(Map* self, Var key, MapEntry** result) {
+static bool _mapFindEntry(Map* this, Var key, MapEntry** result) {
 
   // An empty map won't contain the key.
-  if (self->capacity == 0) return false;
+  if (this->capacity == 0) return false;
 
   // The [start_index] is where the entry supposed to be if there wasn't any
   // collision occurred. It'll be the start index for the linear probing.
-  uint32_t start_index = varHashValue(key) % self->capacity;
+  uint32_t start_index = varHashValue(key) % this->capacity;
   uint32_t index = start_index;
 
   // Keep track of the first tombstone after the [start_index] if we don't find
@@ -1066,7 +1066,7 @@ static bool _mapFindEntry(Map* self, Var key, MapEntry** result) {
   MapEntry* tombstone = NULL;
 
   do {
-    MapEntry* entry = &self->entries[index];
+    MapEntry* entry = &this->entries[index];
 
     if (IS_UNDEF(entry->key)) {
       ASSERT(IS_BOOL(entry->value), OOPS);
@@ -1092,7 +1092,7 @@ static bool _mapFindEntry(Map* self, Var key, MapEntry** result) {
       return true;
     }
 
-    index = (index + 1) % self->capacity;
+    index = (index + 1) % this->capacity;
 
   } while (index != start_index);
 
@@ -1105,12 +1105,12 @@ static bool _mapFindEntry(Map* self, Var key, MapEntry** result) {
 
 // Add the key, value pair to the entries array of the map. Returns true if
 // the entry added for the first time and false for replaced value.
-static bool _mapInsertEntry(Map* self, Var key, Var value) {
+static bool _mapInsertEntry(Map* this, Var key, Var value) {
 
-  ASSERT(self->capacity != 0, "Should ensure the capacity before inserting.");
+  ASSERT(this->capacity != 0, "Should ensure the capacity before inserting.");
 
   MapEntry* result;
-  if (_mapFindEntry(self, key, &result)) {
+  if (_mapFindEntry(this, key, &result)) {
     // Key already found, just replace the value.
     result->value = value;
     return false;
@@ -1122,16 +1122,16 @@ static bool _mapInsertEntry(Map* self, Var key, Var value) {
 }
 
 // Resize the map's size to the given [capacity].
-static void _mapResize(VM* vm, Map* self, uint32_t capacity) {
+static void _mapResize(VM* vm, Map* this, uint32_t capacity) {
 
-  MapEntry* old_entries = self->entries;
-  uint32_t old_capacity = self->capacity;
+  MapEntry* old_entries = this->entries;
+  uint32_t old_capacity = this->capacity;
 
-  self->entries = ALLOCATE_ARRAY(vm, MapEntry, capacity);
-  self->capacity = capacity;
+  this->entries = ALLOCATE_ARRAY(vm, MapEntry, capacity);
+  this->capacity = capacity;
   for (uint32_t i = 0; i < capacity; i++) {
-    self->entries[i].key = VAR_UNDEFINED;
-    self->entries[i].value = VAR_FALSE;
+    this->entries[i].key = VAR_UNDEFINED;
+    this->entries[i].value = VAR_FALSE;
   }
 
   // Insert the old entries to the new entries.
@@ -1139,42 +1139,42 @@ static void _mapResize(VM* vm, Map* self, uint32_t capacity) {
     // Skip the empty entries or tombstones.
     if (IS_UNDEF(old_entries[i].key)) continue;
 
-    _mapInsertEntry(self, old_entries[i].key, old_entries[i].value);
+    _mapInsertEntry(this, old_entries[i].key, old_entries[i].value);
   }
 
   DEALLOCATE_ARRAY(vm, old_entries, MapEntry, old_capacity);
 }
 
-Var mapGet(Map* self, Var key) {
+Var mapGet(Map* this, Var key) {
   MapEntry* entry;
-  if (_mapFindEntry(self, key, &entry)) return entry->value;
+  if (_mapFindEntry(this, key, &entry)) return entry->value;
   return VAR_UNDEFINED;
 }
 
-void mapSet(VM* vm, Map* self, Var key, Var value) {
+void mapSet(VM* vm, Map* this, Var key, Var value) {
 
   // If map is about to fill, resize it first.
-  if (self->count + 1 > self->capacity * MAP_LOAD_PERCENT / 100) {
-    uint32_t capacity = self->capacity * GROW_FACTOR;
+  if (this->count + 1 > this->capacity * MAP_LOAD_PERCENT / 100) {
+    uint32_t capacity = this->capacity * GROW_FACTOR;
     if (capacity < MIN_CAPACITY) capacity = MIN_CAPACITY;
-    _mapResize(vm, self, capacity);
+    _mapResize(vm, this, capacity);
   }
 
-  if (_mapInsertEntry(self, key, value)) {
-    self->count++; //< A new key added.
+  if (_mapInsertEntry(this, key, value)) {
+    this->count++; //< A new key added.
   }
 }
 
-void mapClear(VM* vm, Map* self) {
-  DEALLOCATE_ARRAY(vm, self->entries, MapEntry, self->capacity);
-  self->entries = NULL;
-  self->capacity = 0;
-  self->count = 0;
+void mapClear(VM* vm, Map* this) {
+  DEALLOCATE_ARRAY(vm, this->entries, MapEntry, this->capacity);
+  this->entries = NULL;
+  this->capacity = 0;
+  this->count = 0;
 }
 
-Var mapRemoveKey(VM* vm, Map* self, Var key) {
+Var mapRemoveKey(VM* vm, Map* this, Var key) {
   MapEntry* entry;
-  if (!_mapFindEntry(self, key, &entry)) return VAR_UNDEFINED;
+  if (!_mapFindEntry(this, key, &entry)) return VAR_UNDEFINED;
 
   // Set the key as VAR_UNDEFINED to mark is as an available slow and set it's
   // value to VAR_TRUE for tombstone.
@@ -1182,17 +1182,17 @@ Var mapRemoveKey(VM* vm, Map* self, Var key) {
   entry->key = VAR_UNDEFINED;
   entry->value = VAR_TRUE;
 
-  self->count--;
+  this->count--;
 
   if (IS_OBJ(value)) vmPushTempRef(vm, AS_OBJ(value));
 
-  if (self->count == 0) {
+  if (this->count == 0) {
     // Clear the map if it's empty.
-    mapClear(vm, self);
+    mapClear(vm, this);
 
- } else if ((self->capacity > MIN_CAPACITY) &&
-             (self->capacity / (GROW_FACTOR * GROW_FACTOR)) >
-             ((self->count * 100) / MAP_LOAD_PERCENT)) {
+ } else if ((this->capacity > MIN_CAPACITY) &&
+             (this->capacity / (GROW_FACTOR * GROW_FACTOR)) >
+             ((this->count * 100) / MAP_LOAD_PERCENT)) {
 
     // We grow the map when it's filled 75% (MAP_LOAD_PERCENT) by 2
     // (GROW_FACTOR) but we're not shrink the map when it's half filled (ie.
@@ -1200,10 +1200,10 @@ Var mapRemoveKey(VM* vm, Map* self, Var key) {
     // filled (1/4 = 1/(GROW_FACTOR*GROW_FACTOR)) to minimize the
     // reallocations and which is more faster.
 
-    uint32_t capacity = self->capacity / (GROW_FACTOR * GROW_FACTOR);
+    uint32_t capacity = this->capacity / (GROW_FACTOR * GROW_FACTOR);
     if (capacity < MIN_CAPACITY) capacity = MIN_CAPACITY;
 
-    _mapResize(vm, self, capacity);
+    _mapResize(vm, this, capacity);
   }
 
   if (IS_OBJ(value)) vmPopTempRef(vm);
@@ -1215,7 +1215,7 @@ bool fiberHasError(Fiber* fiber) {
   return fiber->error != NULL;
 }
 
-void freeObject(VM* vm, Object* self) {
+void freeObject(VM* vm, Object* this) {
   // TODO: Debug trace memory here.
 
   // First clean the object's references, but we're not recursively
@@ -1224,72 +1224,72 @@ void freeObject(VM* vm, Object* self) {
   // array of `var*` which will be cleaned below but the actual `var` elements
   // will won't be freed here instead they haven't marked at all, and will be
   // removed at the sweeping phase of the garbage collection.
-  switch (self->type) {
+  switch (this->type) {
     case OBJ_STRING: {
-      String* str = (String*) self;
+      String* str = (String*) this;
       DEALLOCATE_DYNAMIC(vm, str, String, str->capacity, char);
       return;
     };
 
     case OBJ_LIST: {
-      VarBufferClear(&(((List*)self)->elements), vm);
-      DEALLOCATE(vm, self, List);
+      VarBufferClear(&(((List*)this)->elements), vm);
+      DEALLOCATE(vm, this, List);
       return;
     }
 
     case OBJ_MAP: {
-      Map* map = (Map*)self;
+      Map* map = (Map*)this;
       DEALLOCATE_ARRAY(vm, map->entries, MapEntry, map->capacity);
-      DEALLOCATE(vm, self, Map);
+      DEALLOCATE(vm, this, Map);
       return;
     }
 
     case OBJ_RANGE: {
-      DEALLOCATE(vm, self, Range);
+      DEALLOCATE(vm, this, Range);
       return;
     }
 
     case OBJ_MODULE: {
-      Module* module = (Module*)self;
+      Module* module = (Module*)this;
       VarBufferClear(&module->globals, vm);
       UintBufferClear(&module->global_names, vm);
       VarBufferClear(&module->constants, vm);
       #ifndef NO_DL
       if (module->handle) vmUnloadDlHandle(vm, module->handle);
       #endif
-      DEALLOCATE(vm, self, Module);
+      DEALLOCATE(vm, this, Module);
       return;
     }
 
     case OBJ_FUNC: {
-      Function* func = (Function*)self;
+      Function* func = (Function*)this;
       if (!func->is_native) {
         ByteBufferClear(&func->fn->opcodes, vm);
         UintBufferClear(&func->fn->oplines, vm);
         DEALLOCATE(vm, func->fn, Fn);
       }
-      DEALLOCATE(vm, self, Function);
+      DEALLOCATE(vm, this, Function);
       return;
     };
 
     case OBJ_CLOSURE: {
-      DEALLOCATE_DYNAMIC(vm, self, Closure,
-        ((Closure*)self)->fn->upvalue_count, Upvalue*);
+      DEALLOCATE_DYNAMIC(vm, this, Closure,
+        ((Closure*)this)->fn->upvalue_count, Upvalue*);
       return;
     }
 
     case OBJ_METHOD_BIND: {
-      DEALLOCATE(vm, self, MethodBind);
+      DEALLOCATE(vm, this, MethodBind);
       return;
     }
 
     case OBJ_UPVALUE: {
-      DEALLOCATE(vm, self, Upvalue);
+      DEALLOCATE(vm, this, Upvalue);
       return;
     }
 
     case OBJ_FIBER: {
-      Fiber* fiber = (Fiber*)self;
+      Fiber* fiber = (Fiber*)this;
       DEALLOCATE_ARRAY(vm, fiber->stack, Var, fiber->stack_size);
       DEALLOCATE_ARRAY(vm, fiber->frames, CallFrame, fiber->frame_capacity);
       DEALLOCATE(vm, fiber, Fiber);
@@ -1297,14 +1297,14 @@ void freeObject(VM* vm, Object* self) {
     }
 
     case OBJ_CLASS: {
-      Class* cls = (Class*)self;
+      Class* cls = (Class*)this;
       ClosureBufferClear(&cls->methods, vm);
       DEALLOCATE(vm, cls, Class);
       return;
     }
 
     case OBJ_INST: {
-      Instance* inst = (Instance*)self;
+      Instance* inst = (Instance*)this;
       Class* cls = inst->cls;
       while (cls != NULL) {
         if (cls->delete_fn != NULL) {

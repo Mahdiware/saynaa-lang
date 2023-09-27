@@ -1,7 +1,7 @@
 ## Class
 
 Classes are the blueprint of objects, contains method definitions and behaviors for its instances.
-The instance of a class method can be accessed with the `self` keyword.
+The instance of a class method can be accessed with the `this` keyword.
 
 ```ruby
 class Foo end
@@ -14,7 +14,7 @@ are dynamic (means you can add a new field to an instance on the fly).
 ```ruby
 class Foo
   function _init(bar, baz)
-    self.bar = bar
+    this.bar = bar
   end
 end
 
@@ -26,40 +26,40 @@ To override an operator just use the operator symbol as the method name.
 ```ruby
 class Vec2
   function _init(x, y)
-    self.x = x; self.y = y
+    this.x = x; this.y = y
   end
   function _str
-    return "<${self.x}, ${self.y}>"
+    return "<${this.x}, ${this.y}>"
   end
   function + (other)
-    return Vec2(self.x + other.x,
-                self.y + other.y)
+    return Vec2(this.x + other.x,
+                this.y + other.y)
   end
   function += (other)
-    self.x += other.x
-    self.y += other.y
-    return self
+    this.x += other.x
+    this.y += other.y
+    return this
   end
   function == (other)
-    return self.x == other.x and self.y == other.y
+    return this.x == other.x and this.y == other.y
   end
 end
 ```
 
-To distinguish unary operator with binary operator the `self` keyword should be used.
+To distinguish unary operator with binary operator the `this` keyword should be used.
 
 ```ruby
 class N
   function _init(n)
-    self.n = n
+    this.n = n
   end
 
   function - (other) ## N(1) - N(2)
-    return N(self.n - other.n)
+    return N(this.n - other.n)
   end
 
-  function -self () ## -N(1)
-    return N(-self.n)
+  function -this () ## -N(1)
+    return N(-this.n)
   end
 end
 ```
@@ -87,7 +87,7 @@ end
 
 class Circle is Shape
   function _init(r)
-    self.r = r
+    this.r = r
   end
   function area()
     return math.PI * r ** 2
@@ -101,11 +101,11 @@ method `super()` will do otherwise method name should be specified `super.method
 ```ruby
 class Rectangle is Shape
   function _init(w, h)
-    self.w = w; self.h = h
+    this.w = w; this.h = h
   end
   function scale(fx, fy)
-    self.w *= fx
-    self.h *= fy
+    this.w *= fx
+    this.h *= fy
   end
 end
 

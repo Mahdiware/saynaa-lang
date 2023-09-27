@@ -5,7 +5,7 @@ class A
   end
   function foo()
     print("A foo")
-    ret = self.bar()
+    ret = this.bar()
     assert(ret == "B.bar")
     return "A.foo"
   end

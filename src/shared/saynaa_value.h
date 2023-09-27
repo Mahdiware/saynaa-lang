@@ -249,11 +249,11 @@ DECLARE_BUFFER(Closure, Closure*)
 // Add all the characters to the buffer, byte buffer can also be used as a
 // buffer to write string (like a string stream). Note that this will not
 // add a null byte '\0' at the end.
-void ByteBufferAddString(ByteBuffer* self, VM* vm, const char* str,
+void ByteBufferAddString(ByteBuffer* this, VM* vm, const char* str,
                            uint32_t length);
 
 // Add formated string to the byte buffer.
-void ByteBufferAddStringFmt(ByteBuffer* self, VM* vm,
+void ByteBufferAddStringFmt(ByteBuffer* this, VM* vm,
                               const char* fmt, ...);
 
 // Type enums of the heap allocated types.
@@ -448,7 +448,7 @@ struct Closure {
 };
 
 // Method bounds are first class callable of methods. That are bound to an
-// instace which will be used as the self when the underlying method invoked.
+// instace which will be used as the this when the underlying method invoked.
 // If the vallue [instance] is VAR_UNDEFINED it's unbound and cannot be
 // called.
 struct MethodBind {
@@ -499,7 +499,7 @@ typedef struct {
   const uint8_t* ip;      //< Pointer to the next instruction byte code.
   const Closure* closure; //< Closure of the frame.
   Var* rbp;               //< Stack base pointer. (%rbp)
-  Var self;               //< Self reference of the current method.
+  Var this;               //< This reference of the current method.
 } CallFrame;
 
 typedef enum {
@@ -541,12 +541,12 @@ struct Fiber {
   // the function that started the fiber will also be set.
   Var* ret;
 
-  // The self pointer to of the current method. It'll be updated before
+  // The this pointer to of the current method. It'll be updated before
   // calling a native method. (Because native methods doesn't have a call
   // frame we're doing it this way). Also updated just before calling a
   // script method, and will be captured by the next allocated callframe
   // and reset to VAR_UNDEFINED.
-  Var self;
+  Var this;
 
   // [caller] is the caller of the fiber that was created by invoking the
   // concurency model. Where [native] is the native fiber which
@@ -630,7 +630,7 @@ struct Instance {
 /* "CONSTRUCTORS"                                                            */
 /*****************************************************************************/
 
-void varInitObject(Object* self, VM* vm, ObjectType type);
+void varInitObject(Object* this, VM* vm, ObjectType type);
 
 String* newStringLength(VM* vm, const char* text, uint32_t length);
 
@@ -694,15 +694,15 @@ Instance* newInstance(VM* vm, Class* cls);
 
 // Mark the reachable objects at the mark-and-sweep phase of the garbage
 // collection.
-void markObject(VM* vm, Object* self);
+void markObject(VM* vm, Object* this);
 
 // Mark the reachable values at the mark-and-sweep phase of the garbage
 // collection.
-void markValue(VM* vm, Var self);
+void markValue(VM* vm, Var this);
 
 // Mark the elements of the buffer as reachable at the mark-and-sweep phase of
 // the garbage collection.
-void markVarBuffer(VM* vm, VarBuffer* self);
+void markVarBuffer(VM* vm, VarBuffer* this);
 
 // Pop the marked objects from the working set of the VM and add it's
 // referenced objects to the working set, continue traversing and mark
@@ -710,32 +710,32 @@ void markVarBuffer(VM* vm, VarBuffer* self);
 void popMarkedObjects(VM* vm);
 
 // Returns a number list from the range. starts with range.from and ends with
-List* rangeAsList(VM* vm, Range* self);
+List* rangeAsList(VM* vm, Range* this);
 
 // Returns a length of range
-double rangeLength(VM* vm, Range* self);
+double rangeLength(VM* vm, Range* this);
 
 // Returns a lower case version of the given string. If the string is
 // already lower it'll return the same string.
-String* stringLower(VM* vm, String* self);
+String* stringLower(VM* vm, String* this);
 
 // Returns a upper case version of the given string. If the string is
 // already upper it'll return the same string.
-String* stringUpper(VM* vm, String* self);
+String* stringUpper(VM* vm, String* this);
 
 // Returns string with the leading and trailing white spaces are trimmed.
 // If the string is already trimmed it'll return the same string.
-String* stringStrip(VM* vm, String* self);
+String* stringStrip(VM* vm, String* this);
 
 // Replace the [count] occurence of the [old] string with [new_] string. If
 // [count] == -1. It'll replace all the occurences. If nothing is replaced
 // the original string will be returned.
-String* stringReplace(VM* vm, String* self,
+String* stringReplace(VM* vm, String* this,
                       String* old, String* new_, int count);
 
 // Split the string into a list of string separated by [sep]. String [sep] must
 // If [sep] == "", split string into characters.
-List* stringSplit(VM* vm, String* self, String* sep);
+List* stringSplit(VM* vm, String* this, String* sep);
 
 // Creates a new string from the arguments. This is intended for internal
 // usage and it has 2 formated characters (just like wren does).
@@ -761,40 +761,40 @@ String* replaceSubstring(VM* vm, uint32_t index,
 // to make the implementation a static inline function, it's totally okey to
 // define a function inside a header as long as it's static (but not a fan).
 #if 0 // Function implementation.
-  static inline void listAppend(VM* vm, List* self, Var value) {
-    VarBufferWrite(&self->elements, vm, value);
+  static inline void listAppend(VM* vm, List* this, Var value) {
+    VarBufferWrite(&this->elements, vm, value);
   }
 #else // Macro implementation.
-  #define listAppend(vm, self, value) \
-    VarBufferWrite(&self->elements, vm, value)
+  #define listAppend(vm, this, value) \
+    VarBufferWrite(&this->elements, vm, value)
 #endif
 
 // Insert [value] to the list at [index] and shift down the rest of the
 // elements.
-void listInsert(VM* vm, List* self, uint32_t index, Var value);
+void listInsert(VM* vm, List* this, uint32_t index, Var value);
 
 // Remove and return element at [index].
-Var listRemoveAt(VM* vm, List* self, uint32_t index);
+Var listRemoveAt(VM* vm, List* this, uint32_t index);
 
 // Remove all the elements of the list.
-void listClear(VM* vm, List* self);
+void listClear(VM* vm, List* this);
 
 // Create a new list by joining the 2 given list and return the result.
 List* listAdd(VM* vm, List* l1, List* l2);
 
 // Returns the value for the [key] in the map. If key not exists return
 // VAR_UNDEFINED.
-Var mapGet(Map* self, Var key);
+Var mapGet(Map* this, Var key);
 
 // Add the [key], [value] entry to the map.
-void mapSet(VM* vm, Map* self, Var key, Var value);
+void mapSet(VM* vm, Map* this, Var key, Var value);
 
 // Remove all the entries from the map.
-void mapClear(VM* vm, Map* self);
+void mapClear(VM* vm, Map* this);
 
 // Remove the [key] from the map. If the key exists return it's value
 // otherwise return VAR_UNDEFINED.
-Var mapRemoveKey(VM* vm, Map* self, Var key);
+Var mapRemoveKey(VM* vm, Map* this, Var key);
 
 // Returns true if the fiber has error, and if it has any the fiber cannot be
 // resumed anymore.
@@ -831,8 +831,8 @@ int moduleGetGlobalIndex(Module* module, const char* name, uint32_t length);
 // function.
 void moduleAddMain(VM* vm, Module* module);
 
-// Release all the object owned by the [self] including itself.
-void freeObject(VM* vm, Object* self);
+// Release all the object owned by the [this] including itself.
+void freeObject(VM* vm, Object* this);
 
 /*****************************************************************************/
 /* UTILITY FUNCTIONS                                                         */

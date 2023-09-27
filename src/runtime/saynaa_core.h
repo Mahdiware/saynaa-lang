@@ -72,32 +72,32 @@ Closure* getMagicMethod(Class* cls, MagicMethod mm);
 /* OPERATORS                                                                 */
 /*****************************************************************************/
 
-// This method is called just before constructing a type to initialize self
+// This method is called just before constructing a type to initialize this
 // and after that the constructor will be called. For builtin types this
-// function will return VAR_NULL and the constructor will override self to
+// function will return VAR_NULL and the constructor will override this to
 // it's instance (because for some classes we cannot create without argument
 // example Fiber(fn), Range(from, to) etc). If the class cannot be
 // instanciated (ex: Class 'Module') it'll set an error and return VAR_NULL.
 // For other classes the return value will be an Instance.
-Var preConstructSelf(VM* vm, Class* cls);
+Var preConstructThis(VM* vm, Class* cls);
 
 // Returns the class of the [instance].
 Class* getClass(VM* vm, Var instance);
 
-// Returns the method (closure) in the instance [self]. If it's not an method
+// Returns the method (closure) in the instance [this]. If it's not an method
 // but just an attribute the [is_method] pointer will be set to false and
 // returns the value.
 // If the method / attribute not found, it'll set a runtime error on the VM.
-Var getMethod(VM* vm, Var self, String* name, bool* is_method);
+Var getMethod(VM* vm, Var this, String* name, bool* is_method);
 
 // Returns the method (closure) from the instance's super class. If the method
 // doesn't exists, it'll set an error on the VM.
-Closure* getSuperMethod(VM* vm, Var self, String* name);
+Closure* getSuperMethod(VM* vm, Var this, String* name);
 
 // Unlike getMethod this will not set error and will not try to get attribute
-// with the same name. It'll return true if the method exists on [self], false
+// with the same name. It'll return true if the method exists on [this], false
 // otherwise and if the [method] argument is not NULL, method will be set.
-bool hasMethod(VM* vm, Var self, String* name, Closure** method);
+bool hasMethod(VM* vm, Var this, String* name, Closure** method);
 
 // Returns the string value of the variable, a wrapper of toString() function
 // but for instances it'll try to calll "_to_string" function and on error
@@ -106,7 +106,7 @@ bool hasMethod(VM* vm, Var self, String* name, Closure** method);
 // instances it'll call "_repr()" method.
 // Note that if _str method does not exists it'll use _repr method for to
 // string.
-String* varToString(VM* vm, Var self, bool repr);
+String* varToString(VM* vm, Var this, bool repr);
 
 Var varPositive(VM* vm, Var v); // Returns +v.
 Var varNegative(VM* vm, Var v); // Returns -v.

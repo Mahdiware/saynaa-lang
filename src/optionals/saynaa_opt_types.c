@@ -41,9 +41,9 @@ function(_typesHash,
 /*****************************************************************************/
 
 static void* _bytebuffNew(VM* vm) {
-  ByteBuffer* self = Realloc(vm, NULL, sizeof(ByteBuffer));
-  ByteBufferInit(self);
-  return self;
+  ByteBuffer* this = Realloc(vm, NULL, sizeof(ByteBuffer));
+  ByteBufferInit(this);
+  return this;
 }
 
 static void _bytebuffDelete(VM* vm, void* buff) {
@@ -58,8 +58,8 @@ function(_bytebuffReserve,
   double size;
   if (!ValidateSlotNumber(vm, 1, &size)) return;
 
-  ByteBuffer* self = GetSelf(vm);
-  ByteBufferReserve(self, vm, (size_t) size);
+  ByteBuffer* this = GetThis(vm);
+  ByteBufferReserve(this, vm, (size_t) size);
 }
 
 // buff.fill(data, count)
@@ -78,16 +78,16 @@ function(_bytebuffFill,
   double count;
   if (!ValidateSlotNumber(vm, 1, &count)) return;
 
-  ByteBuffer* self = GetSelf(vm);
-  ByteBufferFill(self, vm, (uint8_t) n, (int) count);
+  ByteBuffer* this = GetThis(vm);
+  ByteBufferFill(this, vm, (uint8_t) n, (int) count);
 }
 
 function(_bytebuffClear,
   "types.ByteBuffer.clear() -> Null",
   "Clear the buffer values.") {
   // TODO: Should I also zero or reduce the capacity?
-  ByteBuffer* self = GetSelf(vm);
-  self->count = 0;
+  ByteBuffer* this = GetThis(vm);
+  this->count = 0;
 }
 
 // Returns the length of bytes were written.
@@ -96,13 +96,13 @@ function(_bytebuffWrite,
   "Writes the data to the buffer. If the [data] is a number that should be in "
   "between 0 and 0xff inclusively. If the [data] is a string all the bytes "
   "of the string will be written to the buffer.") {
-  ByteBuffer* self = GetSelf(vm);
+  ByteBuffer* this = GetThis(vm);
 
   VarType type = GetSlotType(vm, 1);
 
   switch (type) {
     case vBOOL:
-      ByteBufferWrite(self, vm, GetSlotBool(vm, 1) ? 1 : 0);
+      ByteBufferWrite(this, vm, GetSlotBool(vm, 1) ? 1 : 0);
       setSlotNumber(vm, 0, 1);
       return;
 
@@ -115,7 +115,7 @@ function(_bytebuffWrite,
         return;
       }
 
-      ByteBufferWrite(self, vm, (uint8_t) i);
+      ByteBufferWrite(this, vm, (uint8_t) i);
       setSlotNumber(vm, 0, 1);
       return;
     }
@@ -123,7 +123,7 @@ function(_bytebuffWrite,
     case vSTRING: {
       uint32_t length;
       const char* str = GetSlotString(vm, 1, &length);
-      ByteBufferAddString(self, vm, str, length);
+      ByteBufferAddString(this, vm, str, length);
       setSlotNumber(vm, 0, (double) length);
       return;
     }
@@ -151,14 +151,14 @@ function(_bytebuffSubscriptGet,
     return;
   }
 
-  ByteBuffer* self = GetSelf(vm);
+  ByteBuffer* this = GetThis(vm);
 
-  if (index < 0 || index >= self->count) {
+  if (index < 0 || index >= this->count) {
     SetRuntimeError(vm, "Index out of bound");
     return;
   }
 
-  setSlotNumber(vm, 0, self->data[(uint32_t)index]);
+  setSlotNumber(vm, 0, this->data[(uint32_t)index]);
 
 }
 
@@ -177,9 +177,9 @@ function(_bytebuffSubscriptSet,
     return;
   }
 
-  ByteBuffer* self = GetSelf(vm);
+  ByteBuffer* this = GetThis(vm);
 
-  if (index < 0 || index >= self->count) {
+  if (index < 0 || index >= this->count) {
     SetRuntimeError(vm, "Index out of bound");
     return;
   }
@@ -189,22 +189,22 @@ function(_bytebuffSubscriptSet,
     return;
   }
 
-  self->data[(uint32_t) index] = (uint8_t) value;
+  this->data[(uint32_t) index] = (uint8_t) value;
 
 }
 
 function(_bytebuffString,
   "types.ByteBuffer.string() -> String",
   "Returns the buffered values as String.") {
-  ByteBuffer* self = GetSelf(vm);
-  setSlotStringLength(vm, 0, self->data, self->count);
+  ByteBuffer* this = GetThis(vm);
+  setSlotStringLength(vm, 0, this->data, this->count);
 }
 
 function(_bytebuffCount,
   "types.ByteBuffer.count() -> Number",
   "Returns the number of bytes that have written to the buffer.") {
-  ByteBuffer* self = GetSelf(vm);
-  setSlotNumber(vm, 0, self->count);
+  ByteBuffer* this = GetThis(vm);
+  setSlotNumber(vm, 0, this->count);
 }
 
 /*****************************************************************************/
@@ -231,7 +231,7 @@ function(_vectorInit,
   if (!CheckArgcRange(vm, argc, 0, 3)) return;
 
   double x, y, z;
-  Vector* vec = GetSelf(vm);
+  Vector* vec = GetThis(vm);
 
   if (argc == 0) return;
   if (argc >= 1) {
@@ -256,7 +256,7 @@ function(_vectorGetter,
   const char* name; uint32_t length;
   if (!ValidateSlotString(vm, 1, &name, &length)) return;
 
-  Vector* vec = GetSelf(vm);
+  Vector* vec = GetThis(vm);
   if (length == 1) {
     if (*name == 'x') {
       setSlotNumber(vm, 0, vec->x);
@@ -276,7 +276,7 @@ function(_vectorSetter,
   const char* name; uint32_t length;
   if (!ValidateSlotString(vm, 1, &name, &length)) return;
 
-  Vector* vec = GetSelf(vm);
+  Vector* vec = GetThis(vm);
 
   if (length == 1) {
     if (*name == 'x') {
@@ -297,7 +297,7 @@ function(_vectorSetter,
 
 function(_vectorRepr,
   "types.Vector._repr()", "") {
-  Vector* vec = GetSelf(vm);
+  Vector* vec = GetThis(vm);
   setSlotStringFmt(vm, 0, "[%g, %g, %g]", vec->x, vec->y, vec->z);
 }
 

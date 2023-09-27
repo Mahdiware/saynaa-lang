@@ -1,17 +1,17 @@
 class StringIter
   function _init(text)
-    self.text = text
+    this.text = text
   end
 
   function _next(iter)
     if iter == null then return 0 end
     iter += 1
-    if iter >= self.text.length then iter = null end
+    if iter >= this.text.length then iter = null end
     return iter
   end
 
   function _value(iter)
-    return self.text[iter]
+    return this.text[iter]
   end
 end
 

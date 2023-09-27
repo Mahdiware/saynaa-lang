@@ -279,7 +279,7 @@ static void _callfn(VM* vm, nativeFn fn) {
   for (int i = argc; i > 0; i--) {
     ARG(i + 1) = ARG(i);
   }
-  PlaceSelf(vm, 1);
+  PlaceThis(vm, 1);
 
   vm->fiber->sp += 1; // is there a bettery way?
   fn(vm);

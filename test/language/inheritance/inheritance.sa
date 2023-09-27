@@ -15,36 +15,36 @@ assert(B.parent == A)
 
 class Shape
   function display()
-    return "${self.name} shape"
+    return "${this.name} shape"
   end
 end
 
 class Circle is Shape
   function _init(r)
-    self.r = r
-    self.name = "circle"
+    this.r = r
+    this.name = "circle"
   end
   function area()
-    return 3.14 * self.r * self.r
+    return 3.14 * this.r * this.r
   end
 end
 
 class Rectangle is Shape
   function _init(w, h)
-    self.w = w; self.h = h
-    self.name = "rectangle"
+    this.w = w; this.h = h
+    this.name = "rectangle"
   end
   function area()
-    return self.w * self.h
+    return this.w * this.h
   end
 end
 
 class Square is Rectangle
   function _init(w)
     # TODO: Currently there is no way of calling super(w, h)
-    # so we're setting our self here.
-    self.w = w; self.h = w
-    self.name = "square"
+    # so we're setting our this here.
+    this.w = w; this.h = w
+    this.name = "square"
   end
 end
 

@@ -67,7 +67,7 @@ with the `do` keyword.
 Like many other programming languages Saynaa has some reserved keywords that assume a very specific meaning in the context of the source code:
 ```ruby
   if elif else class import fn function do end
-  from as null in is and or not true false self
+  from as null in is and or not true false this
   super break while for continue return then
 ```
 

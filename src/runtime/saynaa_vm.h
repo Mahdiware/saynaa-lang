@@ -214,11 +214,11 @@ Result vmRunFiber(VM* vm, Fiber* fiber);
 // arguments in an array.
 Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret);
 
-// Call the method on the [self], (witch has retrieved by the getMethod()
+// Call the method on the [this], (witch has retrieved by the getMethod()
 // function) and if the [ret] is not NULL, the return value will be set.
 // [argv] should be the first argument pointer following the rest of the
 // arguments in an array.
-Result vmCallMethod(VM* vm, Var self, Closure* fn,
+Result vmCallMethod(VM* vm, Var this, Closure* fn,
                       int argc, Var* argv, Var* ret);
 
 // Import a module with the [path] and return it. The path sepearation should

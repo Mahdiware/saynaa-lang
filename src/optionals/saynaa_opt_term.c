@@ -44,7 +44,7 @@ function(_termEventGetter,
   const char* name;
   if (!ValidateSlotString(vm, 1, &name, NULL)) return;
 
-  term_Event* event = GetSelf(vm);
+  term_Event* event = GetThis(vm);
 
   if (strcmp(name, "type") == 0) {
     setSlotNumber(vm, 0, (double)event->type);

@@ -9,14 +9,14 @@ Its Simple Syntax, and standalone executable with zero external dependencies.
 ```ruby
 class Vector
   function _init(x, y)
-    self.x = x; self.y = y
+    this.x = x; this.y = y
   end
   function _str
-    return "<${self.x}, ${self.y}>"
+    return "<${this.x}, ${this.y}>"
   end
   function +(other)
-    return Vector(self.x + other.x,
-                  self.y + other.y)
+    return Vector(this.x + other.x,
+                  this.y + other.y)
   end
 end
 

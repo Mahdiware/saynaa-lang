@@ -593,10 +593,10 @@ void SetRuntimeErrorFmt(VM* vm, const char* fmt, ...) {
   va_end(args);
 }
 
-void* GetSelf(const VM* vm) {
+void* GetThis(const VM* vm) {
   CHECK_FIBER_EXISTS(vm);
-  ASSERT(IS_OBJ_TYPE(vm->fiber->self, OBJ_INST), OOPS);
-  Instance* inst = (Instance*) AS_OBJ(vm->fiber->self);
+  ASSERT(IS_OBJ_TYPE(vm->fiber->this, OBJ_INST), OOPS);
+  Instance* inst = (Instance*) AS_OBJ(vm->fiber->this);
   ASSERT(inst->native != NULL, OOPS);
   return inst->native;
 }
@@ -880,7 +880,7 @@ bool GetAttribute(VM* vm, int instance, const char* name,
 }
 
 static Var _newInstance(VM* vm, Class* cls, int argc, Var* argv) {
-  Var instance = preConstructSelf(vm, cls);
+  Var instance = preConstructThis(vm, cls);
   if (VM_HAS_ERROR(vm)) return VAR_NULL;
 
   bool pushed = false;
@@ -891,7 +891,7 @@ static Var _newInstance(VM* vm, Class* cls, int argc, Var* argv) {
 
   Closure* init = getMagicMethod(cls, METHOD_INIT);
   if (init != NULL) {
-    // for builtin classes, preConstructSelf returns null,
+    // for builtin classes, preConstructThis returns null,
     // and instance is returned by _init.
     vmCallMethod(vm, instance, init, argc, argv,
       IS_NULL(instance) ? &instance : NULL);
@@ -1071,10 +1071,10 @@ bool CallMethod(VM* vm, int instance, const char* method,
   return false;
 }
 
-void PlaceSelf(VM* vm, int index) {
+void PlaceThis(VM* vm, int index) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(index);
-  SET_SLOT(index, vm->fiber->self);
+  SET_SLOT(index, vm->fiber->this);
 }
 
 bool ImportModule(VM* vm, const char* path, int index) {

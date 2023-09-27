@@ -365,8 +365,8 @@ PUBLIC void SetRuntimeError(VM* vm, const char* message);
 // Set a runtime error with C formated string.
 PUBLIC void SetRuntimeErrorFmt(VM* vm, const char* fmt, ...);
 
-// Returns native [self] of the current method as a void*.
-PUBLIC void* GetSelf(const VM* vm);
+// Returns native [this] of the current method as a void*.
+PUBLIC void* GetThis(const VM* vm);
 
 // Return the current functions argument count. This is needed for functions
 // registered with -1 argument count (which means variadic arguments).
@@ -476,8 +476,8 @@ PUBLIC uint32_t GetSlotHash(VM* vm, int index);
 /* SAYNAA FFI                                                                */
 /*****************************************************************************/
 
-// Place the [self] instance at the [index] slot.
-PUBLIC void PlaceSelf(VM* vm, int index);
+// Place the [this] instance at the [index] slot.
+PUBLIC void PlaceThis(VM* vm, int index);
 
 // Set the [index] slot's value as the class of the [instance].
 PUBLIC void GetClass(VM* vm, int instance, int index);

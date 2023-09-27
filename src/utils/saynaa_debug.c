@@ -380,7 +380,7 @@ void dumpFunctionCode(VM* vm, Function* func) {
         break;
 
       case OP_PUSH_MAP:
-      case OP_PUSH_SELF:
+      case OP_PUSH_THIS:
       case OP_LIST_APPEND:
       case OP_MAP_INSERT:
         NO_ARGS();
