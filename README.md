@@ -1,3 +1,9 @@
+[![build](https://github.com/saynaa-lang/saynaa/actions/workflows/build.yml/badge.svg)](https://github.com/saynaa-lang/saynaa/actions/workflows/build.yml)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/mahdiware)
+[![Telegram](https://img.shields.io/badge/-telegram-red?color=white&logo=telegram&logoColor=black)](https://telegram.me/SaynaaOfficial)
+[![License](https://img.shields.io/packagist/l/longman/telegram-bot.svg)](https://github.com/saynaa-lang/saynaa/LICENSE)
+
+
 <p align="center"> <img src="docs/assets/icon.png" alt="Saynaa-Language" title="Saynaa Programming Language" align="center"> </p>
 
 # What is Saynaa?
