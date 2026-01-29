@@ -9,5 +9,5 @@
 * No external dependencies
 * Register based virtual machine
 
-[GitHub](https://github.com/saynaa-lang/saynaa)
+[GitHub](https://github.com/mahdiware/saynaa-lang)
 [Get Started](README.md)

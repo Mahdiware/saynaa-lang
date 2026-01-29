@@ -3,40 +3,35 @@
  * Distributed Under The MIT License
  */
 
-#include <time.h>
 #include "saynaa_optionals.h"
 
+#include <time.h>
+
 #ifdef _WIN32
-  #include <windows.h>
+#include <windows.h>
 #endif
 
 #if !defined(_MSC_VER) && !(defined(_WIN32) && defined(__TINYC__))
-  #include <unistd.h> // usleep
+#include <unistd.h> // usleep
 #endif
 
-function(_timeEpoch,
-  "time() -> Number",
-  "Returns the number of seconds since the Epoch, 1970-01-01 "
-  "00:00:00 +0000 (UTC).") {
+saynaa_function(_timeEpoch, "time() -> Number",
+                "Returns the number of seconds since the Epoch, 1970-01-01 "
+                "00:00:00 +0000 (UTC).") {
   setSlotNumber(vm, 0, (double) time(NULL));
 }
 
-function(_nanoSecond,
-  "nano() -> Number",
-  "Returns the number of nano seconds.") {
+saynaa_function(_nanoSecond, "nano() -> Number", "Returns the number of nano seconds.") {
   setSlotNumber(vm, 0, (double) nanotime());
 }
 
-function(_timeClock,
-  "clock() -> Number",
-  "Returns the number of clocks passed divied by CLOCKS_PER_SEC.") {
+saynaa_function(_timeClock, "clock() -> Number",
+                "Returns the number of clocks"
+                " passed divided by CLOCKS_PER_SEC.") {
   setSlotNumber(vm, 0, (double) clock() / CLOCKS_PER_SEC);
 }
 
-function(_timeSleep,
-    "sleep(t:num) -> Number",
-    "Sleep for [t] milliseconds.") {
-
+saynaa_function(_timeSleep, "sleep(t:num) -> Number", "Sleep for [t] milliseconds.") {
   double t;
   ValidateSlotNumber(vm, 1, &t);
 

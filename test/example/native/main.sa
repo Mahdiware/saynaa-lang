@@ -1,0 +1,33 @@
+
+import mylib
+from mylib import Value, Vector
+
+if _name == "@main"
+  print("Testing native extension module...")
+  
+  # Original Value test
+  x = Value(20)
+  print("Initial value (Value):", x.value)
+  assert(x.value == 20, "x.value should be 20")
+  
+  x.value = 42
+  print("Updated value (Value):", x.value)
+  assert(x.value == 42, "x.value should be 42")
+  
+  # New Vector test
+  print("\nTesting Vector class...")
+  v1 = Vector(1.0, 2.0)
+  v2 = Vector(3.0, 4.0)
+  
+  print("v1:", v1.toString())
+  print("v2:", v2.toString())
+  
+  v1.add(v2)
+  print("v1 after adding v2:", v1.toString())
+  
+  assert(v1.toString() == "Vector(4.00, 6.00)", "Vector addition failed")
+  
+  print("Success.")
+  print("Test completed.")
+
+end

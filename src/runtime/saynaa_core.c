@@ -3,34 +3,35 @@
  * Distributed Under The MIT License
  */
 
-#include <ctype.h>
-#include <limits.h>
-#include <math.h>
 #include "saynaa_core.h"
-#include "saynaa_vm.h"
 
 #include "../utils/saynaa_debug.h"
 #include "../utils/saynaa_utils.h"
+#include "saynaa_vm.h"
+
+#include <ctype.h>
+#include <limits.h>
+#include <math.h>
 
 // A convenient macro to get the nth (1 based) argument of the current
 // function.
 #define ARG(n) (vm->fiber->ret[n])
 
 // Evaluates to the current function's argument count.
-#define ARGC ((int)(vm->fiber->sp - vm->fiber->ret) - 1)
+#define ARGC ((int) (vm->fiber->sp - vm->fiber->ret) - 1)
 
 // Set return value for the current native function and return.
-#define RET(value)             \
-  do {                         \
+#define RET(value) \
+  do { \
     *(vm->fiber->ret) = value; \
-    return;                    \
+    return; \
   } while (false)
 
-#define RET_ERR(err)           \
-  do {                         \
-    VM_SET_ERROR(vm, err);     \
-    RET(VAR_NULL);             \
-  } while(false)
+#define RET_ERR(err) \
+  do { \
+    VM_SET_ERROR(vm, err); \
+    RET(VAR_NULL); \
+  } while (false)
 
 /*****************************************************************************/
 /* VALIDATORS                                                                */
@@ -49,41 +50,41 @@ static inline bool isNumeric(Var var, double* value) {
   return false;
 }
 
-// Check if [var] is a numeric value (bool/number) and set [value].
+// Check if [var] is an integer value and set [value].
 static inline bool isInteger(Var var, int64_t* value) {
   double number;
   if (isNumeric(var, &number)) {
-    // TODO: check if the number is larger for a 64 bit integer.
+    // Note: This check verifies if the double represents an integral value.
     if (floor(number) == number) {
+      // Ensure the value fits within a 64-bit integer.
       ASSERT(INT64_MIN <= number && number <= INT64_MAX,
-        "TODO: Large numbers haven't handled yet. Please report!");
-      *value = (int64_t)(number);
+             "Value exceeds 64-bit integer range.");
+      *value = (int64_t) (number);
       return true;
     }
   }
   return false;
 }
 
-// Check if [var] is bool/number. If not, it'll set error and return false.
-static inline bool validateNumeric(VM* vm, Var var, double* value,
-                                   const char* name) {
-  if (isNumeric(var, value)) return true;
+// Check if [var] is a number or boolean. If not, it sets an error and returns false.
+static inline bool validateNumeric(VM* vm, Var var, double* value, const char* name) {
+  if (isNumeric(var, value))
+    return true;
   VM_SET_ERROR(vm, stringFormat(vm, "$ must be a numeric value.", name));
   return false;
 }
 
-// Check if [var] is 32 bit integer. If not, it'll set error and return false.
-static inline bool validateInteger(VM* vm, Var var, int64_t* value,
-                                   const char* name) {
-  if (isInteger(var, value)) return true;
+// Check if [var] is a 64-bit integer. If not, it sets an error and returns false.
+static inline bool validateInteger(VM* vm, Var var, int64_t* value, const char* name) {
+  if (isInteger(var, value))
+    return true;
   VM_SET_ERROR(vm, stringFormat(vm, "$ must be a Number.", name));
   return false;
 }
 
-// Index is could be larger than 32 bit integer, but the size is
-// limited to 32 unsigned bit integer
-static inline bool validateIndex(VM* vm, int64_t index, uint32_t size,
-                                 const char* container) {
+// Index could be larger than a 32-bit integer, but the size is
+// limited to a 32-bit unsigned integer.
+static inline bool validateIndex(VM* vm, int64_t index, uint32_t size, const char* container) {
   if (index < 0 || size <= index) {
     VM_SET_ERROR(vm, stringFormat(vm, "$ index out of bound.", container));
     return false;
@@ -91,8 +92,7 @@ static inline bool validateIndex(VM* vm, int64_t index, uint32_t size,
   return true;
 }
 
-// Check if the [condition] is true. If not, it'll set an error and return
-// false.
+// Check if the [condition] is true. If not, sets an error and returns false.
 static inline bool validateCond(VM* vm, bool condition, const char* err) {
   if (!condition) {
     VM_SET_ERROR(vm, newString(vm, err));
@@ -103,26 +103,26 @@ static inline bool validateCond(VM* vm, bool condition, const char* err) {
 
 // Check if [var] is string for argument at [arg]. If not set error and
 // return false.
-#define VALIDATE_ARG_OBJ(m_class, m_type, m_name)                            \
-  static bool validateArg##m_class(VM* vm, int arg, m_class** value) {       \
-    Var var = ARG(arg);                                                      \
-    ASSERT(arg > 0 && arg <= ARGC, OOPS);                                    \
-    if (!IS_OBJ(var) || AS_OBJ(var)->type != m_type) {                       \
-      char buff[12]; sprintf(buff, "%d", arg);                               \
-      VM_SET_ERROR(vm, stringFormat(vm, "Expected a " m_name                 \
-                   " at argument $.", buff, false));                         \
-      return false;                                                          \
-    }                                                                        \
-    *value = (m_class*)AS_OBJ(var);                                          \
-    return true;                                                             \
-   }
- VALIDATE_ARG_OBJ(String, OBJ_STRING, "string")
- VALIDATE_ARG_OBJ(List, OBJ_LIST, "list")
- VALIDATE_ARG_OBJ(Map, OBJ_MAP, "map")
- VALIDATE_ARG_OBJ(Closure, OBJ_CLOSURE, "closure")
- VALIDATE_ARG_OBJ(Fiber, OBJ_FIBER, "fiber")
- VALIDATE_ARG_OBJ(Class, OBJ_CLASS, "class")
- VALIDATE_ARG_OBJ(Module, OBJ_MODULE, "module")
+#define VALIDATE_ARG_OBJ(m_class, m_type, m_name) \
+  static bool validateArg##m_class(VM* vm, int arg, m_class** value) { \
+    Var var = ARG(arg); \
+    ASSERT(arg > 0 && arg <= ARGC, OOPS); \
+    if (!IS_OBJ(var) || AS_OBJ(var)->type != m_type) { \
+      char buff[12]; \
+      sprintf(buff, "%d", arg); \
+      VM_SET_ERROR(vm, stringFormat(vm, "Expected a " m_name " at argument $.", buff, false)); \
+      return false; \
+    } \
+    *value = (m_class*) AS_OBJ(var); \
+    return true; \
+  }
+VALIDATE_ARG_OBJ(String, OBJ_STRING, "string")
+VALIDATE_ARG_OBJ(List, OBJ_LIST, "list")
+VALIDATE_ARG_OBJ(Map, OBJ_MAP, "map")
+VALIDATE_ARG_OBJ(Closure, OBJ_CLOSURE, "closure")
+VALIDATE_ARG_OBJ(Fiber, OBJ_FIBER, "fiber")
+VALIDATE_ARG_OBJ(Class, OBJ_CLASS, "class")
+VALIDATE_ARG_OBJ(Module, OBJ_MODULE, "module")
 
 /*****************************************************************************/
 /* SHARED FUNCTIONS                                                          */
@@ -139,7 +139,6 @@ void initializeCore(VM* vm) {
 }
 
 void initializeModule(VM* vm, Module* module, bool is_main) {
-
   String *path = module->path, *name = NULL;
 
   if (is_main) {
@@ -147,7 +146,7 @@ void initializeModule(VM* vm, Module* module, bool is_main) {
     // allocations everytime here.
     name = newString(vm, "@main");
     module->name = name;
-    vmPushTempRef(vm, &name->_super); // _main.
+    vmPushTempRef(vm, &name->_super); // @main.
   } else {
     ASSERT(module->name != NULL, OOPS);
     name = module->name;
@@ -163,34 +162,35 @@ void initializeModule(VM* vm, Module* module, bool is_main) {
   }
 
   moduleSetGlobal(vm, module, "_name", 5, VAR_OBJ(name));
-
-  if (is_main) vmPopTempRef(vm); // _main.
+  if (is_main)
+    vmPopTempRef(vm); // _main.
+  moduleSetGlobal(vm, module, "_module", 7, VAR_OBJ(module));
 }
 
 /*****************************************************************************/
 /* INTERNAL FUNCTIONS                                                        */
 /*****************************************************************************/
 
-String* varToString(VM* vm, Var this, bool repr) {
-  if (IS_OBJ_TYPE(this, OBJ_INST)) {
-
-    // The closure is retrieved from [this] thus, it doesn't need to be push
-    // on the VM's temp references (since [this] should already be protected
+String* varToString(VM* vm, Var thiz, bool repr) {
+  if (IS_OBJ_TYPE(thiz, OBJ_INST)) {
+    // The closure is retrieved from [thiz] thus, it doesn't need to be push
+    // on the VM's temp references (since [thiz] should already be protected
     // from GC).
     Closure* closure = NULL;
 
     if (!repr) {
-      closure = getMagicMethod(getClass(vm, this), METHOD_STR);
+      closure = getMagicMethod(getClass(vm, thiz), METHOD_STR);
     }
 
     if (closure == NULL) {
-      closure = getMagicMethod(getClass(vm, this), METHOD_REPR);
+      closure = getMagicMethod(getClass(vm, thiz), METHOD_REPR);
     }
 
     if (closure != NULL) {
       Var ret = VAR_NULL;
-      Result result = vmCallMethod(vm, this, closure, 0, NULL, &ret);
-      if (result != RESULT_SUCCESS) return NULL;
+      Result result = vmCallMethod(vm, thiz, closure, 0, NULL, &ret);
+      if (result != RESULT_SUCCESS)
+        return NULL;
 
       if (!IS_OBJ_TYPE(ret, OBJ_STRING)) {
         VM_SET_ERROR(vm, newString(vm, "method " LITS__str " returned "
@@ -198,15 +198,16 @@ String* varToString(VM* vm, Var this, bool repr) {
         return NULL;
       }
 
-      return (String*)AS_OBJ(ret);
+      return (String*) AS_OBJ(ret);
     }
 
     // If we reached here, it doesn't have a to string override. just
     // "fall throught" and call 'toString()' bellow.
   }
 
-  if (repr) return toRepr(vm, this);
-  return toString(vm, this);
+  if (repr)
+    return toRepr(vm, thiz);
+  return toString(vm, thiz);
 }
 
 Var varSprintf(VM* vm, String* string, List* args) {
@@ -242,17 +243,32 @@ Var varSprintf(VM* vm, String* string, List* args) {
         percent = NULL;
         continue;
 
-      case 'f': case 'F': case 'e': case 'E': case 'g': case 'G':
-        specifier = 'f'; break;
+      case 'f':
+      case 'F':
+      case 'e':
+      case 'E':
+      case 'g':
+      case 'G':
+        specifier = 'f';
+        break;
 
-      case 'd': case 'i': case 'u': case 'x': case 'X': case 'o': case 'b':
-        specifier = 'i'; break;
+      case 'd':
+      case 'i':
+      case 'u':
+      case 'x':
+      case 'X':
+      case 'o':
+      case 'b':
+        specifier = 'i';
+        break;
 
       case 'c':
-        specifier = 'c'; break;
+        specifier = 'c';
+        break;
 
       case 's':
-        specifier = 's'; break;
+        specifier = 's';
+        break;
 
       default:
         continue;
@@ -261,8 +277,10 @@ Var varSprintf(VM* vm, String* string, List* args) {
     fmtbuff.count = 0;
     while (percent < cur) {
       char c = *percent++;
-      if (c == 'c') c = 's'; // support encode to utf8 later
-      if (c != '*') ByteBufferWrite(&fmtbuff, vm, c); // don't support '*'
+      if (c == 'c')
+        c = 's'; // support encode to utf8 later
+      if (c != '*')
+        ByteBufferWrite(&fmtbuff, vm, c); // don't support '*'
     }
     ByteBufferWrite(&fmtbuff, vm, 0);
     percent = NULL;
@@ -290,36 +308,35 @@ Var varSprintf(VM* vm, String* string, List* args) {
     for (;;) {
       switch (specifier) {
         case 'f':
-          len = snprintf((char *)outbuff.data, outbuff.capacity,
-                         (char *)fmtbuff.data, num);
+          len = snprintf((char*) outbuff.data, outbuff.capacity, (char*) fmtbuff.data, num);
           break;
         case 'i':
-          len = snprintf((char *)outbuff.data, outbuff.capacity,
-                         (char *)fmtbuff.data, (int32_t) num);
+          len = snprintf((char*) outbuff.data, outbuff.capacity,
+                         (char*) fmtbuff.data, (int32_t) num);
           break;
         case 'c':
           utf8[utf8_encodeValue((int) num, utf8)] = 0;
-          len = snprintf((char *)outbuff.data, outbuff.capacity,
-                         (char *)fmtbuff.data, utf8);
+          len = snprintf((char*) outbuff.data, outbuff.capacity, (char*) fmtbuff.data, utf8);
           break;
         case 's':
           if (str != NULL) {
-            len = snprintf((char *)outbuff.data, outbuff.capacity,
-                           (char *)fmtbuff.data, str->data);
+            len = snprintf((char*) outbuff.data, outbuff.capacity,
+                           (char*) fmtbuff.data, str->data);
           }
           break;
         default:
           UNREACHABLE();
       }
 
-      if (len + 1 <= outbuff.capacity) break;
+      if (len + 1 <= outbuff.capacity)
+        break;
       ByteBufferReserve(&outbuff, vm, len + 1);
     }
 
-    ByteBufferAddString(&retbuff, vm, (char *)outbuff.data, len);
+    ByteBufferAddString(&retbuff, vm, (char*) outbuff.data, len);
   }
 
-  String* str = newStringLength(vm, (const char*)retbuff.data, retbuff.count);
+  String* str = newStringLength(vm, (const char*) retbuff.data, retbuff.count);
   ByteBufferClear(&retbuff, vm);
   ByteBufferClear(&outbuff, vm);
   ByteBufferClear(&fmtbuff, vm);
@@ -329,34 +346,35 @@ Var varSprintf(VM* vm, String* string, List* args) {
 // Calls a unary operator overload method. If the method does not exists it'll
 // return false, otherwise it'll call the method and return true. If any error
 // occures it'll set an error.
-static inline bool _callUnaryOpMethod(VM* vm, Var this,
-                                      const char* method_name, Var* ret) {
+static inline bool _callUnaryOpMethod(VM* vm, Var thiz, const char* method_name, Var* ret) {
   Closure* closure = NULL;
   String* name = newString(vm, method_name);
   vmPushTempRef(vm, &name->_super); // name.
-  bool has_method = hasMethod(vm, this, name, &closure);
+  bool has_method = hasMethod(vm, thiz, name, &closure);
   vmPopTempRef(vm); // name.
 
-  if (!has_method) return false;
+  if (!has_method)
+    return false;
 
-  vmCallMethod(vm, this, closure, 0, NULL, ret);
+  vmCallMethod(vm, thiz, closure, 0, NULL, ret);
   return true;
 }
 
 // Calls a binary operator overload method. If the method does not exists it'll
 // return false, otherwise it'll call the method and return true. If any error
 // occures it'll set an error.
-static inline bool _callBinaryOpMethod(VM* vm, Var this, Var other,
-                                      const char* method_name, Var* ret) {
+static inline bool _callBinaryOpMethod(VM* vm, Var thiz, Var other,
+                                       const char* method_name, Var* ret) {
   Closure* closure = NULL;
   String* name = newString(vm, method_name);
   vmPushTempRef(vm, &name->_super); // name.
-  bool has_method = hasMethod(vm, this, name, &closure);
+  bool has_method = hasMethod(vm, thiz, name, &closure);
   vmPopTempRef(vm); // name.
 
-  if (!has_method) return false;
+  if (!has_method)
+    return false;
 
-  vmCallMethod(vm, this, closure, 1, &other, ret);
+  vmCallMethod(vm, thiz, closure, 1, &other, ret);
   return true;
 }
 
@@ -367,11 +385,11 @@ static inline bool _callBinaryOpMethod(VM* vm, Var this, Var other,
 // Add all the methods recursively to the lits used for generating a list of
 // attributes for the 'dir()' function.
 static void _collectMethods(VM* vm, List* list, Class* cls) {
-  if (cls == NULL) return;
+  if (cls == NULL)
+    return;
 
   for (uint32_t i = 0; i < cls->methods.count; i++) {
-    listAppend(vm, list,
-      VAR_OBJ(newString(vm, cls->methods.data[i]->fn->name)));
+    listAppend(vm, list, VAR_OBJ(newString(vm, cls->methods.data[i]->fn->name)));
   }
   _collectMethods(vm, list, cls->super_class);
 }
@@ -382,7 +400,8 @@ static void _listJoinImpl(VM* vm, List* list, String* sep) {
 
   for (uint32_t i = 0; i < list->elements.count; i++) {
     String* str = varToString(vm, list->elements.data[i], false);
-    if (str == NULL) RET(VAR_NULL);
+    if (str == NULL)
+      RET(VAR_NULL);
     vmPushTempRef(vm, &str->_super); // elem
     if (sep != NULL && i != 0) {
       ByteBufferAddString(&buff, vm, sep->data, sep->length);
@@ -391,7 +410,7 @@ static void _listJoinImpl(VM* vm, List* list, String* sep) {
     vmPopTempRef(vm); // elem
   }
 
-  String* str = newStringLength(vm, (const char*)buff.data, buff.count);
+  String* str = newStringLength(vm, (const char*) buff.data, buff.count);
   ByteBufferClear(&buff, vm);
   RET(VAR_OBJ(str));
 }
@@ -400,10 +419,8 @@ static void _listJoinImpl(VM* vm, List* list, String* sep) {
 /* CORE BUILTIN FUNCTIONS                                                    */
 /*****************************************************************************/
 
-function(coreHelp,
-  "help([value:Closure|MethodBind|Class]) -> Null",
-  "It'll print the docstring the object and return.") {
-
+saynaa_function(coreHelp, "help([value:Closure|MethodBind|Class]) -> Null",
+                "It'll print the docstring the object and return.") {
   int argc = ARGC;
   if (argc != 0 && argc != 1) {
     RET_ERR(newString(vm, "Invalid argument count."));
@@ -411,15 +428,14 @@ function(coreHelp,
 
   if (argc == 0) {
     // If there ins't an io function callback, we're done.
-    if (vm->config.stdout_write == NULL) RET(VAR_NULL);
-    vm->config.stdout_write(vm, "TODO: print help here\n");
+    if (vm->config.stdout_write == NULL)
+      RET(VAR_NULL);
+    vm->config.stdout_write(vm, "Saynaa Language\nA simple, embedded scripting "
+                                "language.\nUsage: help(object)\n");
 
   } else if (argc == 1) {
-
-    // TODO: Extend help() to work with modules and classes.
-    //       Add docstring (like python) to support it in.
-
-    if (vm->config.stdout_write == NULL) RET(VAR_NULL);
+    if (vm->config.stdout_write == NULL)
+      RET(VAR_NULL);
     Var value = ARG(1);
 
     if (IS_OBJ_TYPE(value, OBJ_CLOSURE)) {
@@ -458,22 +474,18 @@ function(coreHelp,
       }
     } else {
       RET_ERR(newString(vm, "Expected a Closure, MethodBind or "
-                        "Class to get help."));
+                            "Class to get help."));
     }
   }
-
 }
 
-function(coreDir,
-  "dir(v:Var) -> List[String]",
-  "It'll return all the elements of the variable [v]. "
-  "If [v] is a module it'll return the names of globals, "
-  "functions, and classes. If it's an instance it'll "
-  "return all the attributes and methods.") {
-
+saynaa_function(coreDir, "dir(v:Var) -> List[String]",
+                "It'll return all the elements of the variable [v]. "
+                "If [v] is a module it'll return the names of globals, "
+                "functions, and classes. If it's an instance it'll "
+                "return all the attributes and methods.") {
   Var v = ARG(1);
   switch (getVarType(v)) {
-
     case vNULL:
     case vBOOL:
     case vNUMBER:
@@ -482,63 +494,72 @@ function(coreDir,
     case vMAP:
     case vRANGE:
     case vCLOSURE:
-    case vFIBER: {
-      List* list = newList(vm, 8);
-      vmPushTempRef(vm, &list->_super); // list.
-      _collectMethods(vm, list, getClass(vm, v));
-      vmPopTempRef(vm); // list.
-      RET(VAR_OBJ(list));
-    }
-
-    case vMODULE: {
-      Module* m = (Module*) AS_OBJ(v);
-      List* list = newList(vm, 8);
-      vmPushTempRef(vm, &list->_super); // list.
-      for (uint32_t i = 0; i < m->globals.count; i++) {
-        Var name = m->constants.data[m->global_names.data[i]];
-        ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
-        listAppend(vm, list, name);
+    case vFIBER:
+      {
+        List* list = newList(vm, 8);
+        vmPushTempRef(vm, &list->_super); // list.
+        _collectMethods(vm, list, getClass(vm, v));
+        vmPopTempRef(vm); // list.
+        RET(VAR_OBJ(list));
       }
-      vmPopTempRef(vm); // list.
-      RET(VAR_OBJ(list));
-    } break;
 
-    case vCLASS: {
-      Class* cls = (Class*) AS_OBJ(v);
-      List* list = newList(vm, 8);
-      vmPushTempRef(vm, &list->_super); // list.
-      _collectMethods(vm, list, cls);
-      // TODO: if we add static variables to classes it should be
-      // added here as well.
-      vmPopTempRef(vm); // list.
-      RET(VAR_OBJ(list));
-    } break;
-
-    case vINSTANCE: {
-      Instance* inst = (Instance*) AS_OBJ(v);
-      List* list = newList(vm, 8);
-      vmPushTempRef(vm, &list->_super); // list.
-      for (uint32_t i = 0; i < inst->attribs->capacity; i++) {
-        Var key = (inst->attribs->entries + i)->key;
-        if (!IS_UNDEF(key)) {
-          ASSERT(IS_OBJ_TYPE(key, OBJ_STRING), OOPS);
-          listAppend(vm, list, key);
+    case vMODULE:
+      {
+        Module* m = (Module*) AS_OBJ(v);
+        List* list = newList(vm, 8);
+        vmPushTempRef(vm, &list->_super); // list.
+        for (uint32_t i = 0; i < m->globals.count; i++) {
+          Var name = m->constants.data[m->global_names.data[i]];
+          ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
+          if (((String*) AS_OBJ(name))->data[0] == SPECIAL_NAME_CHAR) {
+            continue;
+          }
+          listAppend(vm, list, name);
         }
+        vmPopTempRef(vm); // list.
+        RET(VAR_OBJ(list));
       }
-      _collectMethods(vm, list, inst->cls);
-      vmPopTempRef(vm); // list.
-      RET(VAR_OBJ(list));
-    } break;
+      break;
+
+    case vCLASS:
+      {
+        Class* cls = (Class*) AS_OBJ(v);
+        List* list = newList(vm, 8);
+        vmPushTempRef(vm, &list->_super); // list.
+        _collectMethods(vm, list, cls);
+        // TODO: if we add static variables to classes it should be
+        // added here as well.
+        vmPopTempRef(vm); // list.
+        RET(VAR_OBJ(list));
+      }
+      break;
+
+    case vINSTANCE:
+      {
+        Instance* inst = (Instance*) AS_OBJ(v);
+        List* list = newList(vm, 8);
+        vmPushTempRef(vm, &list->_super); // list.
+        for (uint32_t i = 0; i < inst->attribs->capacity; i++) {
+          Var key = (inst->attribs->entries + i)->key;
+          if (!IS_UNDEF(key)) {
+            ASSERT(IS_OBJ_TYPE(key, OBJ_STRING), OOPS);
+            listAppend(vm, list, key);
+          }
+        }
+        _collectMethods(vm, list, inst->cls);
+        vmPopTempRef(vm); // list.
+        RET(VAR_OBJ(list));
+      }
+      break;
   }
 
   UNREACHABLE();
 }
 
-function(coreAssert,
-  "assert(condition:Bool [, msg:String]) -> Null",
-  "If the condition is false it'll terminate the current fiber with the "
-  "optional error message") {
-
+saynaa_function(
+    coreAssert, "assert(condition:Bool [, msg:String]) -> Null",
+    "If the condition is false it'll terminate the current fiber with the "
+    "optional error message") {
   int argc = ARGC;
   if (argc != 1 && argc != 2) {
     RET_ERR(newString(vm, "Invalid argument count."));
@@ -550,10 +571,11 @@ function(coreAssert,
     if (argc == 2) {
       if (!IS_OBJ_TYPE(ARG(2), OBJ_STRING)) {
         msg = varToString(vm, ARG(2), false);
-        if (msg == NULL) return; //< Error at _to_string override.
+        if (msg == NULL)
+          return; //< Error at _to_string override.
 
       } else {
-        msg = (String*)AS_OBJ(ARG(2));
+        msg = (String*) AS_OBJ(ARG(2));
       }
 
       vmPushTempRef(vm, &msg->_super); // msg.
@@ -565,17 +587,17 @@ function(coreAssert,
   }
 }
 
-function(coreBin,
-  "bin(value:Number) -> String",
-  "Returns as a binary value string with '0b' prefix.") {
-
+saynaa_function(coreBin, "bin(value:Number) -> String",
+                "Returns as a binary value string with '0b' prefix.") {
   int64_t value;
-  if (!validateInteger(vm, ARG(1), &value, "Argument 1")) return;
+  if (!validateInteger(vm, ARG(1), &value, "Argument 1"))
+    return;
 
   char buff[STR_BIN_BUFF_SIZE];
 
   bool negative = (value < 0) ? true : false;
-  if (negative) value = -value;
+  if (negative)
+    value = -value;
 
   char* ptr = buff + STR_BIN_BUFF_SIZE - 1;
   *ptr-- = '\0'; // NULL byte at the end of the string.
@@ -589,47 +611,48 @@ function(coreBin,
     *ptr-- = '0';
   }
 
-  *ptr-- = 'b'; *ptr-- = '0';
-  if (negative) *ptr-- = '-';
+  *ptr-- = 'b';
+  *ptr-- = '0';
+  if (negative)
+    *ptr-- = '-';
 
-  uint32_t length = (uint32_t)((buff + STR_BIN_BUFF_SIZE - 1) - (ptr + 1));
+  uint32_t length = (uint32_t) ((buff + STR_BIN_BUFF_SIZE - 1) - (ptr + 1));
   RET(VAR_OBJ(newStringLength(vm, ptr + 1, length)));
 }
 
-function(coreHex,
-  "hex(value:Number) -> String",
-  "Returns as a hexadecimal value string with '0x' prefix.") {
-
+saynaa_function(coreHex, "hex(value:Number) -> String",
+                "Returns as a hexadecimal value string with '0x' prefix.") {
   int64_t value;
-  if (!validateInteger(vm, ARG(1), &value, "Argument 1")) return;
+  if (!validateInteger(vm, ARG(1), &value, "Argument 1"))
+    return;
 
   char buff[STR_HEX_BUFF_SIZE];
 
   char* ptr = buff;
-  if (value < 0) *ptr++ = '-';
-  *ptr++ = '0'; *ptr++ = 'x';
+  if (value < 0)
+    *ptr++ = '-';
+  *ptr++ = '0';
+  *ptr++ = 'x';
 
-  if (value > UINT32_MAX || value < -(int64_t)(UINT32_MAX)) {
+  if (value > UINT32_MAX || value < -(int64_t) (UINT32_MAX)) {
     VM_SET_ERROR(vm, newString(vm, "Integer is too large."));
     RET(VAR_NULL);
   }
 
   // TODO: sprintf limits only to 8 character hex value, we need to do it
-  // outthis for a maximum of 16 character long (see bin() for reference).
-  uint32_t _x = (uint32_t)((value < 0) ? -value : value);
+  // outthiz for a maximum of 16 character long (see bin() for reference).
+  uint32_t _x = (uint32_t) ((value < 0) ? -value : value);
   int length = sprintf(ptr, "%x", _x);
 
-  RET(VAR_OBJ(newStringLength(vm, buff,
-    (uint32_t)((ptr + length) - (char*)(buff)))));
+  RET(VAR_OBJ(newStringLength(vm, buff, (uint32_t) ((ptr + length) - (char*) (buff)))));
 }
 
-function(coreYield,
-  "yield([value:Var]) -> Var",
-  "Return the current function with the yield [value] to current running "
-  "fiber. If the fiber is resumed, it'll run from the next statement of the "
-  "yield() call. If the fiber resumed with with a value, the return value of "
-  "the yield() would be that value otherwise null.") {
-
+saynaa_function(
+    coreYield, "yield([value:Var]) -> Var",
+    "Return the current function with the yield [value] to current running "
+    "fiber. If the fiber is resumed, it'll run from the next statement of the "
+    "yield() call. If the fiber resumed with with a value, the return value of "
+    "the yield() would be that value otherwise null.") {
   int argc = ARGC;
   if (argc > 1) { // yield() or yield(val).
     RET_ERR(newString(vm, "Invalid argument count."));
@@ -638,31 +661,29 @@ function(coreYield,
   vmYieldFiber(vm, (argc == 1) ? &ARG(1) : NULL);
 }
 
-function(coreToString,
-  "str(valueVar) -> String",
-  "Returns the string representation of the value.") {
-
+saynaa_function(coreToString, "str(valueVar) -> String",
+                "Returns the string representation of the value.") {
   String* str = varToString(vm, ARG(1), false);
-  if (str == NULL) RET(VAR_NULL);
+  if (str == NULL)
+    RET(VAR_NULL);
   RET(VAR_OBJ(str));
 }
 
-function(coreToInt,
-  "int(value:Num) -> Integer",
-  "Returns the integer value of the number argument without decimal.") {
-
+saynaa_function(coreToInt, "int(value:Num) -> Integer",
+                "Returns the integer value"
+                " of the number argument without decimal.") {
   double num;
-  if (!validateNumeric(vm, ARG(1), &num, "Argument 1")) return;
+  if (!validateNumeric(vm, ARG(1), &num, "Argument 1"))
+    return;
 
-  RET(VAR_NUM((int)num));
+  RET(VAR_NUM((int) num));
 }
 
-function(coreChr,
-  "chr(value:Num) -> String",
-  "Returns the ASCII string value of the integer argument.") {
-
+saynaa_function(coreChr, "chr(value:Num) -> String",
+                "Returns the ASCII string value of the integer argument.") {
   int64_t num;
-  if (!validateInteger(vm, ARG(1), &num, "Argument 1")) return;
+  if (!validateInteger(vm, ARG(1), &num, "Argument 1"))
+    return;
 
   if (!(0 <= num && num <= 0xff)) {
     RET_ERR(newString(vm, "The number should be in range 0x00 to 0xff."));
@@ -672,79 +693,79 @@ function(coreChr,
   RET(VAR_OBJ(newStringLength(vm, &c, 1)));
 }
 
-function(coreOrd,
-  "ord(value:String) -> Number",
-  "Returns integer value of the given ASCII character.") {
-
+saynaa_function(coreOrd, "ord(value:String) -> Number",
+                "Returns integer value of the given ASCII character.") {
   String* c;
-  if (!validateArgString(vm, 1, &c)) return;
+  if (!validateArgString(vm, 1, &c))
+    return;
   if (c->length != 1) {
     RET_ERR(newString(vm, "Expected a string of length 1."));
 
   } else {
-    RET(VAR_NUM((double)c->data[0]));
+    RET(VAR_NUM((double) c->data[0]));
   }
 }
 
-function(coreMin,
-  "min(a:Var, b:Var) -> Bool",
-  "Returns minimum of [a] and [b].") {
-
+saynaa_function(coreMin, "min(a:Var, b:Var) -> Bool", "Returns minimum of [a] and [b].") {
   Var a = ARG(1), b = ARG(2);
   Var islesser = varLesser(vm, a, b);
-  if (VM_HAS_ERROR(vm)) RET(VAR_NULL);
+  if (VM_HAS_ERROR(vm))
+    RET(VAR_NULL);
 
-  if (toBool(islesser)) RET(a);
+  if (toBool(islesser))
+    RET(a);
   RET(b);
 }
 
-function(coreMax,
-  "max(a:var, b:var) -> Bool",
-  "Returns maximum of [a] and [b].") {
-
+saynaa_function(coreMax, "max(a:var, b:var) -> Bool", "Returns maximum of [a] and [b].") {
   Var a = ARG(1), b = ARG(2);
   Var islesser = varLesser(vm, a, b);
-  if (VM_HAS_ERROR(vm)) RET(VAR_NULL);
+  if (VM_HAS_ERROR(vm))
+    RET(VAR_NULL);
 
-  if (toBool(islesser)) RET(b);
+  if (toBool(islesser))
+    RET(b);
   RET(a);
 }
 
-function(corePrint,
-  "print(...) -> Null",
-  "Write each argument as space seperated, to the stdout and ends with a "
-  "newline.") {
-
+saynaa_function(
+    corePrint, "print(...) -> Null",
+    "Write each argument as space seperated, to the stdout and ends with a "
+    "newline.") {
   // If the host application doesn't provide any write function, discard the
   // output.
-  if (vm->config.stdout_write == NULL) return;
+  if (vm->config.stdout_write == NULL)
+    return;
 
   for (int i = 1; i <= ARGC; i++) {
-    if (i != 1) vm->config.stdout_write(vm, " ");
+    if (i != 1)
+      vm->config.stdout_write(vm, " ");
     String* str = varToString(vm, ARG(i), false);
-    if (str == NULL) RET(VAR_NULL);
+    if (str == NULL)
+      RET(VAR_NULL);
     vm->config.stdout_write(vm, str->data);
   }
 
   vm->config.stdout_write(vm, "\n");
 }
 
-function(coreInput,
-  "input([msg:Var]) -> String",
-  "Read a line from stdin and returns it without the line ending. Accepting "
-  "an optional argument [msg] and prints it before reading.") {
-
+saynaa_function(
+    coreInput, "input([msg:Var]) -> String",
+    "Read a line from stdin and returns it without the line ending. Accepting "
+    "an optional argument [msg] and prints it before reading.") {
   int argc = ARGC;
   if (argc > 1) { // input() or input(str).
     RET_ERR(newString(vm, "Invalid argument count."));
   }
 
   // If the host application doesn't provide any write function, return.
-  if (vm->config.stdin_read == NULL) return;
+  if (vm->config.stdin_read == NULL)
+    return;
 
   if (argc == 1) {
     String* str = varToString(vm, ARG(1), false);
-    if (str == NULL) RET(VAR_NULL);
+    if (str == NULL)
+      RET(VAR_NULL);
     vm->config.stdout_write(vm, str->data);
   }
 
@@ -758,11 +779,10 @@ function(coreInput,
   RET(VAR_OBJ(line));
 }
 
-function(coreExit,
-  "exit([value:Number]) -> Null",
-  "Exit the process with an optional exit code provided by the argument "
-  "[value]. The default exit code is would be 0.") {
-
+saynaa_function(
+    coreExit, "exit([value:Number]) -> Null",
+    "Exit the process with an optional exit code provided by the argument "
+    "[value]. The default exit code is would be 0.") {
   int argc = ARGC;
   if (argc > 1) { // exit() or exit(val).
     RET_ERR(newString(vm, "Invalid argument count."));
@@ -770,28 +790,28 @@ function(coreExit,
 
   int64_t value = 0;
   if (argc == 1) {
-    if (!validateInteger(vm, ARG(1), &value, "Argument 1")) return;
+    if (!validateInteger(vm, ARG(1), &value, "Argument 1"))
+      return;
   }
 
-  //FreeVM(vm);
-  // TODO: this actually needs to be the VM fiber being set to null though.
-  exit((int)value);
+  // FreeVM(vm);
+  //  TODO: this actually needs to be the VM fiber being set to null though.
+  exit((int) value);
 }
 
-function(coreCompile,
-  "compile(code:String) -> Closure",
-  "Compiles source code into a closure (does not execute automatically).") {
-
+saynaa_function(coreCompile, "compile(code:String) -> Closure",
+                "Compiles source code into"
+                " a closure (does not execute automatically).") {
   String* code;
-  if (!validateArgString(vm, 1, &code)) return;
+  if (!validateArgString(vm, 1, &code))
+    return;
   vmPushTempRef(vm, &code->_super); // code.
 
   Module* module = newModule(vm);
   vmPushTempRef(vm, &module->_super); // module.
   {
     module->path = newString(vm, "@(meta)");
-    Function* body_fn = newFunction(vm, "@meta", 5, module, false,
-      NULL, NULL);
+    Function* body_fn = newFunction(vm, "@meta", 5, module, false, NULL, NULL);
     body_fn->arity = 0;
 
     vmPushTempRef(vm, &body_fn->_super); // body_fn.
@@ -810,13 +830,12 @@ function(coreCompile,
   vmPopTempRef(vm); // code.
 }
 
-function(coreEval,
-  "eval(expression:String) -> Var",
-  "Evaluate an expression and returns the result.\n"
-  "Only global variables can be used in the expression.") {
-
+saynaa_function(coreEval, "eval(expression:String) -> Var",
+                "Evaluate an expression and returns the result.\n"
+                "Only global variables can be used in the expression.") {
   String* expr;
-  if (!validateArgString(vm, 1, &expr)) return;
+  if (!validateArgString(vm, 1, &expr))
+    return;
 
   String* code = stringFormat(vm, "return (@)", expr);
   vmPushTempRef(vm, &code->_super); // code.
@@ -828,12 +847,9 @@ function(coreEval,
     vmPushTempRef(vm, &new_module->_super); // new_module.
     {
       // let global variables become available
-      VarBufferConcat(&new_module->constants, vm,
-        &current_module->constants);
-      VarBufferConcat(&new_module->globals, vm,
-        &current_module->globals);
-      UintBufferConcat(&new_module->global_names, vm,
-        &current_module->global_names);
+      VarBufferConcat(&new_module->constants, vm, &current_module->constants);
+      VarBufferConcat(&new_module->globals, vm, &current_module->globals);
+      UintBufferConcat(&new_module->global_names, vm, &current_module->global_names);
 
       CompileOptions options = newCompilerOptions();
       options.runtime = true;
@@ -853,22 +869,22 @@ function(coreEval,
 // List functions.
 // ---------------
 
-function(coreListAppend,
-  "list_append(this:List, value:Var) -> List",
-  "Append the [value] to the list [this] and return the list.") {
-
+saynaa_function(coreListAppend, "list_append(thiz:List, value:Var) -> List",
+                "Append the [value] to the list [thiz] and return the list.") {
   List* list;
-  if (!validateArgList(vm, 1, &list)) return;
+  if (!validateArgList(vm, 1, &list))
+    return;
   Var elem = ARG(2);
 
   listAppend(vm, list, elem);
   RET(VAR_OBJ(list));
 }
 
-function(coreListJoin,
-  "list_join(this:List [, sep:String=""]) -> String",
-  "Concatinate the elements of the list and return as a string.") {
-
+saynaa_function(
+    coreListJoin,
+    "list_join(thiz:List [, sep:String="
+    "]) -> String",
+    "Concatinate the elements of the list and return as a string.") {
   int argc = ARGC;
   if (argc != 1 && argc != 2) {
     RET_ERR(newString(vm, "Invalid argument count."));
@@ -877,15 +893,16 @@ function(coreListJoin,
   List* list;
   String* sep = NULL;
 
-  if (!validateArgList(vm, 1, &list)) return;
-  if (argc == 2) sep = varToString(vm, ARG(2), false);
+  if (!validateArgList(vm, 1, &list))
+    return;
+  if (argc == 2)
+    sep = varToString(vm, ARG(2), false);
 
   _listJoinImpl(vm, list, sep);
 }
 
-static void initializeBuiltinFN(VM* vm, Closure** bfn, const char* name,
-                                int length, int arity, nativeFn ptr,
-                                const char* docstring) {
+static void initializeBuiltinFN(VM* vm, Closure** bfn, const char* name, int length,
+                                int arity, nativeFn ptr, const char* docstring) {
   Function* fn = newFunction(vm, name, length, NULL, true, docstring, NULL);
   fn->arity = arity;
   fn->native = ptr;
@@ -895,32 +912,32 @@ static void initializeBuiltinFN(VM* vm, Closure** bfn, const char* name,
 }
 
 static void initializeBuiltinFunctions(VM* vm) {
-#define INITIALIZE_BUILTIN_FN(name, fn, argc)                              \
+#define INITIALIZE_BUILTIN_FN(name, fn, argc) \
   initializeBuiltinFN(vm, &vm->builtins_funcs[vm->builtins_count++], name, \
-                      (int)strlen(name), argc, fn, DOCSTRING(fn));         \
+                      (int) strlen(name), argc, fn, DOCSTRING(fn));
 
   // General functions.
-  INITIALIZE_BUILTIN_FN("help",      coreHelp,        -1);
-  INITIALIZE_BUILTIN_FN("dir",       coreDir,          1);
-  INITIALIZE_BUILTIN_FN("assert",    coreAssert,      -1);
-  INITIALIZE_BUILTIN_FN("bin",       coreBin,          1);
-  INITIALIZE_BUILTIN_FN("hex",       coreHex,          1);
-  INITIALIZE_BUILTIN_FN("yield",     coreYield,       -1);
-  INITIALIZE_BUILTIN_FN("str",       coreToString,     1);
-  INITIALIZE_BUILTIN_FN("int",       coreToInt,        1);
-  INITIALIZE_BUILTIN_FN("chr",       coreChr,          1);
-  INITIALIZE_BUILTIN_FN("ord",       coreOrd,          1);
-  INITIALIZE_BUILTIN_FN("min",       coreMin,          2);
-  INITIALIZE_BUILTIN_FN("max",       coreMax,          2);
-  INITIALIZE_BUILTIN_FN("print",     corePrint,       -1);
-  INITIALIZE_BUILTIN_FN("input",     coreInput,       -1);
-  INITIALIZE_BUILTIN_FN("exit",      coreExit,        -1);
-  INITIALIZE_BUILTIN_FN("compile",   coreCompile,      1);
-  INITIALIZE_BUILTIN_FN("eval",      coreEval,         1);
+  INITIALIZE_BUILTIN_FN("help", coreHelp, -1);
+  INITIALIZE_BUILTIN_FN("dir", coreDir, 1);
+  INITIALIZE_BUILTIN_FN("assert", coreAssert, -1);
+  INITIALIZE_BUILTIN_FN("bin", coreBin, 1);
+  INITIALIZE_BUILTIN_FN("hex", coreHex, 1);
+  INITIALIZE_BUILTIN_FN("yield", coreYield, -1);
+  INITIALIZE_BUILTIN_FN("str", coreToString, 1);
+  INITIALIZE_BUILTIN_FN("int", coreToInt, 1);
+  INITIALIZE_BUILTIN_FN("chr", coreChr, 1);
+  INITIALIZE_BUILTIN_FN("ord", coreOrd, 1);
+  INITIALIZE_BUILTIN_FN("min", coreMin, 2);
+  INITIALIZE_BUILTIN_FN("max", coreMax, 2);
+  INITIALIZE_BUILTIN_FN("print", corePrint, -1);
+  INITIALIZE_BUILTIN_FN("input", coreInput, -1);
+  INITIALIZE_BUILTIN_FN("exit", coreExit, -1);
+  INITIALIZE_BUILTIN_FN("compile", coreCompile, 1);
+  INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
 
   // List functions.
   INITIALIZE_BUILTIN_FN("list_append", coreListAppend, 2);
-  INITIALIZE_BUILTIN_FN("list_join",   coreListJoin,  -1);
+  INITIALIZE_BUILTIN_FN("list_join", coreListJoin, -1);
 
 #undef INITIALIZE_BUILTIN_FN
 }
@@ -931,15 +948,13 @@ static void initializeBuiltinFunctions(VM* vm) {
 
 // Create a module and add it to the vm's core modules, returns the module.
 Module* newModuleInternal(VM* vm, const char* name) {
-
   String* _name = newString(vm, name);
   vmPushTempRef(vm, &_name->_super); // _name
 
   // Check if any module with the same name already exists and assert to the
   // hosting application.
   if (vmGetModule(vm, _name) != NULL) {
-    ASSERT(false, stringFormat(vm,
-           "A module named '$' already exists", name)->data);
+    ASSERT(false, stringFormat(vm, "A module named '$' already exists", name)->data);
   }
 
   Module* module = newModule(vm);
@@ -952,53 +967,46 @@ Module* newModuleInternal(VM* vm, const char* name) {
 }
 
 // An internal function to add a function to the given [module].
-void moduleAddFunctionInternal(VM* vm, Module* module,
-                               const char* name, nativeFn fptr,
-                               int arity, const char* docstring) {
-
-  Function* fn = newFunction(vm, name, (int)strlen(name),
-                             module, true, docstring, NULL);
+void moduleAddFunctionInternal(VM* vm, Module* module, const char* name,
+                               nativeFn fptr, int arity, const char* docstring) {
+  Function* fn = newFunction(vm, name, (int) strlen(name), module, true, docstring, NULL);
   fn->native = fptr;
   fn->arity = arity;
 
   vmPushTempRef(vm, &fn->_super); // fn.
   Closure* closure = newClosure(vm, fn);
-  moduleSetGlobal(vm, module, name, (uint32_t)strlen(name), VAR_OBJ(closure));
+  moduleSetGlobal(vm, module, name, (uint32_t) strlen(name), VAR_OBJ(closure));
   vmPopTempRef(vm); // fn.
 }
 
 // 'lang' library methods.
 
-function(stdLangGC,
-  "lang.gc() -> Number",
-  "Trigger garbage collection and return the amount of bytes cleaned.") {
-
+saynaa_function(stdLangGC, "lang.gc() -> Number",
+                "Trigger garbage collection and"
+                " return the amount of bytes cleaned.") {
   size_t bytes_before = vm->bytes_allocated;
   vmCollectGarbage(vm);
   size_t garbage = bytes_before - vm->bytes_allocated;
-  RET(VAR_NUM((double)garbage));
+  RET(VAR_NUM((double) garbage));
 }
 
-function(stdLangDisas,
-  "lang.disas(fn:Closure) -> String",
-  "Returns the disassembled opcode of the function [fn].") {
-
+saynaa_function(stdLangDisas, "lang.disas(fn:Closure) -> String",
+                "Returns the disassembled opcode of the function [fn].") {
   // TODO: support dissasemble class constructors and module main body.
 
   Closure* closure;
-  if (!validateArgClosure(vm, 1, &closure)) return;
+  if (!validateArgClosure(vm, 1, &closure))
+    return;
 
-  if (!validateCond(vm, !closure->fn->is_native,
-                    "Cannot disassemble native functions.")) return;
+  if (!validateCond(vm, !closure->fn->is_native, "Cannot disassemble native functions."))
+    return;
 
   dumpFunctionCode(vm, closure->fn);
 }
 
-function(stdLangBackTrace,
-  "lang.backtrace() -> String",
-  "Returns the backtrace as a string, each line is formated as "
-  "'<function>;<file>;<line>\n'.") {
-
+saynaa_function(stdLangBackTrace, "lang.backtrace() -> String",
+                "Returns the backtrace as a string, each line is formated as "
+                "'<function>;<file>;<line>\n'.") {
   // FIXME:
   // All of the bellow code were copied from "debug.c" file, consider
   // refactor the functionality in a way that it's possible to re use them.
@@ -1010,17 +1018,17 @@ function(stdLangBackTrace,
   ASSERT(fiber != NULL, OOPS);
 
   while (fiber) {
-
     for (int i = fiber->frame_count - 1; i >= 0; i--) {
       CallFrame* frame = &fiber->frames[i];
       const Function* fn = frame->closure->fn;
 
       // After fetching the instruction the ip will be inceased so we're
       // reducing it by 1. But stack overflows are occure before executing
-      // any instruction of that function, so the instruction_index possibly
-      // be -1 (set it to zero in that case).
-      int instruction_index = (int)(frame->ip - fn->fn->opcodes.data) - 1;
-      if (instruction_index == -1) instruction_index = 0;
+      // any instruction of that function, so the instruction_index
+      // possibly be -1 (set it to zero in that case).
+      int instruction_index = (int) (frame->ip - fn->fn->opcodes.data) - 1;
+      if (instruction_index == -1)
+        instruction_index = 0;
       int line = fn->fn->oplines.data[instruction_index];
 
       // Note that path can be null.
@@ -1030,12 +1038,14 @@ function(stdLangBackTrace,
       ByteBufferAddStringFmt(&bb, vm, "%s;%s;%i\n", fn_name, path, line);
     }
 
-    if (fiber->caller) fiber = fiber->caller;
-    else fiber = fiber->native;
+    if (fiber->caller)
+      fiber = fiber->caller;
+    else
+      fiber = fiber->native;
   }
 
   // bb.count not including the null byte and which is the length.
-  String* bt = newStringLength(vm, (char *)bb.data, bb.count);
+  String* bt = newStringLength(vm, (char*) bb.data, bb.count);
   vmPushTempRef(vm, &bt->_super); // bt.
   ByteBufferClear(&bb, vm);
   vmPopTempRef(vm); // bt.
@@ -1043,10 +1053,8 @@ function(stdLangBackTrace,
   RET(VAR_OBJ(bt));
 }
 
-function(stdLangModules,
-  "lang.modules() -> List",
-  "Returns the list of all registered modules.") {
-
+saynaa_function(stdLangModules, "lang.modules() -> List",
+                "Returns the list of all registered modules.") {
   List* list = newList(vm, 8);
   vmPushTempRef(vm, &list->_super); // list.
   for (uint32_t i = 0; i < vm->modules->capacity; i++) {
@@ -1066,10 +1074,8 @@ function(stdLangModules,
 }
 
 #ifdef DEBUG
-function(stdLangDebugBreak,
-  "lang.debug_break() -> Null",
-  "A debug function for development (will be removed).") {
-
+saynaa_function(stdLangDebugBreak, "lang.debug_break() -> Null",
+                "A debug function for development (will be removed).") {
   DEBUG_BREAK();
 }
 #endif
@@ -1078,10 +1084,10 @@ static void initializeCoreModules(VM* vm) {
 #define MODULE_ADD_FN(module, name, fn, argc) \
   moduleAddFunctionInternal(vm, module, name, fn, argc, DOCSTRING(fn))
 
-#define NEW_MODULE(module, name_string)                \
+#define NEW_MODULE(module, name_string) \
   Module* module = newModuleInternal(vm, name_string); \
-  vmPushTempRef(vm, &module->_super); /* module */     \
-  vmRegisterModule(vm, module, module->name);          \
+  vmPushTempRef(vm, &module->_super); /* module */ \
+  vmRegisterModule(vm, module, module->name); \
   vmPopTempRef(vm) /* module */
 
   NEW_MODULE(lang, "lang");
@@ -1119,7 +1125,8 @@ static void _ctorNumber(VM* vm) {
   if (IS_OBJ_TYPE(ARG(1), OBJ_STRING)) {
     String* str = (String*) AS_OBJ(ARG(1));
     const char* err = utilToNumber(str->data, &value);
-    if (err == NULL) RET(VAR_NUM(value));
+    if (err == NULL)
+      RET(VAR_NUM(value));
     VM_SET_ERROR(vm, newString(vm, err));
     RET(VAR_NULL);
   }
@@ -1127,14 +1134,30 @@ static void _ctorNumber(VM* vm) {
   VM_SET_ERROR(vm, newString(vm, "Argument must be numeric or string."));
 }
 
+static void _ctorPointer(VM* vm) {
+  if (!CheckArgcRange(vm, ARGC, 1, 1)) {
+    VM_SET_ERROR(vm, newString(vm, "Argument must be Pointer"));
+    return;
+  }
+
+  if (IS_OBJ_TYPE(ARG(1), OBJ_POINTER)) {
+    Pointer* ptr = (Pointer*) AS_OBJ(ARG(1));
+    RET(VAR_OBJ(newPointer(vm, ptr->native_ptr, ptr->destructor)));
+  } else {
+    VM_SET_ERROR(vm, newString(vm, "Argument must be Pointer"));
+  }
+}
+
 static void _ctorString(VM* vm) {
-  if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
   if (ARGC == 0) {
     RET(VAR_OBJ(newStringLength(vm, NULL, 0)));
     return;
   }
   String* str = varToString(vm, ARG(1), false);
-  if (str == NULL) RET(VAR_NULL);
+  if (str == NULL)
+    RET(VAR_NULL);
   RET(VAR_OBJ(str));
 }
 
@@ -1154,15 +1177,18 @@ static void _ctorMap(VM* vm) {
 
 static void _ctorRange(VM* vm) {
   double from, to;
-  if (!validateNumeric(vm, ARG(1), &from, "Argument 1")) return;
-  if (!validateNumeric(vm, ARG(2), &to, "Argument 2")) return;
+  if (!validateNumeric(vm, ARG(1), &from, "Argument 1"))
+    return;
+  if (!validateNumeric(vm, ARG(2), &to, "Argument 2"))
+    return;
 
   RET(VAR_OBJ(newRange(vm, from, to)));
 }
 
 static void _ctorFiber(VM* vm) {
   Closure* closure;
-  if (!validateArgClosure(vm, 1, &closure)) return;
+  if (!validateArgClosure(vm, 1, &closure))
+    return;
   RET(VAR_OBJ(newFiber(vm, closure)));
 }
 
@@ -1170,183 +1196,241 @@ static void _ctorFiber(VM* vm) {
 /* BUILTIN CLASS METHODS                                                     */
 /*****************************************************************************/
 
-#define THIS (vm->fiber->this)
+#define THIS (vm->fiber->thiz)
 
-function(_objTypeName,
-  "Object.typename() -> String",
-  "Returns the type name of the object.") {
+saynaa_function(_objTypeName, "Object.typename() -> String",
+                "Returns the type name of the object.") {
   RET(VAR_OBJ(newString(vm, varTypeName(THIS))));
 }
 
-function(_objRepr,
-  "Object._repr() -> String",
-  "Returns the repr string of the object.") {
+saynaa_function(_objRepr, "Object._repr() -> String", "Returns the repr string of the object.") {
   RET(VAR_OBJ(toRepr(vm, THIS)));
 }
 
-function(_objGetattr,
-  "Object.getattr(name:String[, skipGetter: bool]) -> Var",
-  "Returns the value of the named attribute of an object.") {
-
-  if (!CheckArgcRange(vm, ARGC, 1, 2)) return;
+saynaa_function(_objGetattr, "Object.getattr(name:String[, skipGetter: bool]) -> Var",
+                "Returns the value of the named attribute of an object.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
 
   String* name;
-  if (!validateArgString(vm, 1, &name)) return;
+  if (!validateArgString(vm, 1, &name))
+    return;
 
   bool skipGetter = (ARGC >= 2 ? toBool(ARG(2)) : false);
-  RET(varGetAttrib(vm, THIS, name, skipGetter));
+  RET(varGetAttrib(vm, THIS, name, skipGetter, false));
 }
 
-function(_objSetattr,
-  "Object.setattr(name:String, value:Var[, skipSetter: bool]) -> Null",
-  "Sets the value of the attribute of an object.") {
-
-  if (!CheckArgcRange(vm, ARGC, 2, 3)) return;
+saynaa_function(_objSetattr, "Object.setattr(name:String, value:Var[, skipSetter: bool]) -> Null",
+                "Sets the value of the attribute of an object.") {
+  if (!CheckArgcRange(vm, ARGC, 2, 3))
+    return;
 
   String* name;
-  if (!validateArgString(vm, 1, &name)) return;
+  if (!validateArgString(vm, 1, &name))
+    return;
 
   bool skipSetter = (ARGC >= 3 ? toBool(ARG(3)) : false);
   varSetAttrib(vm, THIS, name, ARG(2), skipSetter);
 }
 
-function(_numberTimes,
-  "Number.times(f:Closure)",
-  "Iterate the function [f] n times. Here n is the integral value of the "
-  "number. If the number is not an integer the floor value will be taken.") {
-
+saynaa_function(
+    _numberTimes, "Number.times(f:Closure)",
+    "Iterate the function [f] n times. Here n is the integral value of the "
+    "number. If the number is not an integer the floor value will be taken.") {
   ASSERT(IS_NUM(THIS), OOPS);
   double n = AS_NUM(THIS);
 
   Closure* closure;
-  if (!validateArgClosure(vm, 1, &closure)) return;
+  if (!validateArgClosure(vm, 1, &closure))
+    return;
 
   for (int64_t i = 0; i < n; i++) {
-    Var _i = VAR_NUM((double)i);
+    Var _i = VAR_NUM((double) i);
     Result result = vmCallFunction(vm, closure, 1, &_i, NULL);
-    if (result != RESULT_SUCCESS) break;
+    if (result != RESULT_SUCCESS)
+      break;
   }
 
   RET(VAR_NULL);
 }
 
-function(_numberIsint,
-    "Number.isint() -> Bool",
-    "Returns true if the number is a whold number, otherwise false.") {
+saynaa_function(_numberIsint, "Number.isint() -> Bool",
+                "Returns true if the number"
+                " is a whole number, otherwise false.") {
   double n = AS_NUM(THIS);
   RET(VAR_BOOL(floor(n) == n));
 }
 
-function(_numberIsbyte,
-  "Number.isbyte() -> bool",
-  "Returns true if the number is an integer and is between 0x00 and 0xff.") {
+saynaa_function(_numberIsbyte, "Number.isbyte() -> bool",
+                "Returns true if the number"
+                " is an integer and is between 0x00 and 0xff.") {
   double n = AS_NUM(THIS);
   RET(VAR_BOOL((floor(n) == n) && (0x00 <= n && n <= 0xff)));
 }
 
-function(_stringFind,
-  "String.find(sub:String[, start:Number=0]) -> Number",
-  "Returns the first index of the substring [sub] found from the "
-  "[start] index") {
-
-  if (!CheckArgcRange(vm, ARGC, 1, 2)) return;
+saynaa_function(_stringFind, "String.find(sub:String[, start:Number=0]) -> Number",
+                "Returns the first index of the substring [sub] found from the "
+                "[start] index") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
 
   String* sub;
-  if (!validateArgString(vm, 1, &sub)) return;
+  if (!validateArgString(vm, 1, &sub))
+    return;
 
   int64_t start = 0;
   if (ARGC == 2) {
-    if (!validateInteger(vm, ARG(2), &start, "Argument 2")) return;
+    if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
+      return;
   }
 
-  String* this = (String*) AS_OBJ(THIS);
+  String* thiz = (String*) AS_OBJ(THIS);
 
-  if (this->length <= start) {
+  if (thiz->length <= start) {
     RET(VAR_NUM((double) -1));
   }
 
-  // FIXME:  strings can contain \x00 ie. NULL byte and strstr
-  // doesn't support them. However strings always ends with a null
-  // byte so the match won't go outside of the string.
-  const char* match = strstr(this->data + start, sub->data);
+  // Use utilMemMem because strings may contain embedded null bytes.
+  const char* match = (const char*) utilMemMem(thiz->data + start, thiz->length - start,
+                                               sub->data, sub->length);
 
-  if (match == NULL) RET(VAR_NUM((double) -1));
+  if (match == NULL)
+    RET(VAR_NUM((double) -1));
 
-  ASSERT_INDEX(match - this->data, this->capacity);
-  RET(VAR_NUM((double) (match - this->data)));
+  ASSERT_INDEX(match - thiz->data, thiz->capacity);
+  RET(VAR_NUM((double) (match - thiz->data)));
 }
 
-function(_stringReplace,
-  "String.replace(old:Sttring, new:String[, count:Number=-1]) -> String",
-  "Returns a copy of the string where [count] occurrence of the substring "
-  "[old] will be replaced with [new]. If [count] == -1 all the occurrence "
-  "will be replaced.") {
+saynaa_function(_stringRFind, "String.rfind(sub:String[, start:Number=0]) -> Number",
+                "Returns the last index of the substring [sub] found from the "
+                "[start] index") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
 
-  if (!CheckArgcRange(vm, ARGC, 2, 3)) return;
+  String* sub;
+  if (!validateArgString(vm, 1, &sub))
+    return;
+
+  int64_t start = 0;
+  if (ARGC == 2) {
+    if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
+      return;
+  }
+
+  String* thiz = (String*) AS_OBJ(THIS);
+
+  if ((int64_t) thiz->length <= start) {
+    RET(VAR_NUM((double) -1));
+  }
+
+  if (start < 0)
+    start = 0;
+
+  const char* haystack = thiz->data + start;
+  size_t haystack_len = thiz->length - start;
+  const char* needle = sub->data;
+  size_t needle_len = sub->length;
+
+  if (needle_len > haystack_len) {
+    RET(VAR_NUM((double) -1));
+  }
+
+  if (needle_len == 0) {
+    // Matches behavior of empty needle at end of string?
+    // Mimicking finding last "" could be at end of string.
+    // But we searched from `start`.
+    // If start=0, full string. Last "" is at length.
+    RET(VAR_NUM((double) thiz->length));
+  }
+
+  const char* match = NULL;
+  // Naive reverse search
+  for (long i = (long) (haystack_len - needle_len); i >= 0; i--) {
+    if (memcmp(haystack + i, needle, needle_len) == 0) {
+      match = haystack + i;
+      break;
+    }
+  }
+
+  if (match == NULL)
+    RET(VAR_NUM((double) -1));
+
+  RET(VAR_NUM((double) (match - thiz->data)));
+}
+
+saynaa_function(
+    _stringReplace, "String.replace(old:Sttring, new:String[, count:Number=-1]) -> String",
+    "Returns a copy of the string where [count] occurrence of the substring "
+    "[old] will be replaced with [new]. If [count] == -1 all the occurrence "
+    "will be replaced.") {
+  if (!CheckArgcRange(vm, ARGC, 2, 3))
+    return;
 
   String *old, *new_;
-  if (!validateArgString(vm, 1, &old)) return;
-  if (!validateArgString(vm, 2, &new_)) return;
+  if (!validateArgString(vm, 1, &old))
+    return;
+  if (!validateArgString(vm, 2, &new_))
+    return;
 
-  String* this = (String*) AS_OBJ(THIS);
+  String* thiz = (String*) AS_OBJ(THIS);
 
   int64_t count = -1;
   if (ARGC == 3) {
-    if (!validateInteger(vm, ARG(3), &count, "Argument 3")) return;
+    if (!validateInteger(vm, ARG(3), &count, "Argument 3"))
+      return;
     if (count < 0 && count != -1) {
       RET_ERR(newString(vm, "count should either be >= 0 or -1"));
     }
   }
 
-  RET(VAR_OBJ(stringReplace(vm, this, old, new_, (int32_t) count)));
+  RET(VAR_OBJ(stringReplace(vm, thiz, old, new_, (int32_t) count)));
 }
 
-function(_stringSplit,
-  "String.split([sep:String]) -> List",
-  "Split the string into a list of string seperated by [sep] delimeter.") {
-
-  if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
+saynaa_function(_stringSplit, "String.split([sep:String]) -> List",
+                "Split the string into a list"
+                " of string separated by [sep] delimiter.") {
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
   String* sep = NULL;
 
-  if (ARGC == 1) sep = varToString(vm, ARG(1), false);
-  RET(VAR_OBJ(stringSplit(vm, (String*)AS_OBJ(THIS), sep)));
+  if (ARGC == 1)
+    sep = varToString(vm, ARG(1), false);
+  RET(VAR_OBJ(stringSplit(vm, (String*) AS_OBJ(THIS), sep)));
 }
 
-function(_stringStrip,
-  "String.strip() -> String",
-  "Returns a copy of the string where the leading and trailing whitespace "
-  "removed.") {
+saynaa_function(
+    _stringStrip, "String.strip() -> String",
+    "Returns a copy of the string where the leading and trailing whitespace "
+    "removed.") {
   RET(VAR_OBJ(stringStrip(vm, (String*) AS_OBJ(THIS))));
 }
 
-function(_stringLower,
-  "String.lower() -> String",
-  "Returns a copy of the string where all the characters are converted to "
-  "lower case letters.") {
+saynaa_function(
+    _stringLower, "String.lower() -> String",
+    "Returns a copy of the string where all the characters are converted to "
+    "lower case letters.") {
   RET(VAR_OBJ(stringLower(vm, (String*) AS_OBJ(THIS))));
 }
 
-function(_stringUpper,
-  "String.upper() -> String",
-  "Returns a copy of the string where all the characters are converted to "
-  "upper case letters.") {
+saynaa_function(
+    _stringUpper, "String.upper() -> String",
+    "Returns a copy of the string where all the characters are converted to "
+    "upper case letters.") {
   RET(VAR_OBJ(stringUpper(vm, (String*) AS_OBJ(THIS))));
 }
 
-function(_stingStartswith,
-  "String.startswith(prefix: String | List) -> Bool",
-  "Returns true if the string starts the specified prefix.") {
-
+saynaa_function(_stingStartswith, "String.startswith(prefix: String | List) -> Bool",
+                "Returns true if the string starts the specified prefix.") {
   Var prefix = ARG(1);
-  String* this = (String*) AS_OBJ(THIS);
+  String* thiz = (String*) AS_OBJ(THIS);
 
   if (IS_OBJ_TYPE(prefix, OBJ_STRING)) {
     String* pre = (String*) AS_OBJ(prefix);
-    if (pre->length > this->length) RET(VAR_FALSE);
-    RET(VAR_BOOL((strncmp(this->data, pre->data, pre->length) == 0)));
+    if (pre->length > thiz->length)
+      RET(VAR_FALSE);
+    RET(VAR_BOOL((strncmp(thiz->data, pre->data, pre->length) == 0)));
 
   } else if (IS_OBJ_TYPE(prefix, OBJ_LIST)) {
-
     List* prefixes = (List*) AS_OBJ(prefix);
     for (uint32_t i = 0; i < prefixes->elements.count; i++) {
       Var pre_var = prefixes->elements.data[i];
@@ -1354,8 +1438,10 @@ function(_stingStartswith,
         RET_ERR(newString(vm, "Expected a String for prefix."));
       }
       String* pre = (String*) AS_OBJ(pre_var);
-      if (pre->length > this->length) RET(VAR_FALSE);
-      if (strncmp(this->data, pre->data, pre->length) == 0) RET(VAR_TRUE);
+      if (pre->length > thiz->length)
+        RET(VAR_FALSE);
+      if (strncmp(thiz->data, pre->data, pre->length) == 0)
+        RET(VAR_TRUE);
     }
     RET(VAR_FALSE);
 
@@ -1364,33 +1450,33 @@ function(_stingStartswith,
   }
 }
 
-function(_stingEndswith,
-  "String.endswith(suffix: String | List) -> Bool",
-  "Returns true if the string ends with the specified suffix.") {
-
+saynaa_function(_stingEndswith, "String.endswith(suffix: String | List) -> Bool",
+                "Returns true if the string ends with the specified suffix.") {
   Var suffix = ARG(1);
-  String* this = (String*)AS_OBJ(THIS);
+  String* thiz = (String*) AS_OBJ(THIS);
 
   if (IS_OBJ_TYPE(suffix, OBJ_STRING)) {
-    String* suf = (String*)AS_OBJ(suffix);
-    if (suf->length > this->length) RET(VAR_FALSE);
+    String* suf = (String*) AS_OBJ(suffix);
+    if (suf->length > thiz->length)
+      RET(VAR_FALSE);
 
-    const char* start = (this->data + (this->length - suf->length));
+    const char* start = (thiz->data + (thiz->length - suf->length));
     RET(VAR_BOOL((strncmp(start, suf->data, suf->length) == 0)));
 
   } else if (IS_OBJ_TYPE(suffix, OBJ_LIST)) {
-
-    List* suffixes = (List*)AS_OBJ(suffix);
+    List* suffixes = (List*) AS_OBJ(suffix);
     for (uint32_t i = 0; i < suffixes->elements.count; i++) {
       Var suff_var = suffixes->elements.data[i];
       if (!IS_OBJ_TYPE(suff_var, OBJ_STRING)) {
         RET_ERR(newString(vm, "Expected a String for suffix."));
       }
-      String* suf = (String*)AS_OBJ(suff_var);
-      if (suf->length > this->length) RET(VAR_FALSE);
+      String* suf = (String*) AS_OBJ(suff_var);
+      if (suf->length > thiz->length)
+        RET(VAR_FALSE);
 
-      const char* start = (this->data + (this->length - suf->length));
-      if (strncmp(start, suf->data, suf->length) == 0) RET(VAR_TRUE);
+      const char* start = (thiz->data + (thiz->length - suf->length));
+      if (strncmp(start, suf->data, suf->length) == 0)
+        RET(VAR_TRUE);
     }
     RET(VAR_FALSE);
 
@@ -1399,114 +1485,109 @@ function(_stingEndswith,
   }
 }
 
-function(_listAppend,
-  "List.append(value:Var) -> List",
-  "Append the [value] to the list and return the List.") {
-
+saynaa_function(_listAppend, "List.append(value:Var) -> List",
+                "Append the [value] to the list and return the List.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
 
   listAppend(vm, ((List*) AS_OBJ(THIS)), ARG(1));
   RET(THIS);
 }
 
-function(_listInsert,
-  "List.insert(index:Number, value:Var) -> Null",
-  "Insert the element at the given index. The index should be "
-  "0 <= index <= list.length.") {
-
-  List* this = (List*)AS_OBJ(THIS);
+saynaa_function(_listInsert, "List.insert(index:Number, value:Var) -> Null",
+                "Insert the element at the given index. The index should be "
+                "0 <= index <= list.length.") {
+  List* thiz = (List*) AS_OBJ(THIS);
 
   int64_t index;
-  if (!validateInteger(vm, ARG(1), &index, "Argument 1")) return;
+  if (!validateInteger(vm, ARG(1), &index, "Argument 1"))
+    return;
 
-  if (index < 0 || index > this->elements.count) {
+  if (index < 0 || index > thiz->elements.count) {
     RET_ERR(newString(vm, "List.insert index out of bounds."));
   }
 
-  listInsert(vm, this, (uint32_t) index, ARG(2));
+  listInsert(vm, thiz, (uint32_t) index, ARG(2));
 }
 
-function(_listPop,
-  "List.pop(index:Number=-1) -> Var",
-  "Removes the last element of the list and return it.") {
-
+saynaa_function(_listPop, "List.pop(index:Number=-1) -> Var",
+                "Removes the last element of the list and return it.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
-  List* this = (List*) AS_OBJ(THIS);
+  List* thiz = (List*) AS_OBJ(THIS);
 
-  if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
 
-  if (this->elements.count == 0) {
+  if (thiz->elements.count == 0) {
     RET_ERR(newString(vm, "Cannot pop from an empty list."));
   }
 
   int64_t index = -1;
   if (ARGC == 1) {
-    if (!validateInteger(vm, ARG(1), &index, "Argument 1")) return;
+    if (!validateInteger(vm, ARG(1), &index, "Argument 1"))
+      return;
   }
-  if (index < 0) index = this->elements.count + index;
+  if (index < 0)
+    index = thiz->elements.count + index;
 
-  if (index < 0 || index >= this->elements.count) {
+  if (index < 0 || index >= thiz->elements.count) {
     RET_ERR(newString(vm, "List.pop index out of bounds."));
   }
-  RET(listRemoveAt(vm, this, (uint32_t) index));
+  RET(listRemoveAt(vm, thiz, (uint32_t) index));
 }
 
-function(_listFind,
-  "List.find(value:Var) -> Number",
-  "Find the value and return its index. If the vlaue not exists "
-  "it'll return -1.") {
-
+saynaa_function(_listFind, "List.find(value:Var) -> Number",
+                "Find the value and return its index. If the vlaue not exists "
+                "it'll return -1.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
-  List* this = (List*)AS_OBJ(THIS);
+  List* thiz = (List*) AS_OBJ(THIS);
 
-  Var* it = this->elements.data;
-  if (it == NULL) RET(VAR_NUM(-1)); // Empty list.
+  Var* it = thiz->elements.data;
+  if (it == NULL)
+    RET(VAR_NUM(-1)); // Empty list.
 
-  for (; it < this->elements.data + this->elements.count; it++) {
+  for (; it < thiz->elements.data + thiz->elements.count; it++) {
     if (isValuesEqual(*it, ARG(1))) {
-      RET(VAR_NUM((double) (it - this->elements.data)));
+      RET(VAR_NUM((double) (it - thiz->elements.data)));
     }
   }
 
   RET(VAR_NUM(-1));
 }
 
-function(_listJoin,
-  "List.join([sep:String=""]) -> String",
-  "Concatinate the elements of the list and return as a string.") {
-
+saynaa_function(
+    _listJoin,
+    "List.join([sep:String="
+    "]) -> String",
+    "Concatinate the elements of the list and return as a string.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
-  List* list = (List*)AS_OBJ(THIS);
+  List* list = (List*) AS_OBJ(THIS);
   String* sep = NULL;
 
-  if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
-  if (ARGC == 1) sep = varToString(vm, ARG(1), false);
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
+  if (ARGC == 1)
+    sep = varToString(vm, ARG(1), false);
 
   _listJoinImpl(vm, list, sep);
 }
 
-function(_listClear,
-  "List.clear() -> Null",
-  "Removes all the entries in the list.") {
+saynaa_function(_listClear, "List.clear() -> Null", "Removes all the entries in the list.") {
   listClear(vm, (List*) AS_OBJ(THIS));
 }
 
-function(_mapClear,
-  "Map.clear() -> Null",
-  "Removes all the entries in the map.") {
-  Map* this = (Map*) AS_OBJ(THIS);
-  mapClear(vm, this);
+saynaa_function(_mapClear, "Map.clear() -> Null", "Removes all the entries in the map.") {
+  Map* thiz = (Map*) AS_OBJ(THIS);
+  mapClear(vm, thiz);
 }
 
-function(_listResize,
-  "List.resize(length:Number) -> List",
-  "Resize a list to length and return the List.") {
-
+saynaa_function(_listResize, "List.resize(length:Number) -> List",
+                "Resize a list to length and return the List.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_LIST), OOPS);
-  List* thiz = (List*)AS_OBJ(THIS);
+  List* thiz = (List*) AS_OBJ(THIS);
 
   int64_t len;
-  if (!validateInteger(vm, ARG(1), &len, "Argument 1")) return;
+  if (!validateInteger(vm, ARG(1), &len, "Argument 1"))
+    return;
 
   if (len < 0) { // negative value to reduce the size.
     len = thiz->elements.count + len;
@@ -1519,8 +1600,7 @@ function(_listResize,
     listClear(vm, thiz);
 
   } else if (len > thiz->elements.count) {
-    VarBufferFill(&thiz->elements, vm, VAR_NULL,
-      len-thiz->elements.count);
+    VarBufferFill(&thiz->elements, vm, VAR_NULL, len - thiz->elements.count);
 
   } else if (len < thiz->elements.count) {
     thiz->elements.count = len;
@@ -1530,83 +1610,75 @@ function(_listResize,
   RET(THIS);
 }
 
-function(_mapGet,
-  "Map.get(key:Var, default=Null) -> Var",
-  "Returns the key if its in the map, otherwise the default value will "
-  "be returned.") {
-
-  if (!CheckArgcRange(vm, ARGC, 1, 2)) return;
+saynaa_function(
+    _mapGet, "Map.get(key:Var, default=Null) -> Var",
+    "Returns the key if its in the map, otherwise the default value will "
+    "be returned.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
 
   Var default_ = (ARGC == 1) ? VAR_NULL : ARG(2);
 
-  Map* this = (Map*) AS_OBJ(THIS);
+  Map* thiz = (Map*) AS_OBJ(THIS);
 
-  Var value = mapGet(this, ARG(1));
-  if (IS_UNDEF(value)) RET(default_);
+  Var value = mapGet(thiz, ARG(1));
+  if (IS_UNDEF(value))
+    RET(default_);
   RET(value);
 }
 
-function(_mapHas,
-  "Map.has(key:Var) -> Bool",
-  "Returns true if the key exists.") {
-
-  Map* this = (Map*)AS_OBJ(THIS);
-  Var value = mapGet(this, ARG(1));
+saynaa_function(_mapHas, "Map.has(key:Var) -> Bool", "Returns true if the key exists.") {
+  Map* thiz = (Map*) AS_OBJ(THIS);
+  Var value = mapGet(thiz, ARG(1));
   RET(VAR_BOOL(!IS_UNDEF(value)));
 }
 
-function(_mapPop,
-  "Map.pop(key:Var) -> Var",
-  "Pops the value at the key and return it.") {
-
-  Map* this = (Map*)AS_OBJ(THIS);
-  Var value = mapRemoveKey(vm, this, ARG(1));
+saynaa_function(_mapPop, "Map.pop(key:Var) -> Var", "Pops the value at the key and return it.") {
+  Map* thiz = (Map*) AS_OBJ(THIS);
+  Var value = mapRemoveKey(vm, thiz, ARG(1));
   if (IS_UNDEF(value)) {
     RET_ERR(stringFormat(vm, "Key '@' does not exists.", toRepr(vm, ARG(1))));
   }
   RET(value);
 }
 
-function(_methodBindBind,
-  "MethodBind.bind(instance:Var) -> MethodBind",
-  "Bind the method to the instance and the method bind will be returned. The "
-  "method should be a valid method of the instance. ie. the instance's "
-  "interitance tree should contain the method.") {
-
-  MethodBind* this = (MethodBind*) AS_OBJ(THIS);
+saynaa_function(
+    _methodBindBind, "MethodBind.bind(instance:Var) -> MethodBind",
+    "Bind the method to the instance and the method bind will be returned. The "
+    "method should be a valid method of the instance. ie. the instance's "
+    "interitance tree should contain the method.") {
+  MethodBind* thiz = (MethodBind*) AS_OBJ(THIS);
 
   // We can only bind the method if the instance has that method.
-  String* method_name = newString(vm, this->method->fn->name);
+  String* method_name = newString(vm, thiz->method->fn->name);
   vmPushTempRef(vm, &method_name->_super); // method_name.
 
   Var instance = ARG(1);
 
   Closure* method;
-  if (!hasMethod(vm, instance, method_name, &method)
-                     || method != this->method) {
+  if (!hasMethod(vm, instance, method_name, &method) || method != thiz->method) {
     VM_SET_ERROR(vm, newString(vm, "Cannot bind method, instance and method "
                                    "types miss-match."));
     return;
   }
 
-  this->instance = instance;
+  thiz->instance = instance;
   vmPopTempRef(vm); // method_name.
 
   RET(THIS);
 }
 
-function(_classMethods,
-  "Class.methods() -> List",
-  "Returns a list of unbound MethodBind of the class.") {
+saynaa_function(_classMethods, "Class.methods() -> List",
+                "Returns a list of unbound MethodBind of the class.") {
+  Class* thiz = (Class*) AS_OBJ(THIS);
 
-  Class* this = (Class*) AS_OBJ(THIS);
-
-  List* list = newList(vm, this->methods.count);
+  List* list = newList(vm, thiz->methods.count);
   vmPushTempRef(vm, &list->_super); // list.
-  for (int i = 0; i < (int) this->methods.count; i++) {
-    Closure* method = this->methods.data[i];
+  for (int i = 0; i < (int) thiz->methods.count; i++) {
+    Closure* method = thiz->methods.data[i];
     ASSERT(method->fn->name, OOPS);
-    if (method->fn->name[0] == SPECIAL_NAME_CHAR) continue;
+    if (method->fn->name[0] == SPECIAL_NAME_CHAR)
+      continue;
     MethodBind* mb = newMethodBind(vm, method);
     vmPushTempRef(vm, &mb->_super); // mb.
     listAppend(vm, list, VAR_OBJ(mb));
@@ -1615,63 +1687,59 @@ function(_classMethods,
   vmPopTempRef(vm); // list.
 
   RET(VAR_OBJ(list));
-
 }
 
-function(_moduleGlobals,
-  "Module.globals() -> List",
-  "Returns a list of all the globals in the module. Since classes and "
-  "functinos are also globals to a module it'll contain them too.") {
+saynaa_function(
+    _moduleGlobals, "Module.globals() -> List",
+    "Returns a list of all the globals in the module. Since classes and "
+    "functinos are also globals to a module it'll contain them too.") {
+  Module* thiz = (Module*) AS_OBJ(THIS);
 
-  Module* this = (Module*) AS_OBJ(THIS);
-
-  List* list = newList(vm, this->globals.count);
+  List* list = newList(vm, thiz->globals.count);
   vmPushTempRef(vm, &list->_super); // list.
-  for (int i = 0; i < (int) this->globals.count; i++) {
-    if (moduleGetStringAt(this,
-      this->global_names.data[i])->data[0] == SPECIAL_NAME_CHAR) {
+  for (int i = 0; i < (int) thiz->globals.count; i++) {
+    if (moduleGetStringAt(thiz, thiz->global_names.data[i])->data[0] == SPECIAL_NAME_CHAR) {
       continue;
     }
-    listAppend(vm, list, this->globals.data[i]);
+    listAppend(vm, list, thiz->globals.data[i]);
   }
   vmPopTempRef(vm); // list.
 
   RET(VAR_OBJ(list));
 }
 
-function(_fiberRun,
-  "Fiber.run(...) -> Var",
-  "Runs the fiber's function with the provided arguments and returns it's "
-  "return value or the yielded value if it's yielded.") {
-
+saynaa_function(
+    _fiberRun, "Fiber.run(...) -> Var",
+    "Runs the fiber's function with the provided arguments and returns it's "
+    "return value or the yielded value if it's yielded.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_FIBER), OOPS);
-  Fiber* this = (Fiber*) AS_OBJ(THIS);
+  Fiber* thiz = (Fiber*) AS_OBJ(THIS);
 
   // Switch fiber and start execution. New fibers are marked as running in
   // either it's stats running with vmRunFiber() or here -- inserting a
   // fiber over a running (callee) fiber.
-  if (vmPrepareFiber(vm, this, ARGC, &ARG(1))) {
-    this->caller = vm->fiber;
-    vm->fiber = this;
-    this->state = FIBER_RUNNING;
+  if (vmPrepareFiber(vm, thiz, ARGC, &ARG(1))) {
+    thiz->caller = vm->fiber;
+    vm->fiber = thiz;
+    thiz->state = FIBER_RUNNING;
   }
 }
 
-function(_fiberResume,
-  "Fiber.resume() -> Var",
-  "Resumes a yielded function from a previous call of fiber_run() function. "
-  "Return it's return value or the yielded value if it's yielded.") {
-
+saynaa_function(
+    _fiberResume, "Fiber.resume() -> Var",
+    "Resumes a yielded function from a previous call of fiber_run() function. "
+    "Return it's return value or the yielded value if it's yielded.") {
   ASSERT(IS_OBJ_TYPE(THIS, OBJ_FIBER), OOPS);
-  Fiber* this = (Fiber*) AS_OBJ(THIS);
+  Fiber* thiz = (Fiber*) AS_OBJ(THIS);
 
-  if (!CheckArgcRange(vm, ARGC, 0, 1)) return;
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
 
   Var value = (ARGC == 1) ? ARG(1) : VAR_NULL;
 
   // Switch fiber and resume execution.
-  if (vmSwitchFiber(vm, this, &value)) {
-    this->state = FIBER_RUNNING;
+  if (vmSwitchFiber(vm, thiz, &value)) {
+    thiz->state = FIBER_RUNNING;
   }
 }
 
@@ -1684,90 +1752,89 @@ function(_fiberResume,
 static void initializePrimitiveClasses(VM* vm) {
   for (int i = 0; i < vINSTANCE; i++) {
     Class* super = NULL;
-    if (i != 0) super = vm->builtin_classes[vOBJECT];
-    const char* name = getVarTypeName((VarType)i);
-    Class* cls = newClass(vm, name, (int)strlen(name),
-                          super, NULL, NULL, NULL);
+    if (i != 0)
+      super = vm->builtin_classes[vOBJECT];
+    const char* name = getVarTypeName((VarType) i);
+    Class* cls = newClass(vm, name, (int) strlen(name), super, NULL, NULL, NULL);
     vm->builtin_classes[i] = cls;
-    cls->class_of = (VarType)i;
+    cls->class_of = (VarType) i;
   }
 
-#define ADD_CTOR(type, name, ptr, arity_)                    \
-  do {                                                       \
-    Function* fn = newFunction(vm, name, (int)strlen(name),  \
-                               NULL, true, NULL, NULL);      \
-    fn->native = ptr;                                        \
-    fn->arity = arity_;                                      \
-    vmPushTempRef(vm, &fn->_super); /* fn. */                \
-    vm->builtin_classes[type]->magic_methods[METHOD_INIT] =  \
-                               newClosure(vm, fn);           \
-    vmPopTempRef(vm); /* fn. */                              \
+#define ADD_CTOR(type, name, ptr, arity_) \
+  do { \
+    Function* fn = newFunction(vm, name, (int) strlen(name), NULL, true, NULL, NULL); \
+    fn->native = ptr; \
+    fn->arity = arity_; \
+    vmPushTempRef(vm, &fn->_super); /* fn. */ \
+    vm->builtin_classes[type]->magic_methods[METHOD_INIT] = newClosure(vm, fn); \
+    vmPopTempRef(vm); /* fn. */ \
   } while (false)
 
-  ADD_CTOR(vNULL,   "@ctorNull",   _ctorNull,    0);
-  ADD_CTOR(vBOOL,   "@ctorBool",   _ctorBool,    1);
-  ADD_CTOR(vNUMBER, "@ctorNumber", _ctorNumber,  1);
+  ADD_CTOR(vNULL, "@ctorNull", _ctorNull, 0);
+  ADD_CTOR(vBOOL, "@ctorBool", _ctorBool, 1);
+  ADD_CTOR(vNUMBER, "@ctorNumber", _ctorNumber, 1);
   ADD_CTOR(vSTRING, "@ctorString", _ctorString, -1);
-  ADD_CTOR(vRANGE,  "@ctorRange",  _ctorRange,   2);
-  ADD_CTOR(vLIST,   "@ctorList",   _ctorList,   -1);
-  ADD_CTOR(vMAP,    "@ctorMap",    _ctorMap,     0);
-  ADD_CTOR(vFIBER,  "@ctorFiber",  _ctorFiber,   1);
+  ADD_CTOR(vRANGE, "@ctorRange", _ctorRange, 2);
+  ADD_CTOR(vLIST, "@ctorList", _ctorList, -1);
+  ADD_CTOR(vMAP, "@ctorMap", _ctorMap, 0);
+  ADD_CTOR(vFIBER, "@ctorFiber", _ctorFiber, 1);
+  ADD_CTOR(vPOINTER, "@ctorPointer", _ctorPointer, 1);
 #undef ADD_CTOR
 
-#define ADD_METHOD(type, name, ptr, arity_)                       \
-  do {                                                            \
-    Function* fn = newFunction(vm, name, (int)strlen(name),       \
-                               NULL, true, DOCSTRING(ptr), NULL); \
-    fn->is_method = true;                                         \
-    fn->native = ptr;                                             \
-    fn->arity = arity_;                                           \
-    vmPushTempRef(vm, &fn->_super); /* fn. */                     \
-    ClosureBufferWrite(&vm->builtin_classes[type]->methods,       \
-                        vm, newClosure(vm, fn));                  \
-    vmPopTempRef(vm); /* fn. */                                   \
+#define ADD_METHOD(type, name, ptr, arity_) \
+  do { \
+    Function* fn = newFunction(vm, name, (int) strlen(name), NULL, true, \
+                               DOCSTRING(ptr), NULL); \
+    fn->is_method = true; \
+    fn->native = ptr; \
+    fn->arity = arity_; \
+    vmPushTempRef(vm, &fn->_super); /* fn. */ \
+    ClosureBufferWrite(&vm->builtin_classes[type]->methods, vm, newClosure(vm, fn)); \
+    vmPopTempRef(vm); /* fn. */ \
   } while (false)
 
   // TODO: write docs.
-  ADD_METHOD(vOBJECT, "typename", _objTypeName,       0);
-  ADD_METHOD(vOBJECT, "_repr",    _objRepr,           0);
+  ADD_METHOD(vOBJECT, "typename", _objTypeName, 0);
+  ADD_METHOD(vOBJECT, "_repr", _objRepr, 0);
 
-  ADD_METHOD(vOBJECT, "getattr",  _objGetattr,       -1);
-  ADD_METHOD(vOBJECT, "setattr",  _objSetattr,       -1);
+  ADD_METHOD(vOBJECT, "getattr", _objGetattr, -1);
+  ADD_METHOD(vOBJECT, "setattr", _objSetattr, -1);
 
-  ADD_METHOD(vNUMBER, "times",  _numberTimes,         1);
-  ADD_METHOD(vNUMBER, "isint",  _numberIsint,         0);
-  ADD_METHOD(vNUMBER, "isbyte", _numberIsbyte,        0);
+  ADD_METHOD(vNUMBER, "times", _numberTimes, 1);
+  ADD_METHOD(vNUMBER, "isint", _numberIsint, 0);
+  ADD_METHOD(vNUMBER, "isbyte", _numberIsbyte, 0);
 
-  ADD_METHOD(vSTRING, "strip",   _stringStrip,        0);
-  ADD_METHOD(vSTRING, "lower",   _stringLower,        0);
-  ADD_METHOD(vSTRING, "upper",   _stringUpper,        0);
-  ADD_METHOD(vSTRING, "find",    _stringFind,        -1);
-  ADD_METHOD(vSTRING, "replace", _stringReplace,     -1);
-  ADD_METHOD(vSTRING, "split",   _stringSplit,       -1);
+  ADD_METHOD(vSTRING, "strip", _stringStrip, 0);
+  ADD_METHOD(vSTRING, "lower", _stringLower, 0);
+  ADD_METHOD(vSTRING, "upper", _stringUpper, 0);
+  ADD_METHOD(vSTRING, "find", _stringFind, -1);
+  ADD_METHOD(vSTRING, "rfind", _stringRFind, -1);
+  ADD_METHOD(vSTRING, "replace", _stringReplace, -1);
+  ADD_METHOD(vSTRING, "split", _stringSplit, -1);
   ADD_METHOD(vSTRING, "startswith", _stingStartswith, 1);
-  ADD_METHOD(vSTRING, "endswith", _stingEndswith,     1);
+  ADD_METHOD(vSTRING, "endswith", _stingEndswith, 1);
 
-  ADD_METHOD(vLIST,   "clear",  _listClear,           0);
-  ADD_METHOD(vLIST,   "find",   _listFind,            1);
-  ADD_METHOD(vLIST,   "append", _listAppend,          1);
-  ADD_METHOD(vLIST,   "pop",    _listPop,            -1);
-  ADD_METHOD(vLIST,   "insert", _listInsert,          2);
-  ADD_METHOD(vLIST,   "join",   _listJoin,           -1);
-  ADD_METHOD(vLIST, "resize", _listResize,          1);
+  ADD_METHOD(vLIST, "clear", _listClear, 0);
+  ADD_METHOD(vLIST, "find", _listFind, 1);
+  ADD_METHOD(vLIST, "append", _listAppend, 1);
+  ADD_METHOD(vLIST, "pop", _listPop, -1);
+  ADD_METHOD(vLIST, "insert", _listInsert, 2);
+  ADD_METHOD(vLIST, "join", _listJoin, -1);
+  ADD_METHOD(vLIST, "resize", _listResize, 1);
 
-  ADD_METHOD(vMAP,    "clear",  _mapClear,            0);
-  ADD_METHOD(vMAP,    "get",    _mapGet,             -1);
-  ADD_METHOD(vMAP,    "has",    _mapHas,              1);
-  ADD_METHOD(vMAP,    "pop",    _mapPop,              1);
+  ADD_METHOD(vMAP, "clear", _mapClear, 0);
+  ADD_METHOD(vMAP, "get", _mapGet, -1);
+  ADD_METHOD(vMAP, "has", _mapHas, 1);
+  ADD_METHOD(vMAP, "pop", _mapPop, 1);
 
-  ADD_METHOD(vMETHOD_BIND, "bind", _methodBindBind,   1);
+  ADD_METHOD(vMETHOD_BIND, "bind", _methodBindBind, 1);
 
-  ADD_METHOD(vCLASS, "methods", _classMethods,        0);
+  ADD_METHOD(vCLASS, "methods", _classMethods, 0);
 
-  ADD_METHOD(vMODULE, "globals", _moduleGlobals,      0);
+  ADD_METHOD(vMODULE, "globals", _moduleGlobals, 0);
 
-  ADD_METHOD(vFIBER,  "run",    _fiberRun,           -1);
-  ADD_METHOD(vFIBER,  "resume", _fiberResume,        -1);
+  ADD_METHOD(vFIBER, "run", _fiberRun, -1);
+  ADD_METHOD(vFIBER, "resume", _fiberResume, -1);
 
 #undef ADD_METHOD
 }
@@ -1777,10 +1844,9 @@ static void initializePrimitiveClasses(VM* vm) {
 /*****************************************************************************/
 
 Var preConstructThis(VM* vm, Class* cls) {
-
-#define NO_INSTANCE(type_name)   \
-  VM_SET_ERROR(vm, newString(vm, \
-               "Class '" type_name "' cannot be instanciated."))
+#define NO_INSTANCE(type_name) \
+  VM_SET_ERROR(vm, \
+               newString(vm, "Class '" type_name "' cannot be instanciated."))
 
   switch (cls->class_of) {
     case vOBJECT:
@@ -1793,6 +1859,7 @@ Var preConstructThis(VM* vm, Class* cls) {
     case vSTRING:
     case vLIST:
     case vMAP:
+    case vPOINTER:
     case vRANGE:
       return VAR_NULL; // Constructor will override the null.
 
@@ -1849,9 +1916,7 @@ Closure* getMagicMethod(Class* cls, MagicMethod m) {
 
     Class* super = cls->super_class;
     while (super != NULL) {
-      if (super->magic_methods[m] != NULL &&
-          super->magic_methods[m] != (Closure*) -1) {
-
+      if (super->magic_methods[m] != NULL && super->magic_methods[m] != (Closure*) -1) {
         cls->magic_methods[m] = super->magic_methods[m];
         break;
       }
@@ -1868,7 +1933,7 @@ Class* getClass(VM* vm, Var instance) {
     return vm->builtin_classes[type];
   }
   ASSERT(IS_OBJ_TYPE(instance, OBJ_INST), OOPS);
-  Instance* inst = (Instance*)AS_OBJ(instance);
+  Instance* inst = (Instance*) AS_OBJ(instance);
   return inst->cls;
 }
 
@@ -1877,7 +1942,7 @@ Class* getClass(VM* vm, Var instance) {
 static inline Closure* clsGetMethod(Class* cls, String* name) {
   Class* cls_ = cls;
   do {
-    for (int i = 0; i < (int)cls_->methods.count; i++) {
+    for (int i = 0; i < (int) cls_->methods.count; i++) {
       Closure* method_ = cls_->methods.data[i];
       ASSERT(method_->fn->is_method, OOPS);
       const char* method_name = method_->fn->name;
@@ -1890,8 +1955,8 @@ static inline Closure* clsGetMethod(Class* cls, String* name) {
   return NULL;
 }
 
-bool hasMethod(VM* vm, Var this, String* name, Closure** _method) {
-  Class* cls = getClass(vm, this);
+bool hasMethod(VM* vm, Var thiz, String* name, Closure** _method) {
+  Class* cls = getClass(vm, thiz);
   ASSERT(cls != NULL, OOPS);
 
   Closure* method_ = clsGetMethod(cls, name);
@@ -1903,163 +1968,179 @@ bool hasMethod(VM* vm, Var this, String* name, Closure** _method) {
   return false;
 }
 
-Var getMethod(VM* vm, Var this, String* name, bool* is_method) {
-
+Var getMethod(VM* vm, Var thiz, String* name, bool* is_method) {
   Closure* method;
-  if (hasMethod(vm, this, name, &method)) {
-    if (is_method) *is_method = true;
+  if (hasMethod(vm, thiz, name, &method)) {
+    if (is_method)
+      *is_method = true;
     return VAR_OBJ(method);
   }
 
   // If the attribute not found it'll set an error.
-  if (is_method) *is_method = false;
-  return varGetAttrib(vm, this, name, false);
+  if (is_method)
+    *is_method = false;
+
+  return varGetAttrib(vm, thiz, name, false, true);
 }
 
-Closure* getSuperMethod(VM* vm, Var this, String* name) {
-  Class* super = getClass(vm, this)->super_class;
+Closure* getSuperMethod(VM* vm, Var thiz, String* name) {
+  Class* super = getClass(vm, thiz)->super_class;
   if (super == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no parent class.", \
-                 varTypeName(this)));
+    VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no parent class.", varTypeName(thiz)));
     return NULL;
   };
 
   Closure* method = clsGetMethod(super, name);
   if (method == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "'@' class has no method named '@'.", \
-                 super->name, name));
+    VM_SET_ERROR(vm, stringFormat(vm, "'@' class has no method named '@'.",
+                                  super->name, name));
   }
   return method;
 }
 
-#define UNSUPPORTED_UNARY_OP(op)                                   \
-  VM_SET_ERROR(vm, stringFormat(vm, "Unsupported operand ($) for " \
-               "unary operator " op ".", varTypeName(v)))
+#define UNSUPPORTED_UNARY_OP(op) \
+  VM_SET_ERROR(vm, stringFormat(vm, \
+                                "Unsupported operand ($) for " \
+                                "unary operator " op ".", \
+                                varTypeName(v)))
 
-#define UNSUPPORTED_BINARY_OP(op)                                    \
-  VM_SET_ERROR(vm, stringFormat(vm, "Unsupported operand types for " \
-    "operator '" op "' $ and $", varTypeName(v1), varTypeName(v2)))
+#define UNSUPPORTED_BINARY_OP(op) \
+  VM_SET_ERROR(vm, stringFormat(vm, \
+                                "Unsupported operand types for " \
+                                "operator '" op "' $ and $", \
+                                varTypeName(v1), varTypeName(v2)))
 
 #define RIGHT_OPERAND "Right operand"
 
-#define CHECK_NUMERIC_OP_AS(op, as)                         \
-  do {                                                      \
-    double n1, n2;                                          \
-    if (isNumeric(v1, &n1)) {                               \
-      if (validateNumeric(vm, v2, &n2, RIGHT_OPERAND)) {    \
-        return as(n1 op n2);                                \
-      }                                                     \
-      return VAR_NULL;                                      \
-    }                                                       \
+#define CHECK_NUMERIC_OP_AS(op, as) \
+  do { \
+    double n1, n2; \
+    if (isNumeric(v1, &n1)) { \
+      if (validateNumeric(vm, v2, &n2, RIGHT_OPERAND)) { \
+        return as(n1 op n2); \
+      } \
+      return VAR_NULL; \
+    } \
   } while (false)
 
-#define CHECK_STRING_OP_AS(op, as)                                    \
-  do {                                                                \
+#define CHECK_STRING_OP_AS(op, as) \
+  do { \
     if (IS_OBJ_TYPE(v1, OBJ_STRING) && IS_OBJ_TYPE(v2, OBJ_STRING)) { \
-      String* s1 = (String*)AS_OBJ(v1), *s2 = (String*)AS_OBJ(v2);    \
-      int l1 = s1->length, l2 = s2->length, min = (l1 < l2 ? l1: l2); \
-      int result = memcmp(s1->data, s2->data, min);                   \
-      if (result == 0) return as((l1 - l2) op 0);                     \
-      else return as(result op 0);                                    \
-    }                                                                 \
+      String *s1 = (String*) AS_OBJ(v1), *s2 = (String*) AS_OBJ(v2); \
+      int l1 = s1->length, l2 = s2->length, min = (l1 < l2 ? l1 : l2); \
+      int result = memcmp(s1->data, s2->data, min); \
+      if (result == 0) \
+        return as((l1 - l2) op 0); \
+      else \
+        return as(result op 0); \
+    } \
   } while (false)
 
 #define CHECK_NUMERIC_OP(op) CHECK_NUMERIC_OP_AS(op, VAR_NUM)
 
-#define CHECK_BITWISE_OP(op)                                \
-  do {                                                      \
-    int64_t i1, i2;                                         \
-    if (isInteger(v1, &i1)) {                               \
-      if (validateInteger(vm, v2, &i2, RIGHT_OPERAND)) {    \
-        return VAR_NUM((double)(i1 op i2));                 \
-      }                                                     \
-      return VAR_NULL;                                      \
-    }                                                       \
+#define CHECK_BITWISE_OP(op) \
+  do { \
+    int64_t i1, i2; \
+    if (isInteger(v1, &i1)) { \
+      if (validateInteger(vm, v2, &i2, RIGHT_OPERAND)) { \
+        return VAR_NUM((double) (i1 op i2)); \
+      } \
+      return VAR_NULL; \
+    } \
   } while (false)
 
-#define CHECK_INST_UNARY_OP(name)                           \
-  do {                                                      \
-    if (IS_OBJ_TYPE(v, OBJ_INST)) {                         \
-      Var result;                                           \
-      if (_callUnaryOpMethod(vm, v, name, &result)) {       \
-        return result;                                      \
-      }                                                     \
-    }                                                       \
+#define CHECK_INST_UNARY_OP(name) \
+  do { \
+    if (IS_OBJ_TYPE(v, OBJ_INST)) { \
+      Var result; \
+      if (_callUnaryOpMethod(vm, v, name, &result)) { \
+        return result; \
+      } \
+    } \
   } while (false)
 
-#define CHECK_INST_BINARY_OP(name)                                \
-  do {                                                            \
-    if (IS_OBJ_TYPE(v1, OBJ_INST)) {                              \
-      Var result;                                                 \
-      if (inplace) {                                              \
+#define CHECK_INST_BINARY_OP(name) \
+  do { \
+    if (IS_OBJ_TYPE(v1, OBJ_INST)) { \
+      Var result; \
+      if (inplace) { \
         if (_callBinaryOpMethod(vm, v1, v2, name "=", &result)) { \
-          return result;                                          \
-        }                                                         \
-      }                                                           \
-      if (_callBinaryOpMethod(vm, v1, v2, name, &result)) {       \
-        return result;                                            \
-      }                                                           \
-    }                                                             \
-  } while(false)
+          return result; \
+        } \
+      } \
+      if (_callBinaryOpMethod(vm, v1, v2, name, &result)) { \
+        return result; \
+      } \
+    } \
+  } while (false)
 
 Var varPositive(VM* vm, Var v) {
-  double n; if (isNumeric(v, &n)) return v;
-  CHECK_INST_UNARY_OP("+this");
+  double n;
+  if (isNumeric(v, &n))
+    return v;
+  CHECK_INST_UNARY_OP("+thiz");
   UNSUPPORTED_UNARY_OP("unary +");
   return VAR_NULL;
 }
 
 Var varNegative(VM* vm, Var v) {
-  double n; if (isNumeric(v, &n)) return VAR_NUM(-AS_NUM(v));
-  CHECK_INST_UNARY_OP("-this");
+  double n;
+  if (isNumeric(v, &n))
+    return VAR_NUM(-AS_NUM(v));
+  CHECK_INST_UNARY_OP("-thiz");
   UNSUPPORTED_UNARY_OP("unary -");
   return VAR_NULL;
 }
 
 Var varNot(VM* vm, Var v) {
-  CHECK_INST_UNARY_OP("!this");
+  CHECK_INST_UNARY_OP("!thiz");
   return VAR_BOOL(!toBool(v));
 }
 
 Var varBitNot(VM* vm, Var v) {
   int64_t i;
-  if (isInteger(v, &i)) return VAR_NUM((double)(~i));
-  CHECK_INST_UNARY_OP("~this");
+  if (isInteger(v, &i))
+    return VAR_NUM((double) (~i));
+  CHECK_INST_UNARY_OP("~thiz");
   UNSUPPORTED_UNARY_OP("unary ~");
   return VAR_NULL;
 }
 
 Var varAdd(VM* vm, Var v1, Var v2, bool inplace) {
-
   CHECK_NUMERIC_OP(+);
 
   if (IS_OBJ(v1)) {
-    Object *o1 = AS_OBJ(v1);
+    Object* o1 = AS_OBJ(v1);
     switch (o1->type) {
-
-      case OBJ_STRING: {
-        if (!IS_OBJ(v2)) break;
-        Object* o2 = AS_OBJ(v2);
-        if (o2->type == OBJ_STRING) {
-          return VAR_OBJ(stringJoin(vm, (String*)o1, (String*)o2));
-        }
-      } break;
-
-      case OBJ_LIST: {
-        if (!IS_OBJ(v2)) break;
-        Object* o2 = AS_OBJ(v2);
-        if (o2->type == OBJ_LIST) {
-          if (inplace) {
-            VarBufferConcat(&((List*)o1)->elements, vm,
-                              &((List*)o2)->elements);
-            return v1;
-          } else {
-            return VAR_OBJ(listAdd(vm, (List*)o1, (List*)o2));
+      case OBJ_STRING:
+        {
+          if (!IS_OBJ(v2))
+            break;
+          Object* o2 = AS_OBJ(v2);
+          if (o2->type == OBJ_STRING) {
+            return VAR_OBJ(stringJoin(vm, (String*) o1, (String*) o2));
           }
         }
-      } break;
+        break;
 
-      default: break;
+      case OBJ_LIST:
+        {
+          if (!IS_OBJ(v2))
+            break;
+          Object* o2 = AS_OBJ(v2);
+          if (o2->type == OBJ_LIST) {
+            if (inplace) {
+              VarBufferConcat(&((List*) o1)->elements, vm, &((List*) o2)->elements);
+              return v1;
+            } else {
+              return VAR_OBJ(listAdd(vm, (List*) o1, (List*) o2));
+            }
+          }
+        }
+        break;
+
+      default:
+        break;
     }
   }
   CHECK_INST_BINARY_OP("+");
@@ -2113,12 +2194,20 @@ Var varMultiply(VM* vm, Var v1, Var v2, bool inplace) {
     String* left = (String*) AS_OBJ(v1);
     int64_t right;
     if (isInteger(v2, &right)) {
-      if (left->length == 0) return VAR_OBJ(left);
-      if (right == 0) return VAR_OBJ(newString(vm, ""));
+      if (left->length == 0)
+        return VAR_OBJ(left);
+      if (right == 0)
+        return VAR_OBJ(newString(vm, ""));
 
       // In python multiplying with negative number will result an empty
       // string so we're following the same rule here.
-      if (right < 0) return VAR_OBJ(newString(vm, ""));
+      if (right < 0)
+        return VAR_OBJ(newString(vm, ""));
+
+      if ((uint64_t) left->length * (uint64_t) right > UINT32_MAX) {
+        VM_SET_ERROR(vm, newString(vm, "String repetition result too large."));
+        return VAR_NULL;
+      }
 
       String* str = newStringLength(vm, "", left->length * (uint32_t) right);
       char* buff = str->data;
@@ -2130,8 +2219,9 @@ Var varMultiply(VM* vm, Var v1, Var v2, bool inplace) {
       str->hash = utilHashString(str->data);
       return VAR_OBJ(str);
     } else {
-      VM_SET_ERROR(vm, stringFormat(vm,
-                       "can't multiply sequence by non-int of type 'float'"));
+      VM_SET_ERROR(
+          vm, stringFormat(
+                  vm, "can't multiply sequence by non-int of type 'float'"));
       return VAR_NULL;
     }
   }
@@ -2212,7 +2302,7 @@ Var varGreater(VM* vm, Var v1, Var v2) {
 }
 
 Var varLesser(VM* vm, Var v1, Var v2) {
-  CHECK_NUMERIC_OP_AS(< , VAR_BOOL);
+  CHECK_NUMERIC_OP_AS(<, VAR_BOOL);
   CHECK_STRING_OP_AS(<, VAR_BOOL);
   const bool inplace = false;
   CHECK_INST_BINARY_OP("<");
@@ -2227,7 +2317,8 @@ Var varOpRange(VM* vm, Var v1, Var v2) {
 
   if (IS_OBJ_TYPE(v1, OBJ_STRING)) {
     String* str = varToString(vm, v2, false);
-    if (str == NULL) return VAR_NULL;
+    if (str == NULL)
+      return VAR_NULL;
     String* concat = stringJoin(vm, (String*) AS_OBJ(v1), str);
     return VAR_OBJ(concat);
   }
@@ -2246,44 +2337,49 @@ Var varOpRange(VM* vm, Var v1, Var v2) {
 
 bool varContains(VM* vm, Var elem, Var container) {
   if (!IS_OBJ(container)) {
-    VM_SET_ERROR(vm, stringFormat(vm, "'$' is not iterable.",
-                 varTypeName(container)));
+    VM_SET_ERROR(vm, stringFormat(vm, "'$' is not iterable.", varTypeName(container)));
   }
   Object* obj = AS_OBJ(container);
 
   switch (obj->type) {
-    case OBJ_STRING: {
-      if (!IS_OBJ_TYPE(elem, OBJ_STRING)) {
-        VM_SET_ERROR(vm, stringFormat(vm, "Expected a string operand."));
+    case OBJ_STRING:
+      {
+        if (!IS_OBJ_TYPE(elem, OBJ_STRING)) {
+          VM_SET_ERROR(vm, stringFormat(vm, "Expected a string operand."));
+          return false;
+        }
+
+        String* sub = (String*) AS_OBJ(elem);
+        String* str = (String*) AS_OBJ(container);
+        if (sub->length > str->length)
+          return false;
+
+        const char* match = (const char*) utilMemMem(str->data, str->length,
+                                                     sub->data, sub->length);
+        return match != NULL;
+      }
+      break;
+
+    case OBJ_LIST:
+      {
+        List* list = (List*) AS_OBJ(container);
+        for (uint32_t i = 0; i < list->elements.count; i++) {
+          if (isValuesEqual(elem, list->elements.data[i]))
+            return true;
+        }
         return false;
       }
+      break;
 
-      String* sub = (String*) AS_OBJ(elem);
-      String* str = (String*) AS_OBJ(container);
-      if (sub->length > str->length) return false;
-
-      // FIXME: strstr function can only be used for null terminated strings.
-      // But strings can contain any byte values including a null
-      // byte \x00.
-      const char* match = strstr(str->data, sub->data);
-      return match != NULL;
-
-    } break;
-
-    case OBJ_LIST: {
-      List* list = (List*)AS_OBJ(container);
-      for (uint32_t i = 0; i < list->elements.count; i++) {
-        if (isValuesEqual(elem, list->elements.data[i])) return true;
+    case OBJ_MAP:
+      {
+        Map* map = (Map*) AS_OBJ(container);
+        return !IS_UNDEF(mapGet(map, elem));
       }
-      return false;
-    } break;
+      break;
 
-    case OBJ_MAP: {
-      Map* map = (Map*)AS_OBJ(container);
-      return !IS_UNDEF(mapGet(map, elem));
-    } break;
-
-    default: break;
+    default:
+      break;
   }
 
 #define v1 container
@@ -2294,7 +2390,7 @@ bool varContains(VM* vm, Var elem, Var container) {
 #undef v2
 
   VM_SET_ERROR(vm, stringFormat(vm, "Argument of type $ is not iterable.",
-               varTypeName(container)));
+                                varTypeName(container)));
   return VAR_NULL;
 }
 
@@ -2304,20 +2400,20 @@ bool varIsType(VM* vm, Var inst, Var type) {
     return false;
   }
 
-  Class* cls = (Class*)AS_OBJ(type);
+  Class* cls = (Class*) AS_OBJ(type);
   Class* cls_inst = getClass(vm, inst);
 
   do {
-    if (cls_inst == cls) return true;
+    if (cls_inst == cls)
+      return true;
     cls_inst = cls_inst->super_class;
   } while (cls_inst != NULL);
 
   return false;
 }
 
-Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter) {
-
-#define ERR_NO_ATTRIB(vm, on, attrib)                                         \
+Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable) {
+#define ERR_NO_ATTRIB(vm, on, attrib) \
   VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no attribute named '$'.", \
                                 varTypeName(on), attrib->data))
 
@@ -2332,214 +2428,236 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter) {
 
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
-    case OBJ_STRING: {
-      String* str = (String*)obj;
-      switch (attrib->hash) {
-
-        case CHECK_HASH("length", 0x83d03615):
-          return VAR_NUM((double)(str->length));
-      }
-    } break;
-
-    case OBJ_LIST: {
-      List* list = (List*)obj;
-      switch (attrib->hash) {
-
-        case CHECK_HASH("length", 0x83d03615):
-          return VAR_NUM((double)(list->elements.count));
-      }
-    } break;
-
-    case OBJ_MAP: {
-      Map* map = (Map*)obj;
-      switch (attrib->hash) {
-
-        case CHECK_HASH("length", 0x83d03615):
-          return VAR_NUM((double)(map->count));
-
-        case CHECK_HASH("keys", 0xF94A08CD): {
-          List* list = newList(vm, map->count);
-          vmPushTempRef(vm, &list->_super); // list.
-          for (uint32_t i = 0; i < map->capacity; i++) {
-            if (!IS_UNDEF(map->entries[i].key)) {
-              listAppend(vm, list, map->entries[i].key);
-            }
-          }
-          vmPopTempRef(vm); // list.
-          return VAR_OBJ(list);
+    case OBJ_STRING:
+      {
+        String* str = (String*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("length", 0x83d03615):
+            return VAR_NUM((double) (str->length));
         }
+      }
+      break;
 
-        case CHECK_HASH("values", 0x34474C3B): {
-          List* list = newList(vm, map->count);
-          vmPushTempRef(vm, &list->_super); // list.
-          for (uint32_t i = 0; i < map->capacity; i++) {
-            if (!IS_UNDEF(map->entries[i].key)) {
-              listAppend(vm, list, map->entries[i].value);
-            }
-          }
-          vmPopTempRef(vm); // list.
-          return VAR_OBJ(list);
+    case OBJ_LIST:
+      {
+        List* list = (List*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("length", 0x83d03615):
+            return VAR_NUM((double) (list->elements.count));
         }
-
-      } // switch
-    } break;
-
-    case OBJ_RANGE: {
-      Range* range = (Range*)obj;
-      switch (attrib->hash) {
-
-        case CHECK_HASH("as_list", 0x1562c22):
-          return VAR_OBJ(rangeAsList(vm, range));
-
-        case CHECK_HASH("length", 0x83d03615):
-          return VAR_NUM(rangeLength(vm, range));
-
-        // We can't use 'start', 'end' since 'end' is a
-        // keyword. Also we can't use 'from', 'to' since 'from' is a keyword
-        // too. So, we're using 'first' and 'last' to access the range limits.
-
-        case CHECK_HASH("first", 0x4881d841):
-          return VAR_NUM(range->from);
-
-        case CHECK_HASH("last", 0x63e1d819):
-          return VAR_NUM(range->to);
       }
-    } break;
+      break;
 
-    case OBJ_MODULE: {
-      Module* module = (Module*)obj;
+    case OBJ_MAP:
+      {
+        Map* map = (Map*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("length", 0x83d03615):
+            return VAR_NUM((double) (map->count));
 
-      // Search in globals.
-      int index = moduleGetGlobalIndex(module, attrib->data, attrib->length);
-      if (index != -1) {
-        ASSERT_INDEX((uint32_t)index, module->globals.count);
-        return module->globals.data[index];
+          case CHECK_HASH("keys", 0xF94A08CD):
+            {
+              List* list = newList(vm, map->count);
+              vmPushTempRef(vm, &list->_super); // list.
+              for (uint32_t i = 0; i < map->capacity; i++) {
+                if (!IS_UNDEF(map->entries[i].key)) {
+                  listAppend(vm, list, map->entries[i].key);
+                }
+              }
+              vmPopTempRef(vm); // list.
+              return VAR_OBJ(list);
+            }
+
+          case CHECK_HASH("values", 0x34474C3B):
+            {
+              List* list = newList(vm, map->count);
+              vmPushTempRef(vm, &list->_super); // list.
+              for (uint32_t i = 0; i < map->capacity; i++) {
+                if (!IS_UNDEF(map->entries[i].key)) {
+                  listAppend(vm, list, map->entries[i].value);
+                }
+              }
+              vmPopTempRef(vm); // list.
+              return VAR_OBJ(list);
+            }
+
+        } // switch
       }
-    } break;
+      break;
+
+    case OBJ_RANGE:
+      {
+        Range* range = (Range*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("as_list", 0x1562c22):
+            return VAR_OBJ(rangeAsList(vm, range));
+
+          case CHECK_HASH("length", 0x83d03615):
+            return VAR_NUM(rangeLength(vm, range));
+
+            // We can't use 'start', 'end' since 'end' is a
+            // keyword. Also we can't use 'from', 'to' since 'from' is a keyword
+            // too. So, we're using 'first' and 'last' to access the range limits.
+
+          case CHECK_HASH("first", 0x4881d841):
+            return VAR_NUM(range->from);
+
+          case CHECK_HASH("last", 0x63e1d819):
+            return VAR_NUM(range->to);
+        }
+      }
+      break;
+
+    case OBJ_MODULE:
+      {
+        Module* module = (Module*) obj;
+
+        // Search in globals.
+        int index = moduleGetGlobalIndex(module, attrib->data, attrib->length);
+        if (index != -1) {
+          ASSERT_INDEX((uint32_t) index, module->globals.count);
+          return module->globals.data[index];
+        }
+      }
+      break;
 
     case OBJ_FUNC:
       break;
 
-    case OBJ_CLOSURE: {
-      Closure* closure = (Closure*)obj;
-      switch (attrib->hash) {
+    case OBJ_CLOSURE:
+      {
+        Closure* closure = (Closure*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("name", 0x8d39bde6):
+            return VAR_OBJ(newString(vm, closure->fn->name));
 
-        case CHECK_HASH("name", 0x8d39bde6):
-          return VAR_OBJ(newString(vm, closure->fn->name));
+          case CHECK_HASH("_docs", 0x8fb536a9):
+            if (closure->fn->docstring) {
+              return VAR_OBJ(newString(vm, closure->fn->docstring));
+            } else {
+              return VAR_OBJ(newString(vm, ""));
+            }
 
-        case CHECK_HASH("_docs", 0x8fb536a9):
-          if (closure->fn->docstring) {
-            return VAR_OBJ(newString(vm, closure->fn->docstring));
-          } else {
-            return VAR_OBJ(newString(vm, ""));
-          }
-
-        case CHECK_HASH("arity", 0x3e96bd7a):
-          return VAR_NUM((double)(closure->fn->arity));
-
+          case CHECK_HASH("arity", 0x3e96bd7a):
+            return VAR_NUM((double) (closure->fn->arity));
+        }
       }
-    } break;
+      break;
 
-    case OBJ_METHOD_BIND: {
-      MethodBind* mb = (MethodBind*) obj;
+    case OBJ_METHOD_BIND:
+      {
+        MethodBind* mb = (MethodBind*) obj;
 
-      switch (attrib->hash) {
-        case CHECK_HASH("_docs", 0x8fb536a9):
-          if (mb->method->fn->docstring) {
-            return VAR_OBJ(newString(vm, mb->method->fn->docstring));
-          } else {
-            return VAR_OBJ(newString(vm, ""));
-          }
+        switch (attrib->hash) {
+          case CHECK_HASH("_docs", 0x8fb536a9):
+            if (mb->method->fn->docstring) {
+              return VAR_OBJ(newString(vm, mb->method->fn->docstring));
+            } else {
+              return VAR_OBJ(newString(vm, ""));
+            }
 
-        case CHECK_HASH("name", 0x8d39bde6):
-          return VAR_OBJ(newString(vm, mb->method->fn->name));
+          case CHECK_HASH("name", 0x8d39bde6):
+            return VAR_OBJ(newString(vm, mb->method->fn->name));
 
-        case CHECK_HASH("instance", 0xb86d992):
-          if (IS_UNDEF(mb->instance)) return VAR_NULL;
-          return mb->instance;
+          case CHECK_HASH("instance", 0xb86d992):
+            if (IS_UNDEF(mb->instance))
+              return VAR_NULL;
+            return mb->instance;
 
-        case CHECK_HASH("arity", 0x3e96bd7a):
-          return VAR_NUM((double)(mb->method->fn->arity));
+          case CHECK_HASH("arity", 0x3e96bd7a):
+            return VAR_NUM((double) (mb->method->fn->arity));
+        }
       }
-
-    } break;
+      break;
 
     case OBJ_UPVALUE:
       UNREACHABLE(); // Upvalues aren't first class objects.
       break;
 
-    case OBJ_FIBER: {
-      Fiber* fb = (Fiber*)obj;
-      switch (attrib->hash) {
+    case OBJ_FIBER:
+      {
+        Fiber* fb = (Fiber*) obj;
+        switch (attrib->hash) {
+          case CHECK_HASH("is_done", 0x789c2706):
+            return VAR_BOOL(fb->state == FIBER_DONE);
 
-        case CHECK_HASH("is_done", 0x789c2706):
-          return VAR_BOOL(fb->state == FIBER_DONE);
-
-        case CHECK_HASH("function", 0x9ed64249):
-          return VAR_OBJ(fb->closure);
-      }
-    } break;
-
-    case OBJ_CLASS: {
-      Class* cls = (Class*) obj;
-
-      switch (attrib->hash) {
-        case CHECK_HASH("_docs", 0x8fb536a9):
-          if (cls->docstring) {
-            return VAR_OBJ(newString(vm, cls->docstring));
-          } else {
-            return VAR_OBJ(newString(vm, ""));
-          }
-
-        case CHECK_HASH("name", 0x8d39bde6):
-          return VAR_OBJ(newString(vm, cls->name->data));
-
-        case CHECK_HASH("parent", 0xeacdfcfd):
-          if (cls->super_class != NULL) {
-            return VAR_OBJ(cls->super_class);
-          } else {
-            return VAR_NULL;
-          }
-      }
-
-      Var value = mapGet(cls->static_attribs, VAR_OBJ(attrib));
-      if (!IS_UNDEF(value)) return  value;
-
-      for (int i = 0; i < (int)cls->methods.count; i++) {
-        Closure* method_ = cls->methods.data[i];
-        ASSERT(method_->fn->is_method, OOPS);
-        const char* method_name = method_->fn->name;
-        if (IS_CSTR_EQ(attrib, method_name, strlen(method_name))) {
-          return VAR_OBJ(newMethodBind(vm, method_));
+          case CHECK_HASH("function", 0x9ed64249):
+            return VAR_OBJ(fb->closure);
         }
       }
+      break;
 
-    } break;
+    case OBJ_CLASS:
+      {
+        Class* cls = (Class*) obj;
 
-    case OBJ_INST: {
-      Instance* inst = (Instance*)obj;
-      Var value = VAR_NULL;
+        switch (attrib->hash) {
+          case CHECK_HASH("_docs", 0x8fb536a9):
+            if (cls->docstring) {
+              return VAR_OBJ(newString(vm, cls->docstring));
+            } else {
+              return VAR_OBJ(newString(vm, ""));
+            }
 
-      if (!skipGetter) {
-        Closure* getter = getMagicMethod(inst->cls, METHOD_GETTER);
-        if (getter != NULL) {
-          Var attrib_name = VAR_OBJ(attrib);
-          vmCallMethod(vm, on, getter, 1, &attrib_name, &value);
-          return value; // If any error occure, it was already set.
+          case CHECK_HASH("name", 0x8d39bde6):
+            return VAR_OBJ(newString(vm, cls->name->data));
+
+          case CHECK_HASH("parent", 0xeacdfcfd):
+            if (cls->super_class != NULL) {
+              return VAR_OBJ(cls->super_class);
+            } else {
+              return VAR_NULL;
+            }
+        }
+
+        Var value = mapGet(cls->static_attribs, VAR_OBJ(attrib));
+        if (!IS_UNDEF(value))
+          return value;
+
+        for (int i = 0; i < (int) cls->methods.count; i++) {
+          Closure* method_ = cls->methods.data[i];
+          ASSERT(method_->fn->is_method, OOPS);
+          const char* method_name = method_->fn->name;
+          if (IS_CSTR_EQ(attrib, method_name, strlen(method_name))) {
+            return VAR_OBJ(newMethodBind(vm, method_));
+          }
         }
       }
+      break;
 
-      value = mapGet(inst->attribs, VAR_OBJ(attrib));
-      if (!IS_UNDEF(value)) return value;
+    case OBJ_INST:
+      {
+        Instance* inst = (Instance*) obj;
+        Var value = VAR_NULL;
 
-      Closure* method;
-      if (hasMethod(vm, on, attrib, &method)) {
-        MethodBind* mb = newMethodBind(vm, method);
-        mb->instance = on;
-        return VAR_OBJ(mb);
+        if (!skipGetter) {
+          Closure* getter = getMagicMethod(inst->cls, METHOD_GETTER);
+          if (getter != NULL) {
+            Var attrib_name = VAR_OBJ(attrib);
+            vmCallMethod(vm, on, getter, 1, &attrib_name, &value);
+
+            // char* val = varToString(vm, value, false)->data;
+            // printf("value: %s, vartype: %s\n", val, getVarTypeName(getVarType(value)));
+            // char* val2 = varToString(vm, attrib_name, false)->data;
+            // printf("value: %s, vartype: %s\n", val2, getVarTypeName(getVarType(attrib_name)));
+
+            // Return the value returned by the getter.
+            return value;
+          }
+        }
+
+        value = mapGet(inst->attribs, VAR_OBJ(attrib));
+        if (!IS_UNDEF(value))
+          return value;
+
+        Closure* method;
+        if (hasMethod(vm, on, attrib, &method)) {
+          MethodBind* mb = newMethodBind(vm, method);
+          mb->instance = on;
+          return VAR_OBJ(mb);
+        }
       }
-
-    } break;
+      break;
   }
 
   ERR_NO_ATTRIB(vm, on, attrib);
@@ -2549,12 +2667,10 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter) {
 }
 
 void varSetAttrib(VM* vm, Var on, String* attrib, Var value, bool skipSetter) {
-
 // Set error for accessing non-existed attribute.
-#define ERR_NO_ATTRIB(vm, on, attrib)                               \
-  VM_SET_ERROR(vm, stringFormat(vm,                                 \
-                   "'$' object has no mutable attribute named '$'", \
-                   varTypeName(on), attrib->data))
+#define ERR_NO_ATTRIB(vm, on, attrib) \
+  VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no mutable attribute named '$'", \
+                                varTypeName(on), attrib->data))
 
   if (!IS_OBJ(on)) {
     ERR_NO_ATTRIB(vm, on, attrib);
@@ -2563,43 +2679,45 @@ void varSetAttrib(VM* vm, Var on, String* attrib, Var value, bool skipSetter) {
 
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
-
-    case OBJ_MODULE: {
-      moduleSetGlobal(vm, (Module*) obj, attrib->data, attrib->length, value);
-    } return;
+    case OBJ_MODULE:
+      {
+        moduleSetGlobal(vm, (Module*) obj, attrib->data, attrib->length, value);
+      }
+      return;
 
     case OBJ_FUNC:
     case OBJ_UPVALUE:
       UNREACHABLE(); // Functions aren't first class objects.
       break;
 
-    case OBJ_CLASS: {
-      Class* cls = (Class*) obj;
-      mapSet(vm, cls->static_attribs, VAR_OBJ(attrib), value);
-      return;
-    }
-
-    case OBJ_INST: {
-      Instance* inst = (Instance*)obj;
-
-      if (!skipSetter) {
-        Closure* setter = getMagicMethod(inst->cls, METHOD_SETTER);
-        if (setter != NULL) {
-          // FIXME:
-          // Once we retreive values from directly the stack we can pass the
-          // args pointer, pointing in the VM stack, instead of creating a temp
-          // array as bellow.
-          Var args[2] = { VAR_OBJ(attrib), value };
-
-          vmCallMethod(vm, VAR_OBJ(inst), setter, 2, args, NULL);
-          return; // If any error occure, it was already set.
-        }
+    case OBJ_CLASS:
+      {
+        Class* cls = (Class*) obj;
+        mapSet(vm, cls->static_attribs, VAR_OBJ(attrib), value);
+        return;
       }
 
-      mapSet(vm, inst->attribs, VAR_OBJ(attrib), value);
-      return;
+    case OBJ_INST:
+      {
+        Instance* inst = (Instance*) obj;
 
-    } break;
+        if (!skipSetter) {
+          Closure* setter = getMagicMethod(inst->cls, METHOD_SETTER);
+          if (setter != NULL) {
+            // FIXME: Optimize argument passing to `_setter`.
+            // Once values can be retrieved directly from the stack, pass a
+            // pointer to the stack slots instead of creating a temporary `args` array.
+            Var args[2] = {VAR_OBJ(attrib), value};
+
+            vmCallMethod(vm, VAR_OBJ(inst), setter, 2, args, NULL);
+            return; // If any error occure, it was already set.
+          }
+        }
+
+        mapSet(vm, inst->attribs, VAR_OBJ(attrib), value);
+        return;
+      }
+      break;
 
     default:
       break;
@@ -2615,18 +2733,19 @@ void varSetAttrib(VM* vm, Var on, String* attrib, Var value, bool skipSetter) {
 // list) set the [start] index [length] and [reversed]. On success it'll return
 // true.
 static bool _normalizeSliceRange(VM* vm, Range* range, uint32_t count,
-                             int32_t* start, int32_t* length, bool* reversed) {
-  if ((floor(range->from) != range->from) ||
-    (floor(range->to) != range->to)) {
+                                 int32_t* start, int32_t* length, bool* reversed) {
+  if ((floor(range->from) != range->from) || (floor(range->to) != range->to)) {
     VM_SET_ERROR(vm, newString(vm, "Expected a whole number."));
     return false;
   }
 
-  int32_t from = (int32_t)range->from;
-  int32_t to = (int32_t)range->to;
+  int32_t from = (int32_t) range->from;
+  int32_t to = (int32_t) range->to;
 
-  if (from < 0) from = count + from;
-  if (to < 0) to = count + to;
+  if (from < 0)
+    from = count + from;
+  if (to < 0)
+    to = count + to;
 
   *reversed = false;
   if (to < from) {
@@ -2636,19 +2755,17 @@ static bool _normalizeSliceRange(VM* vm, Range* range, uint32_t count,
     *reversed = true;
   }
 
-  if (from < 0 || count <= (uint32_t) to) {
+  // lenient slicing (clamp values).
+  if (from < 0)
+    from = 0;
+  if (to >= (int32_t) count)
+    to = (int32_t) count - 1;
 
-    // Special case we allow 0..0 or 0..-1, -1..0, -1..-1 to be valid slice
-    // ranges for empty string/list,  and will gives an empty string/list.
-    if (count == 0 && (from == 0 || from == -1) && (to == 0 || to == -1)) {
-      *start = 0;
-      *length = 0;
-      *reversed = false;
-      return true;
-    }
-
-    VM_SET_ERROR(vm, newString(vm, "Index out of bound."));
-    return false;
+  if (from > to) {
+    *start = 0;
+    *length = 0;
+    *reversed = false;
+    return true;
   }
 
   *start = from;
@@ -2660,20 +2777,21 @@ static bool _normalizeSliceRange(VM* vm, Range* range, uint32_t count,
 // Slice the string with the [range] and reutrn it. On error it'll set
 // an error and return NULL.
 static String* _sliceString(VM* vm, String* str, Range* range) {
-
-  int32_t start, length; bool reversed;
-  if (!_normalizeSliceRange(vm, range, str->length,
-                           &start, &length, &reversed)) {
+  int32_t start, length;
+  bool reversed;
+  if (!_normalizeSliceRange(vm, range, str->length, &start, &length, &reversed)) {
     return NULL;
   }
 
   // Optimize case.
-  if (start == 0 && length == str->length && !reversed) return str;
+  if (start == 0 && length == str->length && !reversed)
+    return str;
 
   // TODO: check if length is 1 and return pre allocated character string.
 
   String* slice = newStringLength(vm, str->data + start, length);
-  if (!reversed) return slice;
+  if (!reversed)
+    return slice;
 
   for (int32_t i = 0; i < length / 2; i++) {
     char tmp = slice->data[i];
@@ -2687,10 +2805,9 @@ static String* _sliceString(VM* vm, String* str, Range* range) {
 // Slice the list with the [range] and reutrn it. On error it'll set
 // an error and return NULL.
 static List* _sliceList(VM* vm, List* list, Range* range) {
-
-  int32_t start, length; bool reversed;
-  if (!_normalizeSliceRange(vm, range, list->elements.count,
-                            &start, &length, &reversed)) {
+  int32_t start, length;
+  bool reversed;
+  if (!_normalizeSliceRange(vm, range, list->elements.count, &start, &length, &reversed)) {
     return NULL;
   }
 
@@ -2708,272 +2825,304 @@ static List* _sliceList(VM* vm, List* list, Range* range) {
 
 Var varGetSubscript(VM* vm, Var on, Var key) {
   if (!IS_OBJ(on)) {
-    VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.",
-                                  varTypeName(on)));
+    VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.", varTypeName(on)));
     return VAR_NULL;
   }
 
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
-    case OBJ_STRING: {
-      int64_t index;
-      String* str = ((String*)obj);
+    case OBJ_STRING:
+      {
+        int64_t index;
+        String* str = ((String*) obj);
 
-      if (isInteger(key, &index)) {
-        // Normalize index.
-        if (index < 0) index = str->length + index;
-        if (index >= str->length || index < 0) {
-          VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
+        if (isInteger(key, &index)) {
+          // Normalize index.
+          if (index < 0)
+            index = str->length + index;
+          if (index >= str->length || index < 0) {
+            VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
+            return VAR_NULL;
+          }
+          // FIXME: Add static VM characters instead of allocating here.
+          String* c = newStringLength(vm, str->data + index, 1);
+          return VAR_OBJ(c);
+        }
+
+        if (IS_OBJ_TYPE(key, OBJ_RANGE)) {
+          String* subs = _sliceString(vm, str, (Range*) AS_OBJ(key));
+          if (subs != NULL)
+            return VAR_OBJ(subs);
           return VAR_NULL;
         }
-        // FIXME: Add static VM characters instead of allocating here.
-        String* c = newStringLength(vm, str->data + index, 1);
-        return VAR_OBJ(c);
       }
+      break;
 
-      if (IS_OBJ_TYPE(key, OBJ_RANGE)) {
-        String* subs = _sliceString(vm, str, (Range*) AS_OBJ(key));
-        if (subs != NULL) return VAR_OBJ(subs);
-        return VAR_NULL;
-      }
-    } break;
+    case OBJ_LIST:
+      {
+        int64_t index;
+        VarBuffer* elems = &((List*) obj)->elements;
 
-    case OBJ_LIST: {
-      int64_t index;
-      VarBuffer* elems = &((List*)obj)->elements;
+        if (isInteger(key, &index)) {
+          // Normalize index.
+          if (index < 0)
+            index = elems->count + index;
+          if (index >= elems->count || index < 0) {
+            VM_SET_ERROR(vm, newString(vm, "List index out of bound."));
+            return VAR_NULL;
+          }
+          return elems->data[index];
+        }
 
-      if (isInteger(key, &index)) {
-        // Normalize index.
-        if (index < 0) index = elems->count + index;
-        if (index >= elems->count || index < 0) {
-          VM_SET_ERROR(vm, newString(vm, "List index out of bound."));
+        if (IS_OBJ_TYPE(key, OBJ_RANGE)) {
+          List* sublist = _sliceList(vm, (List*) obj, (Range*) AS_OBJ(key));
+          if (sublist != NULL)
+            return VAR_OBJ(sublist);
           return VAR_NULL;
         }
-        return elems->data[index];
       }
+      break;
 
-      if (IS_OBJ_TYPE(key, OBJ_RANGE)) {
-        List* sublist = _sliceList(vm, (List*)obj, (Range*)AS_OBJ(key));
-        if (sublist != NULL) return VAR_OBJ(sublist);
-        return VAR_NULL;
-      }
-    } break;
-
-    case OBJ_MAP: {
-      Var value = mapGet((Map*)obj, key);
-      if (IS_UNDEF(value)) {
-
-        if (IS_OBJ(key) && !isObjectHashable(AS_OBJ(key)->type)) {
-          VM_SET_ERROR(vm, stringFormat(vm, "Unhashable key '$'.",
-                                        varTypeName(key)));
-        } else {
-          String* key_repr = varToString(vm, key, true);
-          vmPushTempRef(vm, &key_repr->_super); // key_repr.
-          VM_SET_ERROR(vm, stringFormat(vm, "Key '@' not exists", key_repr));
-          vmPopTempRef(vm); // key_repr.
+    case OBJ_MAP:
+      {
+        Var value = mapGet((Map*) obj, key);
+        if (IS_UNDEF(value)) {
+          if (IS_OBJ(key) && !isObjectHashable(AS_OBJ(key)->type)) {
+            VM_SET_ERROR(vm, stringFormat(vm, "Unhashable key '$'.", varTypeName(key)));
+          } else {
+            String* key_repr = varToString(vm, key, true);
+            vmPushTempRef(vm, &key_repr->_super); // key_repr.
+            VM_SET_ERROR(vm, stringFormat(vm, "Key '@' not exists", key_repr));
+            vmPopTempRef(vm); // key_repr.
+          }
+          return VAR_NULL;
         }
-        return VAR_NULL;
+        return value;
       }
-      return value;
-    } break;
+      break;
 
     case OBJ_FUNC:
     case OBJ_UPVALUE:
       UNREACHABLE(); // Not first class objects.
 
-    case OBJ_INST: {
-      Var ret;
-      if (_callBinaryOpMethod(vm, on, key, "[]", &ret)) {
-        return ret;
+    case OBJ_INST:
+      {
+        Var ret;
+        if (_callBinaryOpMethod(vm, on, key, "[]", &ret)) {
+          return ret;
+        }
       }
-    } break;
+      break;
 
     default:
       break;
   }
 
-  VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.",
-               varTypeName(on)));
+  VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.", varTypeName(on)));
   return VAR_NULL;
 }
 
 void varsetSubscript(VM* vm, Var on, Var key, Var value) {
   if (!IS_OBJ(on)) {
-    VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.",
-                                  varTypeName(on)));
+    VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.", varTypeName(on)));
     return;
   }
 
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
-    case OBJ_STRING: {
-      // TODO: Simplify This String Subscript
-      // FIXME: A new string cannot be added to its hash
-      //        already contains the previous String's hash.
-      int64_t index;
-      String* str = ((String*)obj);
+    case OBJ_STRING:
+      {
+        // TODO: Simplify This String Subscript
+        // FIXME: A new string cannot be added to its hash
+        //        already contains the previous String's hash.
+        int64_t index;
+        String* str = ((String*) obj);
 
-      if (isInteger(key, &index)) {
-        // Normalize index.
-        if (index < 0) index = str->length + index;
-        if (index >= str->length || index < 0) {
-          VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
+        if (isInteger(key, &index)) {
+          // Normalize index.
+          if (index < 0)
+            index = str->length + index;
+          if (index >= str->length || index < 0) {
+            VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
+            return;
+          }
+        }
+
+        if (!IS_OBJ(value)) {
+          VM_SET_ERROR(vm, stringFormat(vm, "String subscript type $ is not allowed.",
+                                        varTypeName(value)));
+          return;
+        }
+
+        Object* objValue = AS_OBJ(value);
+        if (objValue->type == OBJ_STRING) {
+          String* strReplace = ((String*) objValue);
+          str = replaceSubstring(vm, index, str, strReplace);
+          str->hash = utilHashString(str->data);
+
+          on = VAR_OBJ(str);
+
           return;
         }
       }
+      break;
 
-      if (!IS_OBJ(value)) {
-        VM_SET_ERROR(vm, stringFormat(vm,
-                         "String subscript type $ is not allowed.",
-                         varTypeName(value)));
+    case OBJ_LIST:
+      {
+        int64_t index;
+        VarBuffer* elems = &((List*) obj)->elements;
+        if (!validateInteger(vm, key, &index, "List index"))
+          return;
+
+        // Normalize index.
+        if (index < 0)
+          index = elems->count + index;
+        if (index < 0) {
+          VM_SET_ERROR(vm, newString(vm, "List index out of bound."));
+          return;
+        }
+
+        if (index >= elems->count) {
+          VarBufferFill(elems, vm, VAR_NULL, (index + 1) - elems->count);
+        }
+
+        elems->data[index] = value;
         return;
       }
+      break;
 
-      Object* objValue = AS_OBJ(value);
-      if(objValue->type == OBJ_STRING) {
-        String* strReplace = ((String*)objValue);
-        str = replaceSubstring(vm, index, str, strReplace);
-        str->hash = utilHashString(str->data);
-
-        on = VAR_OBJ(str);
-
+    case OBJ_MAP:
+      {
+        if (IS_OBJ(key) && !isObjectHashable(AS_OBJ(key)->type)) {
+          VM_SET_ERROR(vm, stringFormat(vm, "$ type is not hashable.", varTypeName(key)));
+        } else {
+          mapSet(vm, (Map*) obj, key, value);
+        }
         return;
       }
-    } break;
-
-    case OBJ_LIST: {
-      int64_t index;
-      VarBuffer* elems = &((List*)obj)->elements;
-      if (!validateInteger(vm, key, &index, "List index")) return;
-
-      // Normalize index.
-      if (index < 0) index = elems->count + index;
-      if (index < 0) {
-        VM_SET_ERROR(vm, newString(vm, "List index out of bound."));
-        return;
-      }
-
-      if (index >= elems->count) {
-        VarBufferFill(elems, vm, VAR_NULL, (index + 1) - elems->count);
-      }
-
-      elems->data[index] = value;
-      return;
-    } break;
-
-    case OBJ_MAP: {
-      if (IS_OBJ(key) && !isObjectHashable(AS_OBJ(key)->type)) {
-        VM_SET_ERROR(vm, stringFormat(vm, "$ type is not hashable.",
-                                      varTypeName(key)));
-      } else {
-        mapSet(vm, (Map*)obj, key, value);
-      }
-      return;
-    } break;
+      break;
 
     case OBJ_FUNC:
     case OBJ_UPVALUE:
       UNREACHABLE();
 
-    case OBJ_INST: {
-      Closure* closure = NULL;
-      String* name = newString(vm, "[]=");
-      vmPushTempRef(vm, &name->_super); // name.
-      bool has_method = hasMethod(vm, on, name, &closure);
-      vmPopTempRef(vm); // name.
+    case OBJ_INST:
+      {
+        Closure* closure = NULL;
+        String* name = newString(vm, "[]=");
+        vmPushTempRef(vm, &name->_super); // name.
+        bool has_method = hasMethod(vm, on, name, &closure);
+        vmPopTempRef(vm); // name.
 
-      if (has_method) {
-        Var args[2] = { key, value };
-        vmCallMethod(vm, on, closure, 2, args, NULL);
-        return;
+        if (has_method) {
+          Var args[2] = {key, value};
+          vmCallMethod(vm, on, closure, 2, args, NULL);
+          return;
+        }
       }
-    } break;
+      break;
 
     default:
       break;
   }
 
-  VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.",
-               varTypeName(on)));
+  VM_SET_ERROR(vm, stringFormat(vm, "$ type is not subscriptable.", varTypeName(on)));
   return;
 }
 
 bool varIterate(VM* vm, Var seq, Var* iterator, Var* value) {
   Object* obj = AS_OBJ(seq);
   switch (obj->type) {
-    case OBJ_STRING: {
-      if (IS_NULL(*iterator)) *iterator = VAR_NUM((double) 0);
-      uint32_t iter = (uint32_t) AS_NUM(*iterator);
+    case OBJ_STRING:
+      {
+        if (IS_NULL(*iterator))
+          *iterator = VAR_NUM((double) 0);
+        uint32_t iter = (uint32_t) AS_NUM(*iterator);
 
-      // TODO: Need to consider utf8.
-      String* str = ((String*)obj);
-      if (iter >= str->length) return false;
+        // TODO: Need to consider utf8.
+        String* str = ((String*) obj);
+        if (iter >= str->length)
+          return false;
 
-      // TODO: vm's char (and reusable) strings.
-      *value = VAR_OBJ(newStringLength(vm, str->data + iter, 1));
-      *iterator = VAR_NUM((double)iter + 1);
-      return true;
-    }
-
-    case OBJ_LIST: {
-      if (IS_NULL(*iterator)) *iterator = VAR_NUM((double) 0);
-      uint32_t iter = (uint32_t) AS_NUM(*iterator);
-
-      VarBuffer* elems = &((List*)obj)->elements;
-      if (iter >= elems->count) return false;
-      *value = elems->data[iter];
-      *iterator = VAR_NUM((double)iter + 1);
-      return true;
-    }
-
-    case OBJ_MAP: {
-      if (IS_NULL(*iterator)) *iterator = VAR_NUM((double) 0);
-      uint32_t iter = (uint32_t) AS_NUM(*iterator);
-
-      Map* map = (Map*)obj;
-      if (map->entries == NULL) return false;
-      MapEntry* e = map->entries + iter;
-      for (; iter < map->capacity; iter++, e++) {
-        if (!IS_UNDEF(e->key)) break;
-      }
-      if (iter >= map->capacity) return false;
-
-      *value = map->entries[iter].key;
-      *iterator = VAR_NUM((double)iter + 1);
-      return true;
-    }
-
-    case OBJ_RANGE: {
-      if (IS_NULL(*iterator)) *iterator = VAR_NUM((double) 0);
-      double iter = AS_NUM(*iterator);
-      double from = ((Range*)obj)->from;
-      double to = ((Range*)obj)->to;
-      if (from == to) return false;
-
-      double current;
-      if (from <= to) { //< Straight range.
-        current = from + iter;
-      } else {          //< Reversed range.
-        current = from - iter;
-      }
-      if (current == to) return false;
-      *value = VAR_NUM(current);
-      *iterator = VAR_NUM(iter + 1);
-      return true;
-    }
-
-    case OBJ_INST: {
-      for(;;) {
-        if (!_callBinaryOpMethod(vm, seq, *iterator, LITS__next, iterator))
-          break;
-        if (IS_NULL(*iterator)) return false;
-
-        if (!_callBinaryOpMethod(vm, seq, *iterator, LITS__value, value))
-          break;
+        // TODO: vm's char (and reusable) strings.
+        *value = VAR_OBJ(newStringLength(vm, str->data + iter, 1));
+        *iterator = VAR_NUM((double) iter + 1);
         return true;
       }
-      goto _default;
-    }
+
+    case OBJ_LIST:
+      {
+        if (IS_NULL(*iterator))
+          *iterator = VAR_NUM((double) 0);
+        uint32_t iter = (uint32_t) AS_NUM(*iterator);
+
+        VarBuffer* elems = &((List*) obj)->elements;
+        if (iter >= elems->count)
+          return false;
+        *value = elems->data[iter];
+        *iterator = VAR_NUM((double) iter + 1);
+        return true;
+      }
+
+    case OBJ_MAP:
+      {
+        if (IS_NULL(*iterator))
+          *iterator = VAR_NUM((double) 0);
+        uint32_t iter = (uint32_t) AS_NUM(*iterator);
+
+        Map* map = (Map*) obj;
+        if (map->entries == NULL)
+          return false;
+        MapEntry* e = map->entries + iter;
+        for (; iter < map->capacity; iter++, e++) {
+          if (!IS_UNDEF(e->key))
+            break;
+        }
+        if (iter >= map->capacity)
+          return false;
+
+        *value = map->entries[iter].key;
+        *iterator = VAR_NUM((double) iter + 1);
+        return true;
+      }
+
+    case OBJ_RANGE:
+      {
+        if (IS_NULL(*iterator))
+          *iterator = VAR_NUM((double) 0);
+        double iter = AS_NUM(*iterator);
+        double from = ((Range*) obj)->from;
+        double to = ((Range*) obj)->to;
+        if (from == to)
+          return false;
+
+        double current;
+        if (from <= to) { //< Straight range.
+          current = from + iter;
+        } else { //< Reversed range.
+          current = from - iter;
+        }
+        if (current == to)
+          return false;
+        *value = VAR_NUM(current);
+        *iterator = VAR_NUM(iter + 1);
+        return true;
+      }
+
+    case OBJ_INST:
+      {
+        for (;;) {
+          if (!_callBinaryOpMethod(vm, seq, *iterator, LITS__next, iterator))
+            break;
+          if (IS_NULL(*iterator))
+            return false;
+
+          if (!_callBinaryOpMethod(vm, seq, *iterator, LITS__value, value))
+            break;
+          return true;
+        }
+        goto _default;
+      }
 
     case OBJ_FIBER:
     case OBJ_CLOSURE:
@@ -2985,8 +3134,7 @@ bool varIterate(VM* vm, Var seq, Var* iterator, Var* value) {
 
     default:
     _default:
-      VM_SET_ERROR(vm, stringFormat(vm, "$ is not iterable.",
-                       varTypeName(seq)));
+      VM_SET_ERROR(vm, stringFormat(vm, "$ is not iterable.", varTypeName(seq)));
   }
   return false;
 }

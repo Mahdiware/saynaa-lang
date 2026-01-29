@@ -1,0 +1,160 @@
+import re
+import io
+
+# Configuration
+SAYNAA_HEADER = "src/cli/saynaa.h"
+TARGET_EXT = "test/example/native/nativeapi.c"
+TARGET_IMP = "src/runtime/saynaa_native.h"
+
+# Helper to read file content
+function read_file(path)
+  f = io.File()
+  f.open(path, "r")
+  content = f.read(-1)
+  f.close()
+  return content
+end
+
+# Helper to write file content
+function write_file(path, content)
+  f = io.File()
+  f.open(path, "w")
+  f.write(content)
+  f.close()
+end
+
+# Main Parser using Regex FindAll
+source = read_file(SAYNAA_HEADER)
+functions = []
+
+# Find all function definitions:
+# Pattern: PUBLIC ReturnType FunctionName(Params);
+# Groups: 1=ReturnType, 2=FunctionName, 3=Params
+# [^;]* matches parameters even if they span multiple lines.
+matches = re.findall("PUBLIC\\s+([A-Za-z0-9_* ]+)\\s+([A-Za-z0-9_]+)\\(([^;]*)\\);", source)
+
+for m in matches
+  ret_type = m[0].strip()
+  fn_name = m[1].strip()
+  # Remove newlines/tabs from params for cleaner parsing
+  params_str = m[2].replace("\n", " ").replace("\t", " ").strip()
+
+  if params_str.find("...") != -1
+    continue
+  end
+
+  if fn_name == "SAYNAA" 
+     continue 
+  end
+
+  # Parse Parameters
+  params = []
+  if params_str != "" and params_str != "void"
+    # Split by comma
+    for p in params_str.split(",")
+       p = p.strip()
+       # Extract Type and Name: (Type...) (Name)
+       # Group 1: Type (greedy match until last space)
+       # Group 2: Name (last word)
+       p_match = re.extract("(.*)\\s+([A-Za-z0-9_]+)", p)
+       if p_match
+          # p_match[0] is full match
+          # p_match[1] is Type
+          # p_match[2] is Name
+          params.append([p_match[2], p_match[1].strip()]) # [Name, Type]
+       end
+    end
+  end
+
+  functions.append([fn_name, ret_type, params])
+end
+
+# Generators
+API_TYPE = "NativeApi"
+API = "native_api"
+
+function gen_typedefs()
+  out = ""
+  for f in functions
+    p_str = ""
+    first = true
+    for p in f[2]
+       if !first
+         p_str = "${p_str}, "
+       end
+       p_str = "${p_str}${p[1]}" # Type only for typedef
+       first = false
+    end
+    out = "${out}typedef ${f[1]} (*${f[0]}_t)(${p_str});\n"
+  end
+  return "${out}\n"
+end
+
+function gen_struct()
+  out = "typedef struct {\n"
+  for f in functions
+    out = "${out}  ${f[0]}_t ${f[0]}_ptr;\n"
+  end
+  return "${out}} ${API_TYPE};\n\n"
+end
+
+function gen_defines()
+  out = ""
+  for f in functions
+    p_decl = ""
+    p_call = ""
+    first = true
+    for p in f[2]
+      if !first
+         p_decl = "${p_decl}, "
+         p_call = "${p_call}, "
+      end
+      p_decl = "${p_decl}${p[1]} ${p[0]}"
+      p_call = "${p_call}${p[0]}"
+      first = false
+    end
+    
+    ret_stmt = ""
+    if f[1] != "void"
+      ret_stmt = "return "
+    end
+    
+    out = "${out}${f[1]} ${f[0]}(${p_decl}) {\n"
+    out = "${out}  ${ret_stmt}${API}.${f[0]}_ptr(${p_call});\n"
+    out = "${out}}\n\n"
+  end
+  return out
+end
+
+function gen_init()
+  out = "static ${API_TYPE} ${API};\n\nEXPORT void InitApi(${API_TYPE}* api) {\n"
+  for f in functions
+    out = "${out}  ${API}.${f[0]}_ptr = api->${f[0]}_ptr;\n"
+  end
+  return "${out}}\n"
+end
+
+function gen_make_api()
+  out = "${API_TYPE} MakeNativeAPI() {\n\n  ${API_TYPE} api;\n\n"
+  for f in functions
+    out = "${out}  api.${f[0]}_ptr = ${f[0]};\n"
+  end
+  return "${out}\n  return api;\n}\n\n"
+end
+
+# Headers
+HEADER = "/*\n *  Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.\n *  Distributed Under The MIT License\n */\n// !! THIS FILE IS GENERATED DO NOT EDIT !!\n\n"
+
+# Execution
+print("Generating ${TARGET_EXT}...")
+c_code = "${HEADER}#include <saynaa.h>\n\n${gen_typedefs()}${gen_struct()}${gen_init()}\n${gen_defines()}"
+write_file(TARGET_EXT, c_code)
+
+print("Generating ${TARGET_IMP}...")
+h_code = "${HEADER}#pragma once\n\n#include \"../cli/saynaa.h\"\n${gen_typedefs()}${gen_struct()}"
+h_code = "${h_code}#define API_INIT_FN_NAME \"InitApi\" \n#define EXPORT_FN_NAME \"ExportModule\" \n#define CLEANUP_FN_NAME \"CleanupModule\" \n\n"
+h_code = "${h_code}typedef void (*InitApiFn)(${API_TYPE}*);\ntypedef Handle* (*ExportModuleFn)(VM*);\n\n"
+h_code = "${h_code}#ifdef DL_IMPLEMENT\n\n${gen_make_api()}#endif // DL_IMPLEMENT\n"
+write_file(TARGET_IMP, h_code)
+
+print("Done.")

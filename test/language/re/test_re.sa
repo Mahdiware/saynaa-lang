@@ -1,0 +1,32 @@
+import re
+
+# Test match
+assert(re.match("h.*o", "hello"))
+assert(re.match("^h.*o\$", "hello"))
+assert(re.match("z", "hello") == false)
+assert(re.match("[0-9]+", "foo 123 bar"))
+
+# Test search
+assert(re.search("lo", "hello") == "lo")
+assert(re.search("[0-9]+", "year 2023") == "2023")
+assert(re.search("z", "hello") == null)
+
+# Test extract
+groups = re.extract("([0-9]+)-([0-9]+)", "date 2023-10")
+# groups[0] is full match. groups[1] is capture 1 ...
+assert(groups, ["2023-10", "2023", "10"])
+
+groups = re.extract("([a-z]+) ([0-9]+)", "foo 123")
+assert(groups[0] == "foo 123")
+assert(groups[1] == "foo")
+assert(groups[2] == "123")
+
+print("Regex tests passed!")
+
+# Test findall
+assert(re.findall("foo", "foo bar foo baz") == ["foo", "foo"])
+assert(re.findall("[0-9]+", "there are 123 apples and 456 oranges") == ["123", "456"])
+assert(re.findall("([a-z]+)=([0-9]+)", "a=1 b=2 c=3") == [["a", "1"], ["b", "2"], ["c", "3"]])
+assert(re.findall("xyz", "abc def") == [])
+
+print("Findall tests passed!")

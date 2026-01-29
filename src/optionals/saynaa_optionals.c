@@ -16,7 +16,7 @@ void registerModuleJson(VM* vm);
 void registerModuleDummy(VM* vm);
 void registerModuleTerm(VM* vm);
 void registerModuleAlgorithm(VM* vm);
-//void registerModuleRegex(VM* vm);
+void registerModuleRegex(VM* vm);
 
 void cleanupModuleTerm(VM* vm);
 
@@ -32,7 +32,7 @@ void registerLibs(VM* vm) {
   registerModuleDummy(vm);
   registerModuleAlgorithm(vm);
   registerModuleTerm(vm);
-  //registerModuleRegex(vm);
+  registerModuleRegex(vm);
 }
 
 // Cleanup the modules.

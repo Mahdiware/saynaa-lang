@@ -3,24 +3,25 @@
  * Distributed Under The MIT License
  */
 
-#include <math.h>
 #include "saynaa_vm.h"
 
-#include "../utils/saynaa_utils.h"
 #include "../utils/saynaa_debug.h"
+#include "../utils/saynaa_utils.h"
+
+#include <math.h>
 
 Handle* vmNewHandle(VM* vm, Var value) {
-  Handle* handle = (Handle*)ALLOCATE(vm, Handle);
+  Handle* handle = (Handle*) ALLOCATE(vm, Handle);
   handle->value = value;
   handle->prev = NULL;
   handle->next = vm->handles;
-  if (handle->next != NULL) handle->next->prev = handle;
+  if (handle->next != NULL)
+    handle->next->prev = handle;
   vm->handles = handle;
   return handle;
 }
 
 void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
-
   // Track the total allocated memory of the VM to trigger the GC.
   // if vmRealloc is called for freeing, the old_size would be 0 since
   // deallocated bytes are traced by garbage collector.
@@ -50,19 +51,19 @@ void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
 void vmPushTempRef(VM* vm, Object* obj) {
   ASSERT(obj != NULL, "Cannot reference to NULL.");
   ASSERT(vm->temp_reference_count < MAX_TEMP_REFERENCE,
-    "Too many temp references");
+         "Too many temp references");
   vm->temp_reference[vm->temp_reference_count++] = obj;
 }
 
 void vmPopTempRef(VM* vm) {
-  ASSERT(vm->temp_reference_count > 0,
-         "Temporary reference is empty to pop.");
+  ASSERT(vm->temp_reference_count > 0, "Temporary reference is empty to pop.");
   vm->temp_reference_count--;
 }
 
 void vmRegisterModule(VM* vm, Module* module, String* key) {
-  ASSERT((((module->name != NULL) && IS_STR_EQ(module->name, key)) ||
-         IS_STR_EQ(module->path, key)), OOPS);
+  ASSERT((((module->name != NULL) && IS_STR_EQ(module->name, key))
+          || IS_STR_EQ(module->path, key)),
+         OOPS);
 
   // FIXME:
   // Not sure what to do, if a module the the same key already exists. Should
@@ -72,13 +73,13 @@ void vmRegisterModule(VM* vm, Module* module, String* key) {
 
 Module* vmGetModule(VM* vm, String* key) {
   Var module = mapGet(vm->modules, VAR_OBJ(key));
-  if (IS_UNDEF(module)) return NULL;
+  if (IS_UNDEF(module))
+    return NULL;
   ASSERT(AS_OBJ(module)->type == OBJ_MODULE, OOPS);
-  return (Module*)AS_OBJ(module);
+  return (Module*) AS_OBJ(module);
 }
 
 void vmCollectGarbage(VM* vm) {
-
   // Mark builtin functions.
   for (int i = 0; i < vm->builtins_count; i++) {
     markObject(vm, &vm->builtins_funcs[i]->_super);
@@ -86,9 +87,10 @@ void vmCollectGarbage(VM* vm) {
 
   // Mark primitive types' classes.
   for (int i = 0; i < vINSTANCE; i++) {
-    // It's possible that a garbage collection could be triggered while we're
-    // building the primitives and the class could be NULL.
-    if (vm->builtin_classes[i] == NULL) continue;
+    // It's possible that a garbage collection could be triggered while
+    // we're building the primitives and the class could be NULL.
+    if (vm->builtin_classes[i] == NULL)
+      continue;
 
     markObject(vm, &vm->builtin_classes[i]->_super);
   }
@@ -140,7 +142,6 @@ void vmCollectGarbage(VM* vm) {
   // non-garbage Object*.
   Object** ptr = &vm->first;
   while (*ptr != NULL) {
-
     // If the object the pointer points to wasn't marked it's unreachable.
     // Clean it. And update the pointer points to the next object.
     if (!(*ptr)->is_marked) {
@@ -161,15 +162,16 @@ void vmCollectGarbage(VM* vm) {
 
   // Next GC heap size will be change depends on the byte we've left with now,
   // and the [heap_fill_percent].
-  vm->next_gc = vm->bytes_allocated + (
-    (vm->bytes_allocated * vm->heap_fill_percent) / 100);
-  if (vm->next_gc < vm->min_heap_size) vm->next_gc = vm->min_heap_size;
+  vm->next_gc = vm->bytes_allocated + ((vm->bytes_allocated * vm->heap_fill_percent) / 100);
+  if (vm->next_gc < vm->min_heap_size)
+    vm->next_gc = vm->min_heap_size;
 }
 
-#define _ERR_FAIL(msg)                             \
-  do {                                             \
-    if (vm->fiber != NULL) VM_SET_ERROR(vm, msg);  \
-    return false;                                  \
+#define _ERR_FAIL(msg) \
+  do { \
+    if (vm->fiber != NULL) \
+      VM_SET_ERROR(vm, msg); \
+    return false; \
   } while (false)
 
 bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
@@ -188,14 +190,15 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
 
   if (fiber->state != FIBER_NEW) {
     switch (fiber->state) {
-      case FIBER_NEW: UNREACHABLE();
-      case FIBER_RUNNING:
-        _ERR_FAIL(newString(vm, "The fiber has already been running."));
-      case FIBER_YIELDED:
-        _ERR_FAIL(newString(vm, "Cannot run a fiber which is yielded, use "
-          "fiber_resume() instead."));
-      case FIBER_DONE:
-        _ERR_FAIL(newString(vm, "The fiber has done running."));
+    case FIBER_NEW:
+      UNREACHABLE();
+    case FIBER_RUNNING:
+      _ERR_FAIL(newString(vm, "The fiber has already been running."));
+    case FIBER_YIELDED:
+      _ERR_FAIL(newString(vm, "Cannot run a fiber which is yielded, use "
+                              "fiber_resume() instead."));
+    case FIBER_DONE:
+      _ERR_FAIL(newString(vm, "The fiber has done running."));
     }
     UNREACHABLE();
   }
@@ -203,7 +206,7 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
   ASSERT(fiber->stack != NULL && fiber->sp == fiber->stack + 1, OOPS);
   ASSERT(fiber->ret == fiber->stack, OOPS);
 
-  vmEnsureStackSize(vm, fiber, (int)(fiber->sp - fiber->stack) + argc + nulls);
+  vmEnsureStackSize(vm, fiber, (int) (fiber->sp - fiber->stack) + argc + nulls);
   ASSERT((fiber->stack + fiber->stack_size) - fiber->sp >= argc + nulls, OOPS);
 
   // Pass the function arguments.
@@ -220,16 +223,17 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
   fiber->sp += argc + nulls; // Parameters.
 
   // Native functions doesn't own a stack frame so, we're done here.
-  if (fiber->closure->fn->is_native) return true;
+  if (fiber->closure->fn->is_native)
+    return true;
 
-  // Assert we have the first frame (to push the arguments). And assert we have
-  // enough stack space for parameters.
+  // Assert we have the first frame (to push the arguments). And assert we
+  // have enough stack space for parameters.
   ASSERT(fiber->frame_count == 1, OOPS);
   ASSERT(fiber->frames[0].rbp == fiber->ret, OOPS);
 
-  // Capture this.
-  fiber->frames[0].this = fiber->this;
-  fiber->this = VAR_UNDEFINED;
+  // Capture thiz.
+  fiber->frames[0].thiz = fiber->thiz;
+  fiber->thiz = VAR_UNDEFINED;
 
   // On success return true.
   return true;
@@ -238,14 +242,15 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
 bool vmSwitchFiber(VM* vm, Fiber* fiber, Var* value) {
   if (fiber->state != FIBER_YIELDED) {
     switch (fiber->state) {
-      case FIBER_NEW:
-        _ERR_FAIL(newString(vm, "The fiber hasn't started. call fiber_run() "
-          "to start."));
-      case FIBER_RUNNING:
-        _ERR_FAIL(newString(vm, "The fiber has already been running."));
-      case FIBER_YIELDED: UNREACHABLE();
-      case FIBER_DONE:
-        _ERR_FAIL(newString(vm, "The fiber has done running."));
+    case FIBER_NEW:
+      _ERR_FAIL(newString(vm, "The fiber hasn't started. call fiber_run() "
+                              "to start."));
+    case FIBER_RUNNING:
+      _ERR_FAIL(newString(vm, "The fiber has already been running."));
+    case FIBER_YIELDED:
+      UNREACHABLE();
+    case FIBER_DONE:
+      _ERR_FAIL(newString(vm, "The fiber has done running."));
     }
     UNREACHABLE();
   }
@@ -258,8 +263,10 @@ bool vmSwitchFiber(VM* vm, Fiber* fiber, Var* value) {
   ASSERT((fiber->stack + fiber->stack_size) - fiber->sp >= 2, OOPS);
 
   // fb->ret will points to the return value of the 'yield()' call.
-  if (value == NULL) *fiber->ret = VAR_NULL;
-  else *fiber->ret = *value;
+  if (value == NULL)
+    *fiber->ret = VAR_NULL;
+  else
+    *fiber->ret = *value;
 
   // Switch fiber.
   fiber->caller = vm->fiber;
@@ -272,13 +279,14 @@ bool vmSwitchFiber(VM* vm, Fiber* fiber, Var* value) {
 #undef _ERR_FAIL
 
 void vmYieldFiber(VM* vm, Var* value) {
-
   Fiber* caller = vm->fiber->caller;
 
   // Return the yield value to the caller fiber.
   if (caller != NULL) {
-    if (value == NULL) *caller->ret = VAR_NULL;
-    else *caller->ret = *value;
+    if (value == NULL)
+      *caller->ret = VAR_NULL;
+    else
+      *caller->ret = *value;
   }
 
   // Can be resumed by another caller fiber.
@@ -287,13 +295,12 @@ void vmYieldFiber(VM* vm, Var* value) {
   vm->fiber = caller;
 }
 
-Result vmCallMethod(VM* vm, Var this, Closure* fn,
-                      int argc, Var* argv, Var* ret) {
+Result vmCallMethod(VM* vm, Var thiz, Closure* fn, int argc, Var* argv, Var* ret) {
   ASSERT(argc >= 0, "argc cannot be negative.");
   ASSERT(argc == 0 || argv != NULL, "argv was NULL when argc > 0.");
 
   Fiber* fiber = newFiber(vm, fn);
-  fiber->this = this;
+  fiber->thiz = thiz;
   fiber->native = vm->fiber;
   vmPushTempRef(vm, &fiber->_super); // fiber.
   bool success = vmPrepareFiber(vm, fiber, argc, argv);
@@ -306,15 +313,16 @@ Result vmCallMethod(VM* vm, Var this, Closure* fn,
   Result result;
 
   Fiber* last = vm->fiber;
-  if (last != NULL) vmPushTempRef(vm, &last->_super); // last.
+  if (last != NULL)
+    vmPushTempRef(vm, &last->_super); // last.
   {
     if (fiber->closure->fn->is_native) {
-
       ASSERT(fiber->closure->fn->native != NULL, "Native function was NULL");
       vm->fiber = fiber;
       fiber->closure->fn->native(vm);
       if (VM_HAS_ERROR(vm)) {
-        if (last != NULL) last->error = vm->fiber->error;
+        if (last != NULL)
+          last->error = vm->fiber->error;
         result = RESULT_RUNTIME_ERROR;
       } else {
         result = RESULT_SUCCESS;
@@ -325,18 +333,19 @@ Result vmCallMethod(VM* vm, Var this, Closure* fn,
     }
   }
 
-  if (last != NULL) vmPopTempRef(vm); // last.
-  vmPopTempRef(vm); // fiber.
+  if (last != NULL)
+    vmPopTempRef(vm); // last.
+  vmPopTempRef(vm);   // fiber.
 
   vm->fiber = last;
 
-  if (ret != NULL) *ret = *fiber->ret;
+  if (ret != NULL)
+    *ret = *fiber->ret;
 
   return result;
 }
 
 Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret) {
-
   // Calling functions and methods are the same, except for the methods have
   // this defined, and for functions it'll be VAR_UNDEFINED.
   return vmCallMethod(vm, VAR_UNDEFINED, fn, argc, argv, ret);
@@ -347,14 +356,15 @@ Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret) {
 // Returns true if the path ends with ".dll" or ".so".
 static bool _isPathDL(String* path) {
   const char* dlext[] = {
-    ".so",
-    ".dll",
-    NULL,
+      ".so",
+      ".dll",
+      NULL,
   };
 
   for (const char** ext = dlext; *ext != NULL; ext++) {
     const char* start = path->data + (path->length - strlen(*ext));
-    if (!strncmp(start, *ext, strlen(*ext))) return true;
+    if (!strncmp(start, *ext, strlen(*ext)))
+      return true;
   }
 
   return false;
@@ -370,8 +380,7 @@ static Module* _importDL(VM* vm, String* resolved, String* name) {
   void* handle = vm->config.load_dl_fn(vm, resolved->data);
 
   if (handle == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"",
-      resolved));
+    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
     return NULL;
   }
 
@@ -384,14 +393,15 @@ static Module* _importDL(VM* vm, String* resolved, String* name) {
   vm->fiber->ret = vm->fiber->stack + ret_offset;
 
   if (lhandle == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"",
-      resolved));
+    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
     return NULL;
   }
 
   if (!IS_OBJ_TYPE(lhandle->value, OBJ_MODULE)) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Returned handle wasn't a "
-                 "module at \"@\"", resolved));
+    VM_SET_ERROR(vm, stringFormat(vm,
+                                  "Returned handle wasn't a "
+                                  "module at \"@\"",
+                                  resolved));
     return NULL;
   }
 
@@ -418,8 +428,7 @@ void vmUnloadDlHandle(VM* vm, void* handle) {
 static Module* _importScript(VM* vm, String* resolved, String* name) {
   char* source = vm->config.load_script_fn(vm, resolved->data);
   if (source == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"",
-      resolved));
+    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
     return NULL;
   }
 
@@ -436,8 +445,7 @@ static Module* _importScript(VM* vm, String* resolved, String* name) {
     if (result == RESULT_SUCCESS) {
       vmRegisterModule(vm, module, resolved);
     } else {
-      VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"",
-                   resolved));
+      VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", resolved));
       module = NULL; //< set to null to indicate error.
     }
   }
@@ -471,12 +479,14 @@ Var vmImportModule(VM* vm, String* from, String* path) {
   uint32_t search_path_idx = 0;
 
   do {
-    // If we reached here. It's not a native module (ie. module's absolute path
-    // is required to import and cache).
+    // If we reached here. It's not a native module (ie. module's absolute
+    // path is required to import and cache).
     _resolved = vm->config.resolve_path_fn(vm, from_path, path->data);
-    if (_resolved) break;
+    if (_resolved)
+      break;
 
-    if (search_path_idx >= vm->search_paths->elements.count) break;
+    if (search_path_idx >= vm->search_paths->elements.count)
+      break;
 
     Var sp = vm->search_paths->elements.data[search_path_idx++];
     ASSERT(IS_OBJ_TYPE(sp, OBJ_STRING), OOPS);
@@ -503,15 +513,15 @@ Var vmImportModule(VM* vm, String* from, String* path) {
   // The script not exists in the VM, make sure we have the script loading
   // api function.
 
-  #ifndef NO_DL
+#ifndef NO_DL
   bool isdl = _isPathDL(resolved);
-  if (isdl && vm->config.load_dl_fn == NULL
-      || vm->config.load_script_fn == NULL) {
-  #else
+  if (isdl && vm->config.load_dl_fn == NULL || vm->config.load_script_fn == NULL) {
+#else
   if (vm->config.load_script_fn == NULL) {
-  #endif
+#endif
 
-    VM_SET_ERROR(vm, newString(vm, "Cannot import. The hosting application "
+    VM_SET_ERROR(vm,
+                 newString(vm, "Cannot import. The hosting application "
                                "haven't registered the module loading API"));
     return VAR_NULL;
   }
@@ -526,21 +536,23 @@ Var vmImportModule(VM* vm, String* from, String* path) {
     // replaceing and rehashing the string here. I should add some update
     // string function that update a string after it's data was modified.
     //
-    // The path of the module contain '/' which was replacement of '.' in the
-    // import syntax, this is done so that path resolving can be done easily.
-    // However it needs to be '.' for the name of the module.
+    // The path of the module contain '/' which was replacement of '.' in
+    // the import syntax, this is done so that path resolving can be done
+    // easily. However it needs to be '.' for the name of the module.
     String* _name = newStringLength(vm, path->data, path->length);
     for (char* c = _name->data; c < _name->data + _name->length; c++) {
-      if (*c == '/') *c = '.';
+      if (*c == '/')
+        *c = '.';
     }
     _name->hash = utilHashString(_name->data);
     vmPushTempRef(vm, &_name->_super); // _name.
 
-    #ifndef NO_DL
-    if (isdl) module = _importDL(vm, resolved, _name);
+#ifndef NO_DL
+    if (isdl)
+      module = _importDL(vm, resolved, _name);
     else /* ... */
-    #endif
-    module = _importScript(vm, resolved, _name);
+#endif
+      module = _importScript(vm, resolved, _name);
 
     vmPopTempRef(vm); // _name.
   }
@@ -560,19 +572,20 @@ void vmEnsureStackSize(VM* vm, Fiber* fiber, int size) {
     return;
   }
 
-  if (fiber->stack_size >= size) return;
+  if (fiber->stack_size >= size)
+    return;
 
   int new_size = utilPowerOf2Ceil(size);
 
   Var* old_rbp = fiber->stack; //< Old stack base pointer.
-  fiber->stack = (Var*)vmRealloc(vm, fiber->stack,
-                                 sizeof(Var) * fiber->stack_size,
-                                 sizeof(Var) * new_size);
+  fiber->stack = (Var*) vmRealloc(vm, fiber->stack, sizeof(Var) * fiber->stack_size,
+                                  sizeof(Var) * new_size);
   fiber->stack_size = new_size;
 
   // If the old stack base pointer is the same as the current, that means the
   // stack hasn't been moved by the reallocation. In that case we're done.
-  if (old_rbp == fiber->stack) return;
+  if (old_rbp == fiber->stack)
+    return;
 
   // If we reached here that means the stack is moved by the reallocation and
   // we have to update all the pointers that pointing to the old stack slots.
@@ -612,19 +625,19 @@ static inline void pushCallFrame(VM* vm, const Closure* closure) {
 
   // Grow the stack frame if needed.
   if (vm->fiber->frame_count + 1 > vm->fiber->frame_capacity) {
-
     // Native functions doesn't allocate a frame initially.
     int new_capacity = vm->fiber->frame_capacity << 1;
-    if (new_capacity == 0) new_capacity = 1;
+    if (new_capacity == 0)
+      new_capacity = 1;
 
-    vm->fiber->frames = (CallFrame*)vmRealloc(vm, vm->fiber->frames,
-                           sizeof(CallFrame) * vm->fiber->frame_capacity,
-                           sizeof(CallFrame) * new_capacity);
+    vm->fiber->frames = (CallFrame*) vmRealloc(vm, vm->fiber->frames,
+                                               sizeof(CallFrame) * vm->fiber->frame_capacity,
+                                               sizeof(CallFrame) * new_capacity);
     vm->fiber->frame_capacity = new_capacity;
   }
 
   // Grow the stack if needed.
-  int current_stack_slots = (int)(vm->fiber->sp - vm->fiber->stack) + 1;
+  int current_stack_slots = (int) (vm->fiber->sp - vm->fiber->stack) + 1;
   int needed = closure->fn->fn->stack_size + current_stack_slots;
   vmEnsureStackSize(vm, vm->fiber, needed);
 
@@ -633,13 +646,12 @@ static inline void pushCallFrame(VM* vm, const Closure* closure) {
   frame->closure = closure;
   frame->ip = closure->fn->fn->opcodes.data;
 
-  // Capture this.
-  frame->this = vm->fiber->this;
-  vm->fiber->this = VAR_UNDEFINED;
+  // Capture thiz.
+  frame->thiz = vm->fiber->thiz;
+  vm->fiber->thiz = VAR_UNDEFINED;
 }
 
 static inline void reuseCallFrame(VM* vm, const Closure* closure) {
-
   ASSERT(!closure->fn->is_native, OOPS);
   ASSERT(closure->fn->arity >= 0, OOPS);
   ASSERT(vm->fiber->frame_count > 0, OOPS);
@@ -650,9 +662,9 @@ static inline void reuseCallFrame(VM* vm, const Closure* closure) {
   frame->closure = closure;
   frame->ip = closure->fn->fn->opcodes.data;
 
-  // Capture this.
-  frame->this = vm->fiber->this;
-  vm->fiber->this = VAR_UNDEFINED;
+  // Capture thiz.
+  frame->thiz = vm->fiber->thiz;
+  vm->fiber->thiz = VAR_UNDEFINED;
 
   ASSERT(*frame->rbp == VAR_NULL, OOPS);
 
@@ -667,15 +679,13 @@ static inline void reuseCallFrame(VM* vm, const Closure* closure) {
   fb->sp = target;
 
   // Grow the stack if needed (least probably).
-  int needed = (closure->fn->fn->stack_size +
-                (int)(vm->fiber->sp - vm->fiber->stack));
+  int needed = (closure->fn->fn->stack_size + (int) (vm->fiber->sp - vm->fiber->stack));
   vmEnsureStackSize(vm, vm->fiber, needed);
 }
 
 // Capture the [local] into an upvalue and return it. If the upvalue already
 // exists on the fiber, it'll return it.
 static Upvalue* captureUpvalue(VM* vm, Fiber* fiber, Var* local) {
-
   // If the fiber doesn't have any upvalues yet, create new one and add it.
   if (fiber->open_upvalues == NULL) {
     Upvalue* upvalue = newUpvalue(vm, local);
@@ -724,8 +734,8 @@ static Upvalue* captureUpvalue(VM* vm, Fiber* fiber, Var* local) {
     last = current;
     current = current->next;
 
-    // If the current is NULL, we've walked all the way to the end of the open
-    // upvalues, and there isn't one upvalue for the local.
+    // If the current is NULL, we've walked all the way to the end of the
+    // open upvalues, and there isn't one upvalue for the local.
     if (current == NULL) {
       last->next = newUpvalue(vm, local);
       return last->next;
@@ -733,7 +743,8 @@ static Upvalue* captureUpvalue(VM* vm, Fiber* fiber, Var* local) {
   }
 
   // If [current] is the upvalue that captured [local] then return it.
-  if (current->ptr == local) return current;
+  if (current->ptr == local)
+    return current;
 
   ASSERT(last != NULL, OOPS);
 
@@ -748,7 +759,6 @@ static Upvalue* captureUpvalue(VM* vm, Fiber* fiber, Var* local) {
 // Close all the upvalues for the locals including [top] and higher in the
 // stack.
 static void closeUpvalues(Fiber* fiber, Var* top) {
-
   while (fiber->open_upvalues != NULL && fiber->open_upvalues->ptr >= top) {
     Upvalue* upvalue = fiber->open_upvalues;
     upvalue->closed = *upvalue->ptr;
@@ -763,7 +773,8 @@ static void vmReportError(VM* vm) {
 
   // TODO: pass the error to the caller of the fiber.
 
-  if (vm->config.stderr_write == NULL) return;
+  if (vm->config.stderr_write == NULL)
+    return;
   reportRuntimeError(vm, vm->fiber);
 }
 
@@ -772,7 +783,6 @@ static void vmReportError(VM* vm) {
  *****************************************************************************/
 
 Result vmRunFiber(VM* vm, Fiber* fiber_) {
-
   // Set the fiber as the VM's current fiber (another root object) to prevent
   // it from garbage collection and get the reference from native functions.
   // If this is being called when running another fiber, that'll be garbage
@@ -786,82 +796,83 @@ Result vmRunFiber(VM* vm, Fiber* fiber_) {
   register const uint8_t* ip;
 
   register Var* rbp;         //< Stack base pointer register.
-  register Var* this;        //< Points to the this in the current call frame.
+  register Var* thiz;        //< Points to the this in the current call frame.
   register CallFrame* frame; //< Current call frame.
   register Module* module;   //< Currently executing module.
   register Fiber* fiber = fiber_;
 
 #if DEBUG
-  #define PUSH(value)                                                       \
-  do {                                                                      \
-    ASSERT(fiber->sp < (fiber->stack + ((intptr_t) fiber->stack_size - 1)), \
-           OOPS);                                                           \
-    (*fiber->sp++ = (value));                                               \
+#define PUSH(value) \
+  do { \
+    ASSERT(fiber->sp < (fiber->stack + ((intptr_t) fiber->stack_size - 1)), OOPS); \
+    (*fiber->sp++ = (value)); \
   } while (false)
 #else
-  #define PUSH(value)  (*fiber->sp++ = (value))
+#define PUSH(value) (*fiber->sp++ = (value))
 #endif
 
-#define POP()        (*(--fiber->sp))
-#define DROP()       (--fiber->sp)
-#define PEEK(off)    (*(fiber->sp + (off)))
-#define READ_BYTE()  (*ip++)
-#define READ_SHORT() (ip+=2, (uint16_t)((ip[-2] << 8) | ip[-1]))
+#define POP() (*(--fiber->sp))
+#define DROP() (--fiber->sp)
+#define PEEK(off) (*(fiber->sp + (off)))
+#define READ_BYTE() (*ip++)
+#define READ_SHORT() (ip += 2, (uint16_t) ((ip[-2] << 8) | ip[-1]))
 
 // Switch back to the caller of the current fiber, will be called when we're
 // done with the fiber or aborting it for runtime errors.
-#define FIBER_SWITCH_BACK()                                         \
-  do {                                                              \
-    Fiber* caller = fiber->caller;                                  \
+#define FIBER_SWITCH_BACK() \
+  do { \
+    Fiber* caller = fiber->caller; \
     ASSERT(caller == NULL || caller->state == FIBER_RUNNING, OOPS); \
-    fiber->state = FIBER_DONE;                                      \
-    fiber->caller = NULL;                                           \
-    fiber = caller;                                                 \
-    vm->fiber = fiber;                                              \
+    fiber->state = FIBER_DONE; \
+    fiber->caller = NULL; \
+    fiber = caller; \
+    vm->fiber = fiber; \
   } while (false)
 
 // Check if any runtime error exists and if so returns RESULT_RUNTIME_ERROR.
-#define CHECK_ERROR()                 \
-  do {                                \
-    if (VM_HAS_ERROR(vm)) {           \
-      UPDATE_FRAME();                 \
-      vmReportError(vm);              \
-      FIBER_SWITCH_BACK();            \
-      return RESULT_RUNTIME_ERROR;    \
-    }                                 \
+#define CHECK_ERROR() \
+  do { \
+    if (VM_HAS_ERROR(vm)) { \
+      UPDATE_FRAME(); \
+      vmReportError(vm); \
+      FIBER_SWITCH_BACK(); \
+      return RESULT_RUNTIME_ERROR; \
+    } \
   } while (false)
 
 // [err_msg] must be of type String.
-#define RUNTIME_ERROR(err_msg)       \
-  do {                               \
-    VM_SET_ERROR(vm, err_msg);       \
-    UPDATE_FRAME();                  \
-    vmReportError(vm);               \
-    FIBER_SWITCH_BACK();             \
-    return RESULT_RUNTIME_ERROR;     \
+#define RUNTIME_ERROR(err_msg) \
+  do { \
+    VM_SET_ERROR(vm, err_msg); \
+    UPDATE_FRAME(); \
+    vmReportError(vm); \
+    FIBER_SWITCH_BACK(); \
+    return RESULT_RUNTIME_ERROR; \
   } while (false)
 
 // Load the last call frame to vm's execution variables to resume/run the
 // function.
-#define LOAD_FRAME()                               \
-  do {                                             \
-    frame = &fiber->frames[fiber->frame_count-1];  \
-    ip = frame->ip;                                \
-    rbp = frame->rbp;                              \
-    this = &frame->this;                           \
-    module = frame->closure->fn->owner;            \
+#define LOAD_FRAME() \
+  do { \
+    frame = &fiber->frames[fiber->frame_count - 1]; \
+    ip = frame->ip; \
+    rbp = frame->rbp; \
+    thiz = &frame->thiz; \
+    module = frame->closure->fn->owner; \
   } while (false)
 
 // Update the frame's execution variables before pushing another call frame.
 #define UPDATE_FRAME() frame->ip = ip
 
 #ifdef OPCODE
-  #error "OPCODE" should not be deifined here.
+#error "OPCODE" should not be deifined here.
 #endif
 
-#define SWITCH() Opcode instruction; switch (instruction = (Opcode)READ_BYTE())
+#define SWITCH() \
+  Opcode instruction; \
+  switch (instruction = (Opcode) READ_BYTE())
 #define OPCODE(CODE) case OP_##CODE
-#define DISPATCH()   goto L_vm_main_loop
+#define DISPATCH() goto L_vm_main_loop
 
   // Load the fiber's top call frame to the vm's execution variables.
   LOAD_FRAME();
@@ -872,12 +883,12 @@ L_vm_main_loop:
   // defined, the next line become a declaration (Opcode instruction;).
   NO_OP;
 
-#define _DUMP_STACK()           \
-  do {                          \
-    system("clear");            \
-    dumpGlobalValues(vm);       \
-    dumpStackFrame(vm);         \
-    DEBUG_BREAK();              \
+#define _DUMP_STACK() \
+  do { \
+    system("clear"); \
+    dumpGlobalValues(vm); \
+    dumpStackFrame(vm); \
+    DEBUG_BREAK(); \
   } while (false)
 
 #if DUMP_STACK && defined(DEBUG)
@@ -886,77 +897,64 @@ L_vm_main_loop:
 #undef _DUMP_STACK
 
   SWITCH() {
-
-    OPCODE(PUSH_CONSTANT):
-    {
+    OPCODE(PUSH_CONSTANT) : {
       uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->constants.count);
       PUSH(module->constants.data[index]);
       DISPATCH();
     }
 
-    OPCODE(PUSH_NULL):
-      PUSH(VAR_NULL);
-      DISPATCH();
+    OPCODE(PUSH_NULL) : PUSH(VAR_NULL);
+    DISPATCH();
 
-    OPCODE(PUSH_0):
-      PUSH(VAR_NUM(0));
-      DISPATCH();
+    OPCODE(PUSH_0) : PUSH(VAR_NUM(0));
+    DISPATCH();
 
-    OPCODE(PUSH_TRUE):
-      PUSH(VAR_TRUE);
-      DISPATCH();
+    OPCODE(PUSH_TRUE) : PUSH(VAR_TRUE);
+    DISPATCH();
 
-    OPCODE(PUSH_FALSE):
-      PUSH(VAR_FALSE);
-      DISPATCH();
+    OPCODE(PUSH_FALSE) : PUSH(VAR_FALSE);
+    DISPATCH();
 
-    OPCODE(SWAP):
-    {
+    OPCODE(SWAP) : {
       Var tmp = *(fiber->sp - 1);
       *(fiber->sp - 1) = *(fiber->sp - 2);
       *(fiber->sp - 2) = tmp;
       DISPATCH();
     }
 
-    OPCODE(DUP):
-    {
+    OPCODE(DUP) : {
       PUSH(*(fiber->sp - 1));
       DISPATCH();
     }
 
-    OPCODE(PUSH_LIST):
-    {
-      List* list = newList(vm, (uint32_t)READ_SHORT());
+    OPCODE(PUSH_LIST) : {
+      List* list = newList(vm, (uint32_t) READ_SHORT());
       PUSH(VAR_OBJ(list));
       DISPATCH();
     }
 
-    OPCODE(PUSH_MAP):
-    {
+    OPCODE(PUSH_MAP) : {
       Map* map = newMap(vm);
       PUSH(VAR_OBJ(map));
       DISPATCH();
     }
 
-    OPCODE(PUSH_THIS):
-    {
-      PUSH(*this);
+    OPCODE(PUSH_THIS) : {
+      PUSH(*thiz);
       DISPATCH();
     }
 
-    OPCODE(LIST_APPEND):
-    {
+    OPCODE(LIST_APPEND) : {
       Var elem = PEEK(-1); // Don't pop yet, we need the reference for gc.
       Var list = PEEK(-2);
       ASSERT(IS_OBJ_TYPE(list, OBJ_LIST), OOPS);
-      VarBufferWrite(&((List*)AS_OBJ(list))->elements, vm, elem);
+      VarBufferWrite(&((List*) AS_OBJ(list))->elements, vm, elem);
       DROP(); // elem
       DISPATCH();
     }
 
-    OPCODE(MAP_INSERT):
-    {
+    OPCODE(MAP_INSERT) : {
       Var value = PEEK(-1); // Don't pop yet, we need the reference for gc.
       Var key = PEEK(-2);   // Don't pop yet, we need the reference for gc.
       Var on = PEEK(-3);
@@ -964,10 +962,9 @@ L_vm_main_loop:
       ASSERT(IS_OBJ_TYPE(on, OBJ_MAP), OOPS);
 
       if (IS_OBJ(key) && !isObjectHashable(AS_OBJ(key)->type)) {
-        RUNTIME_ERROR(stringFormat(vm, "$ type is not hashable.",
-                      varTypeName(key)));
+        RUNTIME_ERROR(stringFormat(vm, "$ type is not hashable.", varTypeName(key)));
       }
-      mapSet(vm, (Map*)AS_OBJ(on), key, value);
+      mapSet(vm, (Map*) AS_OBJ(on), key, value);
 
       DROP(); // value
       DROP(); // key
@@ -975,66 +972,56 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(PUSH_LOCAL_0):
-    OPCODE(PUSH_LOCAL_1):
-    OPCODE(PUSH_LOCAL_2):
-    OPCODE(PUSH_LOCAL_3):
-    OPCODE(PUSH_LOCAL_4):
-    OPCODE(PUSH_LOCAL_5):
-    OPCODE(PUSH_LOCAL_6):
-    OPCODE(PUSH_LOCAL_7):
-    OPCODE(PUSH_LOCAL_8):
-    {
-      int index = (int)(instruction - OP_PUSH_LOCAL_0);
+    OPCODE(PUSH_LOCAL_0) :
+        OPCODE(PUSH_LOCAL_1) :
+        OPCODE(PUSH_LOCAL_2) :
+        OPCODE(PUSH_LOCAL_3) :
+        OPCODE(PUSH_LOCAL_4) :
+        OPCODE(PUSH_LOCAL_5) :
+        OPCODE(PUSH_LOCAL_6) : OPCODE(PUSH_LOCAL_7) : OPCODE(PUSH_LOCAL_8) : {
+      int index = (int) (instruction - OP_PUSH_LOCAL_0);
       PUSH(rbp[index + 1]); // +1: rbp[0] is return value.
       DISPATCH();
     }
-    OPCODE(PUSH_LOCAL_N):
-    {
+    OPCODE(PUSH_LOCAL_N) : {
       uint8_t index = READ_BYTE();
-      PUSH(rbp[index + 1]);  // +1: rbp[0] is return value.
+      PUSH(rbp[index + 1]); // +1: rbp[0] is return value.
       DISPATCH();
     }
 
-    OPCODE(STORE_LOCAL_0):
-    OPCODE(STORE_LOCAL_1):
-    OPCODE(STORE_LOCAL_2):
-    OPCODE(STORE_LOCAL_3):
-    OPCODE(STORE_LOCAL_4):
-    OPCODE(STORE_LOCAL_5):
-    OPCODE(STORE_LOCAL_6):
-    OPCODE(STORE_LOCAL_7):
-    OPCODE(STORE_LOCAL_8):
-    {
-      int index = (int)(instruction - OP_STORE_LOCAL_0);
-      rbp[index + 1] = PEEK(-1);  // +1: rbp[0] is return value.
+    OPCODE(STORE_LOCAL_0) :
+        OPCODE(STORE_LOCAL_1) :
+        OPCODE(STORE_LOCAL_2) :
+        OPCODE(STORE_LOCAL_3) :
+        OPCODE(STORE_LOCAL_4) :
+        OPCODE(STORE_LOCAL_5) :
+        OPCODE(STORE_LOCAL_6) :
+        OPCODE(STORE_LOCAL_7) : OPCODE(STORE_LOCAL_8) : {
+      int index = (int) (instruction - OP_STORE_LOCAL_0);
+      rbp[index + 1] = PEEK(-1); // +1: rbp[0] is return value.
       DISPATCH();
     }
-    OPCODE(STORE_LOCAL_N):
-    {
+    OPCODE(STORE_LOCAL_N) : {
       uint8_t index = READ_BYTE();
-      rbp[index + 1] = PEEK(-1);  // +1: rbp[0] is return value.
+      rbp[index + 1] = PEEK(-1); // +1: rbp[0] is return value.
       DISPATCH();
     }
 
-    OPCODE(PUSH_GLOBAL):
-    {
+    OPCODE(PUSH_GLOBAL) : {
       uint8_t index = READ_BYTE();
       ASSERT_INDEX(index, module->globals.count);
       PUSH(module->globals.data[index]);
       DISPATCH();
     }
 
-    OPCODE(STORE_GLOBAL):
-    {
+    OPCODE(STORE_GLOBAL) : {
       uint8_t index = READ_BYTE();
       ASSERT_INDEX(index, module->globals.count);
       module->globals.data[index] = PEEK(-1);
       DISPATCH();
     }
 
-    OPCODE(PUSH_BUILTIN_FN):
-    {
+    OPCODE(PUSH_BUILTIN_FN) : {
       uint8_t index = READ_BYTE();
       ASSERT_INDEX(index, vm->builtins_count);
       Closure* closure = vm->builtins_funcs[index];
@@ -1042,8 +1029,7 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(PUSH_BUILTIN_TY):
-    {
+    OPCODE(PUSH_BUILTIN_TY) : {
       uint8_t index = READ_BYTE();
       ASSERT_INDEX(index, vINSTANCE);
       Class* cls = vm->builtin_classes[index];
@@ -1051,26 +1037,23 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(PUSH_UPVALUE):
-    {
+    OPCODE(PUSH_UPVALUE) : {
       uint8_t index = READ_BYTE();
       PUSH(*(frame->closure->upvalues[index]->ptr));
       DISPATCH();
     }
 
-    OPCODE(STORE_UPVALUE):
-    {
+    OPCODE(STORE_UPVALUE) : {
       uint8_t index = READ_BYTE();
       *(frame->closure->upvalues[index]->ptr) = PEEK(-1);
       DISPATCH();
     }
 
-    OPCODE(PUSH_CLOSURE):
-    {
+    OPCODE(PUSH_CLOSURE) : {
       uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->constants.count);
       ASSERT(IS_OBJ_TYPE(module->constants.data[index], OBJ_FUNC), OOPS);
-      Function* fn = (Function*)AS_OBJ(module->constants.data[index]);
+      Function* fn = (Function*) AS_OBJ(module->constants.data[index]);
 
       Closure* closure = newClosure(vm, fn);
       vmPushTempRef(vm, &closure->_super); // closure.
@@ -1095,40 +1078,38 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(CREATE_CLASS):
-    {
+    OPCODE(CREATE_CLASS) : {
       Var cls = POP();
       if (!IS_OBJ_TYPE(cls, OBJ_CLASS)) {
         RUNTIME_ERROR(newString(vm, "Cannot inherit a non class object."));
       }
 
-      Class* base = (Class*)AS_OBJ(cls);
+      Class* base = (Class*) AS_OBJ(cls);
 
-      // All Builtin type class except for Object are "final" ie. cannot be
-      // inherited from.
+      // All Builtin type class except for Object are "final" ie. cannot
+      // be inherited from.
       if (base->class_of != vINSTANCE && base->class_of != vOBJECT) {
         RUNTIME_ERROR(stringFormat(vm, "$ type cannot be inherited.",
-                      getVarTypeName(base->class_of)));
+                                   getVarTypeName(base->class_of)));
       }
 
       uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->constants.count);
       ASSERT(IS_OBJ_TYPE(module->constants.data[index], OBJ_CLASS), OOPS);
 
-      Class* drived = (Class*)AS_OBJ(module->constants.data[index]);
+      Class* drived = (Class*) AS_OBJ(module->constants.data[index]);
       drived->super_class = base;
 
       PUSH(VAR_OBJ(drived));
       DISPATCH();
     }
 
-    OPCODE(BIND_METHOD):
-    {
+    OPCODE(BIND_METHOD) : {
       ASSERT(IS_OBJ_TYPE(PEEK(-1), OBJ_CLOSURE), OOPS);
       ASSERT(IS_OBJ_TYPE(PEEK(-2), OBJ_CLASS), OOPS);
 
-      Closure* method = (Closure*)AS_OBJ(PEEK(-1));
-      Class* cls = (Class*)AS_OBJ(PEEK(-2));
+      Closure* method = (Closure*) AS_OBJ(PEEK(-1));
+      Class* cls = (Class*) AS_OBJ(PEEK(-2));
 
       bindMethod(vm, cls, method);
 
@@ -1136,21 +1117,18 @@ L_vm_main_loop:
       DISPATCH();
     }
 
-    OPCODE(CLOSE_UPVALUE):
-    {
+    OPCODE(CLOSE_UPVALUE) : {
       closeUpvalues(fiber, fiber->sp - 1);
       DROP();
       DISPATCH();
     }
 
-    OPCODE(POP):
-      DROP();
-      DISPATCH();
+    OPCODE(POP) : DROP();
+    DISPATCH();
 
-    OPCODE(IMPORT):
-    {
+    OPCODE(IMPORT) : {
       uint16_t index = READ_SHORT();
-      String* name = moduleGetStringAt(module, (int)index);
+      String* name = moduleGetStringAt(module, (int) index);
       ASSERT(name != NULL, OOPS);
 
       Var _imported = vmImportModule(vm, module->path, name);
@@ -1159,7 +1137,7 @@ L_vm_main_loop:
 
       PUSH(_imported);
 
-      Module* imported = (Module*)AS_OBJ(_imported);
+      Module* imported = (Module*) AS_OBJ(_imported);
       if (!imported->initialized) {
         imported->initialized = true;
 
@@ -1190,83 +1168,81 @@ L_vm_main_loop:
       const Closure* closure;
 
       uint16_t index; //< To get the method name.
-      String* name; //< The method name.
+      String* name;   //< The method name.
 
-    OPCODE(SUPER_CALL):
+      OPCODE(SUPER_CALL) : argc = READ_BYTE();
+      fiber->ret = (fiber->sp - argc - 1);
+      fiber->thiz = *fiber->ret; //< This for the next call.
+      index = READ_SHORT();
+      name = moduleGetStringAt(module, (int) index);
+      Closure* super_method = getSuperMethod(vm, fiber->thiz, name);
+      CHECK_ERROR(); // Will return if super_method is NULL.
+      callable = VAR_OBJ(super_method);
+      goto L_do_call;
+
+      OPCODE(METHOD_CALL) : {
         argc = READ_BYTE();
         fiber->ret = (fiber->sp - argc - 1);
-        fiber->this = *fiber->ret; //< This for the next call.
+        fiber->thiz = *fiber->ret; //< This for the next call.
+
         index = READ_SHORT();
-        name = moduleGetStringAt(module, (int)index);
-        Closure* super_method = getSuperMethod(vm, fiber->this, name);
-        CHECK_ERROR(); // Will return if super_method is NULL.
-        callable = VAR_OBJ(super_method);
-      goto L_do_call;
+        name = moduleGetStringAt(module, (int) index);
+        callable = getMethod(vm, fiber->thiz, name, NULL);
+        CHECK_ERROR();
+        goto L_do_call;
+      }
 
-    OPCODE(METHOD_CALL):
-    {
-      argc = READ_BYTE();
-      fiber->ret = (fiber->sp - argc - 1);
-      fiber->this = *fiber->ret; //< This for the next call.
+      OPCODE(CALL) : OPCODE(TAIL_CALL) : {
+        argc = READ_BYTE();
+        fiber->ret = fiber->sp - argc - 1;
+        callable = *fiber->ret;
+      }
 
-      index = READ_SHORT();
-      name = moduleGetStringAt(module, (int)index);
-      callable = getMethod(vm, fiber->this, name, NULL);
-      CHECK_ERROR();
-      goto L_do_call;
-    }
-
-    OPCODE(CALL):
-    OPCODE(TAIL_CALL):
-    {
-      argc = READ_BYTE();
-      fiber->ret = fiber->sp - argc - 1;
-      callable = *fiber->ret;
-    }
-
-L_do_call:
-      // Raw functions cannot be on the stack, since they're not first class
-      // citizens.
+    L_do_call:
+      // Raw functions cannot be on the stack, since they're not first
+      // class citizens.
       ASSERT(!IS_OBJ_TYPE(callable, OBJ_FUNC), OOPS);
 
       *(fiber->ret) = VAR_NULL; //< Set the return value to null.
 
       if (IS_OBJ_TYPE(callable, OBJ_CLOSURE)) {
-        closure = (const Closure*)AS_OBJ(callable);
+        closure = (const Closure*) AS_OBJ(callable);
 
       } else if (IS_OBJ_TYPE(callable, OBJ_METHOD_BIND)) {
         const MethodBind* mb = (const MethodBind*) AS_OBJ(callable);
         /*if (IS_UNDEF(mb->instance)) {
-          RUNTIME_ERROR(newString(vm, "Cannot call an unbound method."));
-          CHECK_ERROR();
+          RUNTIME_ERROR(newString(vm, "Cannot call an unbound
+        method.")); CHECK_ERROR();
         }*/
-        fiber->this = mb->instance;
+        fiber->thiz = mb->instance;
         closure = mb->method;
 
       } else if (IS_OBJ_TYPE(callable, OBJ_CLASS)) {
-        Class* cls = (Class*)AS_OBJ(callable);
+        Class* cls = (Class*) AS_OBJ(callable);
 
         // Allocate / create a new this before calling constructor on it.
-        fiber->this = preConstructThis(vm, cls);
+        fiber->thiz = preConstructThis(vm, cls);
         CHECK_ERROR();
 
         // Note:
         // For instance the constructor will update this and return
-        // the instance (which might not be necessary since we're setting it
-        // here).
-        *fiber->ret = fiber->this;
+        // the instance (which might not be necessary since we're
+        // setting it here).
+        *fiber->ret = fiber->thiz;
 
         closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
 
-        // No constructor is defined on the class. Just return this.
+        // No constructor is defined on the class. Just return thiz.
         if (closure == NULL) {
           if (argc != 0) {
-            String* msg = stringFormat(vm, "Expected exactly 0 argument(s) "
-                                       "for constructor $.", cls->name->data);
+            String* msg = stringFormat(vm,
+                                       "Expected exactly 0 argument(s) "
+                                       "for constructor $.",
+                                       cls->name->data);
             RUNTIME_ERROR(msg);
           }
 
-          fiber->this = VAR_UNDEFINED;
+          fiber->thiz = VAR_UNDEFINED;
           DISPATCH();
         }
 
@@ -1275,17 +1251,18 @@ L_do_call:
 
         // try to call a "callable instance" via "_call".
         if (IS_OBJ_TYPE(callable, OBJ_INST)) {
-          Instance* inst = (Instance*)AS_OBJ(callable);
+          Instance* inst = (Instance*) AS_OBJ(callable);
           closure = getMagicMethod(inst->cls, METHOD_CALL);
         }
 
         if (closure == NULL) {
-          RUNTIME_ERROR(stringFormat(vm, "$ '$'.", "Expected a callable to "
-                        "call, instead got",
-                        varTypeName(callable)));
+          RUNTIME_ERROR(stringFormat(vm, "$ '$'.",
+                                     "Expected a callable to "
+                                     "call, instead got",
+                                     varTypeName(callable)));
 
         } else {
-          fiber->this = callable;
+          fiber->thiz = callable;
         }
       }
 
@@ -1304,10 +1281,9 @@ L_do_call:
       }
 
       if (closure->fn->is_native) {
-
         if (closure->fn->native == NULL) {
-          RUNTIME_ERROR(stringFormat(vm,
-            "Native function pointer of $ was NULL.", closure->fn->name));
+          RUNTIME_ERROR(stringFormat(vm, "Native function pointer of $ was NULL.",
+                                     closure->fn->name));
         }
 
         // Update the current frame's ip.
@@ -1317,15 +1293,16 @@ L_do_call:
 
         // Calling yield() will change vm->fiber to it's caller fiber, which
         // would be null if we're not running the function with a fiber.
-        if (vm->fiber == NULL) return RESULT_SUCCESS;
+        if (vm->fiber == NULL)
+          return RESULT_SUCCESS;
 
         // Pop function arguments except for the return value.
         // Note that calling fiber_new() and yield() would change the
         // vm->fiber so we're using fiber.
         fiber->sp = fiber->ret + 1;
 
-        // If the fiber has changed, Load the top frame to vm's execution
-        // variables.
+        // If the fiber has changed, Load the top frame to vm's
+        // execution variables.
         if (vm->fiber != fiber) {
           fiber = vm->fiber;
           LOAD_FRAME();
@@ -1334,15 +1311,14 @@ L_do_call:
         CHECK_ERROR();
 
       } else {
-
         if (instruction == OP_TAIL_CALL) {
           reuseCallFrame(vm, closure);
-          LOAD_FRAME();  //< Re-load the frame to vm's execution variables.
+          LOAD_FRAME(); //< Re-load the frame to vm's execution variables.
 
         } else {
-          ASSERT((instruction == OP_CALL) ||
-                 (instruction == OP_METHOD_CALL) ||
-                 (instruction == OP_SUPER_CALL), OOPS);
+          ASSERT((instruction == OP_CALL) || (instruction == OP_METHOD_CALL)
+                     || (instruction == OP_SUPER_CALL),
+                 OOPS);
 
           UPDATE_FRAME(); //< Update the current frame's ip.
           pushCallFrame(vm, closure);
@@ -1354,8 +1330,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(ITER_TEST):
-    {
+    OPCODE(ITER_TEST) : {
       Var seq = PEEK(-3);
 
       // Primitive types are not iterable.
@@ -1374,41 +1349,38 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(ITER):
-    {
-      Var* value    = (fiber->sp - 1);
+    OPCODE(ITER) : {
+      Var* value = (fiber->sp - 1);
       Var* iterator = (fiber->sp - 2);
-      Var seq       = PEEK(-3);
+      Var seq = PEEK(-3);
       uint16_t jump_offset = READ_SHORT();
 
-    #define JUMP_ITER_EXIT() \
-      do {                   \
-        ip += jump_offset;   \
-        DISPATCH();          \
-      } while (false)
+#define JUMP_ITER_EXIT() \
+  do { \
+    ip += jump_offset; \
+    DISPATCH(); \
+  } while (false)
 
       bool cont = varIterate(vm, seq, iterator, value);
       CHECK_ERROR();
-      if (!cont) JUMP_ITER_EXIT();
+      if (!cont)
+        JUMP_ITER_EXIT();
       DISPATCH();
     }
 
-    OPCODE(JUMP):
-    {
+    OPCODE(JUMP) : {
       uint16_t offset = READ_SHORT();
       ip += offset;
       DISPATCH();
     }
 
-    OPCODE(LOOP):
-    {
+    OPCODE(LOOP) : {
       uint16_t offset = READ_SHORT();
       ip -= offset;
       DISPATCH();
     }
 
-    OPCODE(JUMP_IF):
-    {
+    OPCODE(JUMP_IF) : {
       Var cond = POP();
       uint16_t offset = READ_SHORT();
       if (toBool(cond)) {
@@ -1417,8 +1389,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(JUMP_IF_NOT):
-    {
+    OPCODE(JUMP_IF_NOT) : {
       Var cond = POP();
       uint16_t offset = READ_SHORT();
       if (!toBool(cond)) {
@@ -1427,8 +1398,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(OR):
-    {
+    OPCODE(OR) : {
       Var cond = PEEK(-1);
       uint16_t offset = READ_SHORT();
       if (toBool(cond)) {
@@ -1439,8 +1409,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(AND):
-    {
+    OPCODE(AND) : {
       Var cond = PEEK(-1);
       uint16_t offset = READ_SHORT();
       if (!toBool(cond)) {
@@ -1451,21 +1420,19 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(RETURN):
-    {
-
+    OPCODE(RETURN) : {
       // Close all the locals of the current frame.
       closeUpvalues(fiber, rbp + 1);
 
       // Set the return value.
       Var ret_value = POP();
 
-      // Pop the last frame, and if no more call frames, we're done with the
-      // current fiber.
+      // Pop the last frame, and if no more call frames, we're done with
+      // the current fiber.
       if (--fiber->frame_count == 0) {
         // TODO: if we're evaluating an expression we need to set it's
         // value on the stack.
-        //fiber->sp = fiber->stack; ??
+        // fiber->sp = fiber->stack; ??
 
         if (fiber->caller == NULL) {
           *fiber->ret = ret_value;
@@ -1478,8 +1445,8 @@ L_do_call:
 
       } else {
         *rbp = ret_value;
-        // Pop the params (locals should have popped at this point) and update
-        // stack pointer.
+        // Pop the params (locals should have popped at this point) and
+        // update stack pointer.
         fiber->sp = rbp + 1; // +1: rbp is returned value.
       }
 
@@ -1487,12 +1454,11 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(GET_ATTRIB):
-    {
+    OPCODE(GET_ATTRIB) : {
       Var on = PEEK(-1); // Don't pop yet, we need the reference for gc.
       String* name = moduleGetStringAt(module, READ_SHORT());
       ASSERT(name != NULL, OOPS);
-      Var value = varGetAttrib(vm, on, name, false);
+      Var value = varGetAttrib(vm, on, name, false, false);
       DROP(); // on
       PUSH(value);
 
@@ -1500,18 +1466,16 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(GET_ATTRIB_KEEP):
-    {
+    OPCODE(GET_ATTRIB_KEEP) : {
       Var on = PEEK(-1);
       String* name = moduleGetStringAt(module, READ_SHORT());
       ASSERT(name != NULL, OOPS);
-      PUSH(varGetAttrib(vm, on, name, false));
+      PUSH(varGetAttrib(vm, on, name, false, false));
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(SET_ATTRIB):
-    {
+    OPCODE(SET_ATTRIB) : {
       Var value = PEEK(-1); // Don't pop yet, we need the reference for gc.
       Var on = PEEK(-2);    // Don't pop yet, we need the reference for gc.
       String* name = moduleGetStringAt(module, READ_SHORT());
@@ -1526,8 +1490,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(GET_SUBSCRIPT):
-    {
+    OPCODE(GET_SUBSCRIPT) : {
       Var key = PEEK(-1); // Don't pop yet, we need the reference for gc.
       Var on = PEEK(-2);  // Don't pop yet, we need the reference for gc.
       Var value = varGetSubscript(vm, on, key);
@@ -1539,8 +1502,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(GET_SUBSCRIPT_KEEP):
-    {
+    OPCODE(GET_SUBSCRIPT_KEEP) : {
       Var key = PEEK(-1);
       Var on = PEEK(-2);
       PUSH(varGetSubscript(vm, on, key));
@@ -1548,8 +1510,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(SET_SUBSCRIPT):
-    {
+    OPCODE(SET_SUBSCRIPT) : {
       Var value = PEEK(-1); // Don't pop yet, we need the reference for gc.
       Var key = PEEK(-2);   // Don't pop yet, we need the reference for gc.
       Var on = PEEK(-3);    // Don't pop yet, we need the reference for gc.
@@ -1563,11 +1524,10 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(POSITIVE):
-    {
+    OPCODE(POSITIVE) : {
       // Don't pop yet, we need the reference for gc.
-      Var this_ = PEEK(-1);
-      Var result = varPositive(vm, this_);
+      Var thiz_ = PEEK(-1);
+      Var result = varPositive(vm, thiz_);
       DROP(); // this
       PUSH(result);
 
@@ -1575,8 +1535,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(NEGATIVE):
-    {
+    OPCODE(NEGATIVE) : {
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varNegative(vm, v);
@@ -1587,8 +1546,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(NOT):
-    {
+    OPCODE(NOT) : {
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varNot(vm, v);
@@ -1599,8 +1557,7 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(BIT_NOT):
-    {
+    OPCODE(BIT_NOT) : {
       // Don't pop yet, we need the reference for gc.
       Var v = PEEK(-1);
       Var result = varBitNot(vm, v);
@@ -1614,184 +1571,194 @@ L_do_call:
     // Do not ever use PUSH(binaryOp(vm, POP(), POP()));
     // Function parameters are not evaluated in a defined order in C.
 
-    OPCODE(ADD):
-    {
+    OPCODE(ADD) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varAdd(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(SUBTRACT):
-    {
+    OPCODE(SUBTRACT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varSubtract(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(MULTIPLY):
-    {
+    OPCODE(MULTIPLY) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varMultiply(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(DIVIDE):
-    {
+    OPCODE(DIVIDE) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varDivide(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(EXPONENT):
-    {
+    OPCODE(EXPONENT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varExponent(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(MOD):
-    {
+    OPCODE(MOD) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varModulo(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(BIT_AND) :
-    {
+    OPCODE(BIT_AND) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varBitAnd(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(BIT_OR):
-    {
+    OPCODE(BIT_OR) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varBitOr(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(BIT_XOR):
-    {
+    OPCODE(BIT_XOR) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varBitXor(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(BIT_LSHIFT):
-    {
+    OPCODE(BIT_LSHIFT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varBitLshift(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(BIT_RSHIFT):
-    {
+    OPCODE(BIT_RSHIFT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
-      uint8_t inplace = READ_BYTE(); ASSERT(inplace <= 1, OOPS);
+      uint8_t inplace = READ_BYTE();
+      ASSERT(inplace <= 1, OOPS);
       Var result = varBitRshift(vm, l, r, inplace);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
 
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(EQEQ):
-    {
+    OPCODE(EQEQ) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varEqals(vm, l, r);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(NOTEQ):
-    {
+    OPCODE(NOTEQ) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varEqals(vm, l, r);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(VAR_BOOL(!toBool(result)));
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(LT):
-    {
+    OPCODE(LT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varLesser(vm, l, r);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(LTEQ):
-    {
+    OPCODE(LTEQ) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
 
@@ -1799,76 +1766,78 @@ L_do_call:
       CHECK_ERROR();
       bool lteq = toBool(result);
 
-      if (!lteq) result = varEqals(vm, l, r);
+      if (!lteq)
+        result = varEqals(vm, l, r);
       CHECK_ERROR();
 
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       DISPATCH();
     }
 
-    OPCODE(GT):
-    {
+    OPCODE(GT) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varGreater(vm, l, r);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(GTEQ):
-    {
+    OPCODE(GTEQ) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varGreater(vm, l, r);
       CHECK_ERROR();
       bool gteq = toBool(result);
 
-      if (!gteq) result = varEqals(vm, l, r);
+      if (!gteq)
+        result = varEqals(vm, l, r);
       CHECK_ERROR();
 
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       DISPATCH();
     }
 
-    OPCODE(RANGE):
-    {
+    OPCODE(RANGE) : {
       // Don't pop yet, we need the reference for gc.
       Var r = PEEK(-1), l = PEEK(-2);
       Var result = varOpRange(vm, l, r);
-      DROP(); DROP(); // r, l
+      DROP();
+      DROP(); // r, l
       PUSH(result);
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(IN):
-    {
+    OPCODE(IN) : {
       // Don't pop yet, we need the reference for gc.
       Var container = PEEK(-1), elem = PEEK(-2);
       bool contains = varContains(vm, elem, container);
-      DROP(); DROP(); // container, elem
+      DROP();
+      DROP(); // container, elem
       PUSH(VAR_BOOL(contains));
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(IS):
-    {
+    OPCODE(IS) : {
       // Don't pop yet, we need the reference for gc.
       Var type = PEEK(-1), inst = PEEK(-2);
       bool is = varIsType(vm, inst, type);
-      DROP(); DROP(); // container, elem
+      DROP();
+      DROP(); // container, elem
       PUSH(VAR_BOOL(is));
       CHECK_ERROR();
       DISPATCH();
     }
 
-    OPCODE(REPL_PRINT):
-    {
+    OPCODE(REPL_PRINT) : {
       if (vm->config.stdout_write != NULL) {
         Var tmp = PEEK(-1);
         if (!IS_NULL(tmp)) {
@@ -1879,13 +1848,11 @@ L_do_call:
       DISPATCH();
     }
 
-    OPCODE(END):
-      UNREACHABLE();
-      break;
+    OPCODE(END) : UNREACHABLE();
+    break;
 
-    default:
-      UNREACHABLE();
-
+  default:
+    UNREACHABLE();
   }
 
   UNREACHABLE();

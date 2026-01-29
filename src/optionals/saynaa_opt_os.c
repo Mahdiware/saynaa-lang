@@ -3,53 +3,54 @@
  * Distributed Under The MIT License
  */
 
+#include "saynaa_optionals.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "saynaa_optionals.h"
 
 #if defined(__EMSCRIPTEN__)
-  #define _OS_WEB_
-  #define OS_NAME "web"
+#define _OS_WEB_
+#define OS_NAME "web"
 
 #elif defined(_WIN32) || defined(__NT__)
-  #define _OS_WIN_
-  #define OS_NAME "windows"
+#define _OS_WIN_
+#define OS_NAME "windows"
 
 #elif defined(__APPLE__)
-  #define _OS_APPLE_
-  #define OS_NAME "apple"
+#define _OS_APPLE_
+#define OS_NAME "apple"
 
 #elif defined(__linux__)
-  #define _OS_LINUX_
-  #define OS_NAME "linux"
+#define _OS_LINUX_
+#define OS_NAME "linux"
 
 #else
-  #define _OS_UNKNOWN_
-  #define OS_NAME "<?>"
+#define _OS_UNKNOWN_
+#define OS_NAME "<?>"
 #endif
 
 #if defined(_OS_WIN_)
-  #include <windows.h>
+#include <windows.h>
 #endif
 
 #if defined(__linux__) && !defined(NO_DL)
-  #include <dlfcn.h>
+#include <dlfcn.h>
 #endif
 
 #if defined(_MSC_VER) || (defined(_WIN32) && defined(__TINYC__))
-  #include <direct.h>
-  #include <io.h>
+#include <direct.h>
+#include <io.h>
 
-  #define getcwd  _getcwd
-  #define chdir   _chdir
-  #define mkdir   _mkdir
-  #define rmdir   _rmdir
-  #define unlink  _unlink
-  #define strdup  _strdup
+#define getcwd _getcwd
+#define chdir _chdir
+#define mkdir _mkdir
+#define rmdir _rmdir
+#define unlink _unlink
+#define strdup _strdup
 #else
-  #include <dirent.h>
-  #include <unistd.h>
+#include <dirent.h>
+#include <unistd.h>
 #endif
 
 // The maximum path size that default import system supports
@@ -60,11 +61,10 @@
 #define MAX_PATH_LEN 4096
 
 bool osGetExeFilePath(char* buff, int size) {
-
 #if defined(_OS_WIN_)
-    int bytes = GetModuleFileNameA(NULL, buff, size);
-    ASSERT(bytes > 0, "GetModuleFileName failed.");
-    return true;
+  int bytes = GetModuleFileNameA(NULL, buff, size);
+  ASSERT(bytes > 0, "GetModuleFileName failed.");
+  return true;
 
 #elif defined(_OS_APPLE_)
   unsigned sz = size;
@@ -72,21 +72,19 @@ bool osGetExeFilePath(char* buff, int size) {
   return true;
 
 #elif defined(_OS_LINUX_)
-    char tmp[MAX_PATH_LEN];
-    sprintf(tmp, "/proc/%d/exe", getpid());
-    int len = readlink(tmp, buff, size);
-    buff[len] = '\0';
-    return true;
+  char tmp[MAX_PATH_LEN];
+  sprintf(tmp, "/proc/%d/exe", getpid());
+  int len = readlink(tmp, buff, size);
+  buff[len] = '\0';
+  return true;
 
 #else
-    return false;
+  return false;
 #endif
 }
 
 // Yes both 'os' and 'path' have getcwd functions.
-function(_osGetCWD,
-  "os.getcwd() -> String",
-  "Returns the current working directory") {
+saynaa_function(_osGetCWD, "os.getcwd() -> String", "Returns the current working directory") {
   char cwd[MAX_PATH_LEN];
   if (getcwd(cwd, sizeof(cwd)) == NULL) {
     // TODO: Handle error.
@@ -94,22 +92,20 @@ function(_osGetCWD,
   setSlotString(vm, 0, cwd);
 }
 
-function(_osChdir,
-  "os.chdir(path:String)",
-  "Change the current working directory") {
-
+saynaa_function(_osChdir, "os.chdir(path:String)", "Change the current working directory") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
-  if (chdir(path)) REPORT_ERRNO(chdir);
+  if (chdir(path))
+    REPORT_ERRNO(chdir);
 }
 
-function(_osMkdir,
-  "os.mkdir(path:String)",
-  "Creates a directory at the path. The path should be valid.") {
-
+saynaa_function(_osMkdir, "os.mkdir(path:String)",
+                "Creates a directory at the path. The path should be valid.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
 #if defined(_OS_WIN_)
   if (mkdir(path)) {
@@ -122,42 +118,41 @@ function(_osMkdir,
   }
 }
 
-function(_osRmdir,
-  "os.rmdir(path:String)",
-  "Removes an empty directory at the path.") {
-
+saynaa_function(_osRmdir, "os.rmdir(path:String)", "Removes an empty directory at the path.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
-  if (rmdir(path)) REPORT_ERRNO(rmdir);
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
+  if (rmdir(path))
+    REPORT_ERRNO(rmdir);
 }
 
-function(_osUnlink,
-  "os.unlink(path:String)",
-  "Removes a file at the path.") {
-
+saynaa_function(_osUnlink, "os.unlink(path:String)", "Removes a file at the path.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
-  if (unlink(path)) REPORT_ERRNO(unlink);
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
+  if (unlink(path))
+    REPORT_ERRNO(unlink);
 }
 
-function(_osModitime,
-  "os.moditime(path:String) -> Number",
-  "Returns the modified timestamp of the file.") {
+saynaa_function(_osModitime, "os.moditime(path:String) -> Number",
+                "Returns the modified timestamp of the file.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   double mtime = 0;
   struct stat path_stat;
-  if (stat(path, &path_stat) == 0) mtime = (double) path_stat.st_mtime;
+  if (stat(path, &path_stat) == 0)
+    mtime = (double) path_stat.st_mtime;
   setSlotNumber(vm, 0, mtime);
 }
 
-function(_osFileSize,
-  "os.filesize(path:String) -> Number",
-  "Returns the file size in bytes.") {
+saynaa_function(_osFileSize, "os.filesize(path:String) -> Number",
+                "Returns the file size in bytes.") {
   const char* path;
 
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   struct stat path_stat;
   if (stat(path, &path_stat) || ((path_stat.st_mode & S_IFMT) != S_IFREG)) {
@@ -169,12 +164,12 @@ function(_osFileSize,
 }
 
 #if defined(__linux__)
-function(_osExec,
-  "os.exec(cmd:String) -> String",
-  "Execute the command and return "
-  "output.") {
+saynaa_function(_osExec, "os.exec(cmd:String) -> String",
+                "Execute the command and return "
+                "output.") {
   const char* cmd;
-  if (!ValidateSlotString(vm, 1, &cmd, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &cmd, NULL))
+    return;
 
   FILE* fp;
   char* result = NULL;
@@ -182,7 +177,7 @@ function(_osExec,
 
   fp = popen(cmd, "r"); // Add the mode "r" to open the pipe for reading
   if (fp == NULL) {
-    //printf("Failed to execute the command.\n");
+    // printf("Failed to execute the command.\n");
     setSlotNull(vm, 0);
     return;
   }
@@ -203,13 +198,14 @@ function(_osExec,
 }
 #endif
 
-function(_osSystem,
-  "os.system(cmd:String) -> Number",
-  "Execute the command in a subprocess, Returns the exit code of the child "
-  "process.") {
+saynaa_function(
+    _osSystem, "os.system(cmd:String) -> Number",
+    "Execute the command in a subprocess, Returns the exit code of the child "
+    "process.") {
   const char* cmd;
 
-  if (!ValidateSlotString(vm, 1, &cmd, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &cmd, NULL))
+    return;
 
   errno = 0;
   int code = system(cmd);
@@ -222,28 +218,28 @@ function(_osSystem,
 }
 
 #if defined(__linux__)
-function(_osSetenv,
-  "os.setenv(name:String, value:String) -> Null",
-  "Write an env value and reaturn "
-  "null.") {
-
+saynaa_function(_osSetenv, "os.setenv(name:String, value:String) -> Null",
+                "Write an env value and reaturn "
+                "null.") {
   const char* name;
   const char* value;
-  if (!ValidateSlotString(vm, 1, &name, NULL)) return;
-  if (!ValidateSlotString(vm, 2, &value, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &name, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &value, NULL))
+    return;
   setenv(name, value, 1);
 
   setSlotNull(vm, 0);
 }
 #endif
 
-function(_osGetenv,
-  "os.getenv(name:String) -> String",
-  "Returns the environment variable as String if it exists otherwise it'll "
-  "return null.") {
-
+saynaa_function(
+    _osGetenv, "os.getenv(name:String) -> String",
+    "Returns the environment variable as String if it exists otherwise it'll "
+    "return null.") {
   const char* name;
-  if (!ValidateSlotString(vm, 1, &name, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &name, NULL))
+    return;
 
   const char* output = getenv(name);
   if (output == NULL) {
@@ -254,10 +250,8 @@ function(_osGetenv,
   setSlotString(vm, 0, output);
 }
 
-function(_osExepath,
-  "os.exepath() -> String",
-  "Returns the path of the saynaa interpreter executable.") {
-
+saynaa_function(_osExepath, "os.exepath() -> String",
+                "Returns the path of the saynaa interpreter executable.") {
   char buff[MAX_PATH_LEN];
   if (!osGetExeFilePath(buff, MAX_PATH_LEN)) {
     SetRuntimeError(vm, "Cannot obtain ececutable path.");
@@ -267,24 +261,18 @@ function(_osExepath,
   setSlotString(vm, 0, buff);
 }
 
-function(_osArgc,
-  "os.argc() -> Number",
-  "return argc.") {
-
+saynaa_function(_osArgc, "os.argc() -> Number", "return argc.") {
   setSlotNumber(vm, 0, (double) vm->config.argument.argc);
 }
 
-function(_osArgv,
-  "os.argv() -> Number",
-  "return argv.") {
-
-  List* list = newList(vm, 8);
-  vmPushTempRef(vm, &list->_super); // list.
-
+saynaa_function(_osArgv, "os.argv() -> Number", "return argv.") {
   int argc = vm->config.argument.argc;
   const char** argv = vm->config.argument.argv;
 
-  for(int i=1; i <= argc-1; i++){
+  List* list = newList(vm, argc - 1);
+  vmPushTempRef(vm, &list->_super); // list.
+
+  for (int i = 0; i < argc - 1; i++) {
     listAppend(vm, list, VAR_OBJ(newString(vm, argv[i])));
   }
 
@@ -297,10 +285,9 @@ function(_osArgv,
 /*****************************************************************************/
 
 void registerModuleOS(VM* vm) {
-
   Handle* os = NewModule(vm, "os");
 
-  reserveSlots(vm, 2);
+  reserveSlots(vm, 3);
   setSlotHandle(vm, 0, os);       // slots[0] = os
   setSlotString(vm, 1, OS_NAME);  // slots[1] = "linux"
   setAttribute(vm, 0, "name", 1); // os.name = "linux"
@@ -313,21 +300,14 @@ void registerModuleOS(VM* vm) {
   REGISTER_FN(os, "moditime", _osModitime, 1);
   REGISTER_FN(os, "filesize", _osFileSize, 1);
   REGISTER_FN(os, "system", _osSystem, 1);
-  #if defined(__linux__)
+#if defined(__linux__)
   REGISTER_FN(os, "exec", _osExec, 1);
   REGISTER_FN(os, "setenv", _osSetenv, 2);
-  #endif
+#endif
   REGISTER_FN(os, "getenv", _osGetenv, 1);
   REGISTER_FN(os, "exepath", _osExepath, 0);
   REGISTER_FN(os, "argc", _osArgc, 0);
   REGISTER_FN(os, "argv", _osArgv, 0);
-
-  // TODO:
-  // - Implement makedirs which recursively mkdir().
-  // - Implement copyfile() and copytree()
-  // - Implement rmtree() which recursively rmdir() and file.
-  //
-  //ModuleAddSource(vm, os, "import path; def makedirs(p) ... end");
 
   registerModule(vm, os);
   releaseHandle(vm, os);

@@ -12,73 +12,95 @@
 #include <time.h>
 
 #if defined(__linux)
-  #include <sys/time.h>
+#include <sys/time.h>
 #endif
 #if defined(__MACH__)
-  #include <mach/mach_time.h>
+#include <mach/mach_time.h>
 #endif
 #if defined(_WIN32)
-  #include <windows.h>
-  #include <Shlwapi.h>
-  #include <tchar.h>
-  #include <io.h>
+#include <Shlwapi.h>
+#include <io.h>
+#include <tchar.h>
+#include <windows.h>
 #endif
 #if defined(__EMSCRIPTEN__)
-  #include <sys/time.h>
+#include <sys/time.h>
 #endif
 
-nanotime_t nanotime (void) {
+nanotime_t nanotime(void) {
   nanotime_t value;
 
-  #if defined(_WIN32)
-    static LARGE_INTEGER  win_frequency;
-    QueryPerformanceFrequency(&win_frequency);
-    LARGE_INTEGER      t;
+#if defined(_WIN32)
+  static LARGE_INTEGER win_frequency;
+  QueryPerformanceFrequency(&win_frequency);
+  LARGE_INTEGER t;
 
-    if (!QueryPerformanceCounter(&t)) return 0;
-    value  = (t.QuadPart / win_frequency.QuadPart) * 1000000000;
-    value += (t.QuadPart % win_frequency.QuadPart) \
-              * 1000000000 / win_frequency.QuadPart;
+  if (!QueryPerformanceCounter(&t))
+    return 0;
+  value = (t.QuadPart / win_frequency.QuadPart) * 1000000000;
+  value += (t.QuadPart % win_frequency.QuadPart) * 1000000000 / win_frequency.QuadPart;
 
-  #elif defined(__MACH__)
-    mach_timebase_info_data_t  info;
-    kern_return_t      r;
-    nanotime_t         t;
+#elif defined(__MACH__)
+  mach_timebase_info_data_t info;
+  kern_return_t r;
+  nanotime_t t;
 
-    t = mach_absolute_time();
-    r = mach_timebase_info(&info);
-    if (r != 0) return 0;
-    value = (t / info.denom) * info.numer;
-    value += (t % info.denom) * info.numer / info.denom;
+  t = mach_absolute_time();
+  r = mach_timebase_info(&info);
+  if (r != 0)
+    return 0;
+  value = (t / info.denom) * info.numer;
+  value += (t % info.denom) * info.numer / info.denom;
 
-  #elif defined(__linux)
-    struct timespec ts;
-    int        r;
+#elif defined(__linux)
+  struct timespec ts;
+  int r;
 
-    r = clock_gettime(CLOCK_MONOTONIC, &ts);
-    if (r != 0) return 0;
-    value = ts.tv_sec * (nanotime_t)1000000000 + ts.tv_nsec;
+  r = clock_gettime(CLOCK_MONOTONIC, &ts);
+  if (r != 0)
+    return 0;
+  value = ts.tv_sec * (nanotime_t) 1000000000 + ts.tv_nsec;
 
-  #else
-    struct timeval  tv;
-    int        r;
+#else
+  struct timeval tv;
+  int r;
 
-    r = gettimeofday(&tv, 0);
-    if (r != 0) return 0;
-    value = tv.tv_sec * (nanotime_t)1000000000 + tv.tv_usec * 1000;
+  r = gettimeofday(&tv, 0);
+  if (r != 0)
+    return 0;
+  value = tv.tv_sec * (nanotime_t) 1000000000 + tv.tv_usec * 1000;
 
-  #endif
+#endif
   return value;
 }
 
-double microtime (nanotime_t tstart, nanotime_t tend) {
+double microtime(nanotime_t tstart, nanotime_t tend) {
   nanotime_t t = tend - tstart;
-  return ((double)t / 1000.0f);
+  return ((double) t / 1000.0f);
 }
 
-double millitime (nanotime_t tstart, nanotime_t tend) {
+double millitime(nanotime_t tstart, nanotime_t tend) {
   nanotime_t t = tend - tstart;
-  return ((double)t / 1000000.0f);
+  return ((double) t / 1000000.0f);
+}
+
+const void* utilMemMem(const void* l, size_t l_len, const void* s, size_t s_len) {
+  const char *cl = (const char *)l;
+  const char *cs = (const char *)s;
+  const char *cur;
+  const char *last;
+
+  if (l_len == 0 || s_len == 0) return NULL;
+  if (l_len < s_len) return NULL;
+  if (s_len == 1) return memchr(l, (int)*cs, l_len);
+
+  last = cl + l_len - s_len;
+
+  for (cur = cl; cur <= last; cur++) {
+    if (cur[0] == cs[0] && memcmp(cur, cs, s_len) == 0)
+      return cur;
+  }
+  return NULL;
 }
 
 // Function implementation, see utils.h for description.
@@ -110,9 +132,7 @@ bool utilIsDigit(char c) {
 
 #define _BETWEEN(a, c, b) (((a) <= (c)) && ((c) <= (b)))
 bool utilIsCharHex(char c) {
-  return (_BETWEEN('0', c, '9')
-    || _BETWEEN('a', c, 'z')
-    || _BETWEEN('A', c, 'Z'));
+  return (_BETWEEN('0', c, '9') || _BETWEEN('a', c, 'z') || _BETWEEN('A', c, 'Z'));
 }
 
 uint8_t utilCharHexVal(char c) {
@@ -133,12 +153,10 @@ uint8_t utilCharHexVal(char c) {
 char utilHexDigit(uint8_t value, bool uppercase) {
   assert(_BETWEEN(0x0, value, 0xf));
 
-  if (_BETWEEN(0, value, 9)) return '0' + value;
+  if (_BETWEEN(0, value, 9))
+    return '0' + value;
 
-  return (uppercase)
-    ? 'A' + (value - 10)
-    : 'a' + (value - 10);
-
+  return (uppercase) ? 'A' + (value - 10) : 'a' + (value - 10);
 }
 #undef _BETWEEN
 
@@ -174,7 +192,7 @@ uint32_t utilHashBits(uint64_t hash) {
   hash = hash ^ (hash >> 11);
   hash = hash + (hash << 6);
   hash = hash ^ (hash >> 22);
-  return (uint32_t)(hash & 0x3fffffff);
+  return (uint32_t) (hash & 0x3fffffff);
 }
 
 // Function implementation, see utils.h for description.
@@ -204,9 +222,8 @@ uint32_t utilHashString(const char* string) {
 }
 
 const char* utilToNumber(const char* str, double* num) {
-#define IS_HEX_CHAR(c)            \
-  (('0' <= (c) && (c) <= '9')  || \
-   ('a' <= (c) && (c) <= 'f'))
+#define IS_HEX_CHAR(c) \
+  (('0' <= (c) && (c) <= '9') || ('a' <= (c) && (c) <= 'f'))
 
 #define IS_BIN_CHAR(c) (((c) == '0') || ((c) == '1'))
 #define IS_DIGIT(c) (('0' <= (c)) && ((c) <= '9'))
@@ -225,13 +242,12 @@ const char* utilToNumber(const char* str, double* num) {
   }
 
   // Binary String.
-  if (length >= 3 &&
-      ((strncmp(str, "0b", 2) == 0) || (strncmp(str, "0B", 2) == 0))) {
-
+  if (length >= 3 && ((strncmp(str, "0b", 2) == 0) || (strncmp(str, "0B", 2) == 0))) {
     uint64_t bin = 0;
     const char* c = str + 2;
 
-    if (*c == '\0') return INVALID_NUMERIC_STRING;
+    if (*c == '\0')
+      return INVALID_NUMERIC_STRING;
 
     do {
       if (*c == '\0') {
@@ -239,7 +255,8 @@ const char* utilToNumber(const char* str, double* num) {
         return NULL;
       };
 
-      if (!IS_BIN_CHAR(*c)) return INVALID_NUMERIC_STRING;
+      if (!IS_BIN_CHAR(*c))
+        return INVALID_NUMERIC_STRING;
       if ((c - str) > (68 /*STR_BIN_BUFF_SIZE*/ - 2)) { // -2 for '-, \0'.
         return "Binary literal is too long.";
       }
@@ -251,13 +268,12 @@ const char* utilToNumber(const char* str, double* num) {
   }
 
   // Hex String.
-  if (length >= 3 &&
-      ((strncmp(str, "0x", 2) == 0) || (strncmp(str, "0X", 2) == 0))) {
-
+  if (length >= 3 && ((strncmp(str, "0x", 2) == 0) || (strncmp(str, "0X", 2) == 0))) {
     uint64_t hex = 0;
     const char* c = str + 2;
 
-    if (*c == '\0') return INVALID_NUMERIC_STRING;
+    if (*c == '\0')
+      return INVALID_NUMERIC_STRING;
 
     do {
       if (*c == '\0') {
@@ -265,14 +281,14 @@ const char* utilToNumber(const char* str, double* num) {
         return NULL;
       };
 
-      if (!IS_HEX_CHAR(*c)) return INVALID_NUMERIC_STRING;
+      if (!IS_HEX_CHAR(*c))
+        return INVALID_NUMERIC_STRING;
       if ((c - str) > (20 /*STR_HEX_BUFF_SIZE*/ - 2)) { // -2 for '-, \0'.
         return "Hex literal is too long.";
       }
 
-      uint8_t digit = ('0' <= *c && *c <= '9')
-        ? (uint8_t)(*c - '0')
-        : (uint8_t)((*c - 'a') + 10);
+      uint8_t digit = ('0' <= *c && *c <= '9') ? (uint8_t) (*c - '0')
+                                               : (uint8_t) ((*c - 'a') + 10);
 
       hex = (hex << 4) | digit;
       c++;
@@ -281,35 +297,53 @@ const char* utilToNumber(const char* str, double* num) {
   }
 
   // Regular number.
-  if (*str == '\0') return INVALID_NUMERIC_STRING;
+  if (*str == '\0')
+    return INVALID_NUMERIC_STRING;
 
   const char* c = str;
+  bool has_digits = false;
   do {
-
-    while (IS_DIGIT(*c)) c++;
-    if (*c == '.') { // TODO: allowing "1." as a valid float.?
+    while (IS_DIGIT(*c)) {
+      has_digits = true;
       c++;
-      while (IS_DIGIT(*c)) c++;
+    }
+    if (*c == '.') {
+      c++;
+      while (IS_DIGIT(*c)) {
+        has_digits = true;
+        c++;
+      }
     }
 
-    if (*c == '\0') break; // Done.
+    if (*c == '\0') {
+      if (!has_digits) return INVALID_NUMERIC_STRING;
+      break; // Done.
+    }
+
+    if (!has_digits) return INVALID_NUMERIC_STRING;
 
     if (*c == 'e' || *c == 'E') {
       c++;
-      if (*c == '+' || *c == '-') c++;
+      if (*c == '+' || *c == '-')
+        c++;
 
-      if (!IS_DIGIT(*c)) return INVALID_NUMERIC_STRING;
-      while (IS_DIGIT(*c)) c++;
-      if (*c != '\0') return INVALID_NUMERIC_STRING;
+      if (!IS_DIGIT(*c))
+        return INVALID_NUMERIC_STRING;
+      while (IS_DIGIT(*c))
+        c++;
+      if (*c != '\0')
+        return INVALID_NUMERIC_STRING;
     }
 
-    if (*c != '\0') return INVALID_NUMERIC_STRING;
+    if (*c != '\0')
+      return INVALID_NUMERIC_STRING;
 
   } while (false);
 
   errno = 0;
   *num = atof(str) * sign;
-  if (errno == ERANGE) return "Numeric string is too long.";
+  if (errno == ERANGE)
+    return "Numeric string is too long.";
 
   return NULL;
 
@@ -323,12 +357,16 @@ const char* utilToNumber(const char* str, double* num) {
  * UTF8                                                                     *
  ****************************************************************************/
 
- // Function implementation, see utils.h for description.
+// Function implementation, see utils.h for description.
 int utf8_encodeBytesCount(int value) {
-  if (value <= 0x7f) return 1;
-  if (value <= 0x7ff) return 2;
-  if (value <= 0xffff) return 3;
-  if (value <= 0x10ffff) return 4;
+  if (value <= 0x7f)
+    return 1;
+  if (value <= 0x7ff)
+    return 2;
+  if (value <= 0xffff)
+    return 3;
+  if (value <= 0x10ffff)
+    return 4;
 
   // if we're here means it's an invalid leading byte
   return 0;
@@ -336,12 +374,16 @@ int utf8_encodeBytesCount(int value) {
 
 // Function implementation, see utils.h for description.
 int utf8_decodeBytesCount(uint8_t byte) {
-
-  if ((byte >> 7) == 0b0) return 1;
-  if ((byte >> 6) == 0b10) return 1; //< continuation byte
-  if ((byte >> 5) == 0b110) return 2;
-  if ((byte >> 4) == 0b1110) return 3;
-  if ((byte >> 3) == 0b11110) return 4;
+  if ((byte >> 7) == 0b0)
+    return 1;
+  if ((byte >> 6) == 0b10)
+    return 1; //< continuation byte
+  if ((byte >> 5) == 0b110)
+    return 2;
+  if ((byte >> 4) == 0b1110)
+    return 3;
+  if ((byte >> 3) == 0b11110)
+    return 4;
 
   // if we're here means it's an invalid utf8 byte
   return 1;
@@ -349,7 +391,6 @@ int utf8_decodeBytesCount(uint8_t byte) {
 
 // Function implementation, see utils.h for description.
 int utf8_encodeValue(int value, uint8_t* bytes) {
-
   if (value <= 0x7f) {
     *bytes = value & 0x7f;
     return 1;
@@ -358,17 +399,17 @@ int utf8_encodeValue(int value, uint8_t* bytes) {
   // 2 byte character 110xxxxx 10xxxxxx -> last 6 bits write to 2nd byte and
   // first 5 bit write to first byte
   if (value <= 0x7ff) {
-    *(bytes++) = (uint8_t)(0b11000000 | ((value & 0b11111000000) >> 6));
-    *(bytes) = (uint8_t)(0b10000000 | ((value & 111111)));
+    *(bytes++) = (uint8_t) (0b11000000 | ((value & 0b11111000000) >> 6));
+    *(bytes) = (uint8_t) (0b10000000 | ((value & 111111)));
     return 2;
   }
 
   // 3 byte character 1110xxxx 10xxxxxx 10xxxxxx -> from last, 6 bits write
   // to  3rd byte, next 6 bits write to 2nd byte, and 4 bits to first byte.
   if (value <= 0xffff) {
-    *(bytes++) = (uint8_t)(0b11100000 | ((value & 0b1111000000000000) >> 12));
-    *(bytes++) = (uint8_t)(0b10000000 | ((value & 0b111111000000) >> 6));
-    *(bytes) =   (uint8_t)(0b10000000 | ((value & 0b111111)));
+    *(bytes++) = (uint8_t) (0b11100000 | ((value & 0b1111000000000000) >> 12));
+    *(bytes++) = (uint8_t) (0b10000000 | ((value & 0b111111000000) >> 6));
+    *(bytes) = (uint8_t) (0b10000000 | ((value & 0b111111)));
     return 3;
   }
 
@@ -376,10 +417,10 @@ int utf8_encodeValue(int value, uint8_t* bytes) {
   // to 4th byte, next 6 bits to 3rd byte, next 6 bits to 2nd byte, 3 bits
   // first byte.
   if (value <= 0x10ffff) {
-    *(bytes++) = (uint8_t)(0b11110000 | ((value & (0b111    << 18)) >> 18));
-    *(bytes++) = (uint8_t)(0b10000000 | ((value & (0b111111 << 12)) >> 12));
-    *(bytes++) = (uint8_t)(0b10000000 | ((value & (0b111111 << 6))  >> 6));
-    *(bytes)   = (uint8_t)(0b10000000 | ((value &  0b111111)));
+    *(bytes++) = (uint8_t) (0b11110000 | ((value & (0b111 << 18)) >> 18));
+    *(bytes++) = (uint8_t) (0b10000000 | ((value & (0b111111 << 12)) >> 12));
+    *(bytes++) = (uint8_t) (0b10000000 | ((value & (0b111111 << 6)) >> 6));
+    *(bytes) = (uint8_t) (0b10000000 | ((value & 0b111111)));
     return 4;
   }
 
@@ -388,7 +429,6 @@ int utf8_encodeValue(int value, uint8_t* bytes) {
 
 // Function implementation, see utils.h for description.
 int utf8_decodeBytes(uint8_t* bytes, int* value) {
-
   int continue_bytes = 0;
   int byte_count = 1;
   int _value = 0;
@@ -422,7 +462,8 @@ int utf8_decodeBytes(uint8_t* bytes, int* value) {
   while (continue_bytes--) {
     bytes++, byte_count++;
 
-    if ((*bytes & 0b11000000) != 0b10000000) return -1;
+    if ((*bytes & 0b11000000) != 0b10000000)
+      return -1;
 
     _value = (_value << 6) | (*bytes & 0b00111111);
   }

@@ -3,11 +3,10 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_INTERNAL__
-#define __SAYNAA_INTERNAL__
+#pragma once
 
-#include "saynaa_common.h"
 #include "../cli/saynaa.h"
+#include "saynaa_common.h"
 
 // Commonly used C standard headers across the sources. Don't include any
 // headers that are specific to a single source here, instead include them in
@@ -28,13 +27,13 @@
 #include <stdint.h>
 
 #if defined(__GNUC__)
-  #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
-  #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 #elif defined(__clang__)
-  #pragma clang diagnostic ignored "-Wint-to-pointer-cast"
-  #pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wint-to-pointer-cast"
+#pragma clang diagnostic ignored "-Wunused-parameter"
 #elif defined(_MSC_VER)
-  #pragma warning(disable:26812)
+#pragma warning(disable : 26812)
 #endif
 
 /*****************************************************************************/
@@ -188,30 +187,25 @@
 /*****************************************************************************/
 
 // Allocate object of [type] using the vmRealloc function.
-#define ALLOCATE(vm, type) \
-  ((type*)vmRealloc(vm, NULL, 0, sizeof(type)))
+#define ALLOCATE(vm, type) ((type*) vmRealloc(vm, NULL, 0, sizeof(type)))
 
 // Allocate object of [type] which has a dynamic tail array of type [tail_type]
 // with [count] entries.
 #define ALLOCATE_DYNAMIC(vm, type, count, tail_type) \
-  ((type*)vmRealloc(vm, NULL, 0, sizeof(type) + sizeof(tail_type) * (count)))
+  ((type*) vmRealloc(vm, NULL, 0, sizeof(type) + sizeof(tail_type) * (count)))
 
 // Allocate [count] amount of object of [type] array.
 #define ALLOCATE_ARRAY(vm, type, count) \
-  ((type*)vmRealloc(vm, NULL, 0, sizeof(type) * (count)))
+  ((type*) vmRealloc(vm, NULL, 0, sizeof(type) * (count)))
 
 // Deallocate a pointer allocated by vmRealloc before.
-#define DEALLOCATE(vm, pointer, type) \
-  vmRealloc(vm, pointer, sizeof(type), 0)
+#define DEALLOCATE(vm, pointer, type) vmRealloc(vm, pointer, sizeof(type), 0)
 
 // Deallocate object of [type] which has a dynamic tail array of type
 // [tail_type] with [count] entries.
 #define DEALLOCATE_DYNAMIC(vm, pointer, type, count, tail_type) \
-  ((type*)vmRealloc(vm, pointer,                                \
-    sizeof(type) + sizeof(tail_type) * (count), 0))
+  ((type*) vmRealloc(vm, pointer, sizeof(type) + sizeof(tail_type) * (count), 0))
 
 // Deallocate [count] amount of object of [type] array.
 #define DEALLOCATE_ARRAY(vm, pointer, type, count) \
-  ((type*)vmRealloc(vm, pointer, sizeof(type) * (count), 0))
-
-#endif // __SAYNAA_INTERNAL__
+  ((type*) vmRealloc(vm, pointer, sizeof(type) * (count), 0))

@@ -3,8 +3,7 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_VALUE__
-#define __SAYNAA_VALUE__
+#pragma once
 
 #include "saynaa_buffers.h"
 #include "saynaa_internal.h"
@@ -30,9 +29,9 @@ extern "C" {
 // There are 2 main implemenation of Var's internal representation. First one
 // is NaN-tagging, and the second one is union-tagging. (read below for more).
 #if VAR_NAN_TAGGING
-  typedef uint64_t Var;
+typedef uint64_t Var;
 #else
-  typedef struct Var Var;
+typedef struct Var Var;
 #endif
 
 /**
@@ -49,33 +48,33 @@ extern "C" {
  *  v~~~~~~~~~~ NaN value
  * -11111111111----------------------------------------------------
  *
- * We define a our variant \ref var as an unsigned 64 bit integer (we treat it
- * like a bit array) if the exponent bits were not set, just reinterpret it as
- * a IEEE 754 double precision 64 bit number. Other wise we there are a lot of
- * different combination of bits we can use for our custom tagging, this method
+ * We define our variant \ref Var as an unsigned 64-bit integer (treating it
+ * as a bit array). If the exponent bits are not set, we reinterpret it as
+ * an IEEE 754 double precision 64-bit number. Otherwise, there are a lot of
+ * different combinations of bits we can use for our custom tagging. This method
  * is called NaN-Tagging.
  *
- * There are two kinds of NaN values "signalling" and "quiet". The first one is
- * intended to halt the execution but the second one is to continue the
- * execution quietly. We get the quiet NaN by setting the highest mantissa bit.
+ * There are two kinds of NaN values: "signalling" and "quiet". The first is
+ * intended to halt execution, while the second allows execution to continue
+ * quietly. We get the quiet NaN by setting the highest mantissa bit.
  *
  *             v~Highest mantissa bit
  * -[NaN      ]1---------------------------------------------------
  *
- * if sign bit set, it's a heap allocated pointer.
- * |             these 2 bits are type tags representing 8 different types
+ * If the sign bit is set, it's a heap allocated pointer.
+ * |             these 2 bits are type tags representing 4 different types
  * |             vv
  * S[NaN      ]1cXX------------------------------------------------
- *              |  ^~~~~~~~ 48 bits to represent the value (51 for pointer)
- *              '- if this (const) bit set, it's a constant.
+ *              |  ^~~~~~~~ 48 bits to represent the value
+ *              '- if this (const) bit is set, it's a constant.
  *
- * On a 32-bit machine a pointer size is 32 and on a 64-bit machine actually 48
- * bits are used for pointers. Ta-da, now we have double precision number,
- * primitives, pointers all inside a 64 bit sequence and for numbers it doesn't
- * require any bit mask operations, which means math on the var is now even
- * faster.
+ * On a 32-bit machine, a pointer size is 32 bits, and on a 64-bit machine,
+ * 48 bits are effectively used for pointers. Ta-da! Now we have double precision
+ * numbers, primitives, and pointers all inside a 64-bit sequence. For numbers,
+ * it doesn't require any bit mask operations, which means math on the Var is
+ * even faster.
  *
- * our custom 2 bits type tagging
+ * Our custom 2-bit type tagging:
  * c00        : NULL
  * c01 ...  0 : UNDEF  (used in unused map keys)
  *     ...  1 : VOID   (void function return void not null)
@@ -83,79 +82,78 @@ extern "C" {
  *     ... 11 : TRUE
  * c10        : INTEGER
  * |
- * '-- c is const bit.
+ * '-- c is the const bit.
  *
  */
 
 #if VAR_NAN_TAGGING
 
 // Masks and payloads.
-#define _MASK_SIGN  ((uint64_t)0x8000000000000000)
-#define _MASK_QNAN  ((uint64_t)0x7ffc000000000000)
-#define _MASK_TYPE  ((uint64_t)0x0003000000000000)
-#define _MASK_CONST ((uint64_t)0x0004000000000000)
+#define _MASK_SIGN ((uint64_t) 0x8000000000000000)
+#define _MASK_QNAN ((uint64_t) 0x7ffc000000000000)
+#define _MASK_TYPE ((uint64_t) 0x0003000000000000)
+#define _MASK_CONST ((uint64_t) 0x0004000000000000)
 
-#define _MASK_INTEGER (_MASK_QNAN | (uint64_t)0x0002000000000000)
-#define _MASK_OBJECT  (_MASK_QNAN | (uint64_t)0x8000000000000000)
+#define _MASK_INTEGER (_MASK_QNAN | (uint64_t) 0x0002000000000000)
+#define _MASK_OBJECT (_MASK_QNAN | (uint64_t) 0x8000000000000000)
 
-#define _PAYLOAD_INTEGER ((uint64_t)0x00000000ffffffff)
-#define _PAYLOAD_OBJECT  ((uint64_t)0x0000ffffffffffff)
+#define _PAYLOAD_INTEGER ((uint64_t) 0x00000000ffffffff)
+#define _PAYLOAD_OBJECT ((uint64_t) 0x0000ffffffffffff)
 
 // Primitive types.
-#define VAR_NULL      (_MASK_QNAN | (uint64_t)0x0000000000000000)
-#define VAR_UNDEFINED (_MASK_QNAN | (uint64_t)0x0001000000000000)
-#define VAR_VOID      (_MASK_QNAN | (uint64_t)0x0001000000000001)
-#define VAR_FALSE     (_MASK_QNAN | (uint64_t)0x0001000000000002)
-#define VAR_TRUE      (_MASK_QNAN | (uint64_t)0x0001000000000003)
+#define VAR_NULL (_MASK_QNAN | (uint64_t) 0x0000000000000000)
+#define VAR_UNDEFINED (_MASK_QNAN | (uint64_t) 0x0001000000000000)
+#define VAR_VOID (_MASK_QNAN | (uint64_t) 0x0001000000000001)
+#define VAR_FALSE (_MASK_QNAN | (uint64_t) 0x0001000000000002)
+#define VAR_TRUE (_MASK_QNAN | (uint64_t) 0x0001000000000003)
 
 // Encode types.
-#define VAR_BOOL(value) ((value)? VAR_TRUE : VAR_FALSE)
-#define VAR_INT(value)  (_MASK_INTEGER | (uint32_t)(int32_t)(value))
-#define VAR_NUM(value)  (doubleToVar(value))
+#define VAR_BOOL(value) ((value) ? VAR_TRUE : VAR_FALSE)
+#define VAR_INT(value) (_MASK_INTEGER | (uint32_t) (int32_t) (value))
+#define VAR_NUM(value) (doubleToVar(value))
 #define VAR_OBJ(value) /* [value] is an instance of Object */ \
-  ((Var)(_MASK_OBJECT | (uint64_t)(uintptr_t)(&value->_super)))
+  ((Var) (_MASK_OBJECT | (uint64_t) (uintptr_t) (&value->_super)))
 
 // Const casting.
-#define ADD_CONST(value)    ((value) | _MASK_CONST)
+#define ADD_CONST(value) ((value) | _MASK_CONST)
 #define REMOVE_CONST(value) ((value) & ~_MASK_CONST)
 
 // Check types.
 #define IS_CONST(value) ((value & _MASK_CONST) == _MASK_CONST)
-#define IS_NULL(value)  ((value) == VAR_NULL)
+#define IS_NULL(value) ((value) == VAR_NULL)
 #define IS_UNDEF(value) ((value) == VAR_UNDEFINED)
 #define IS_FALSE(value) ((value) == VAR_FALSE)
-#define IS_TRUE(value)  ((value) == VAR_TRUE)
-#define IS_BOOL(value)  (IS_TRUE(value) || IS_FALSE(value))
-#define IS_INT(value)   ((value & _MASK_INTEGER) == _MASK_INTEGER)
-#define IS_NUM(value)   ((value & _MASK_QNAN) != _MASK_QNAN)
-#define IS_OBJ(value)   ((value & _MASK_OBJECT) == _MASK_OBJECT)
+#define IS_TRUE(value) ((value) == VAR_TRUE)
+#define IS_BOOL(value) (IS_TRUE(value) || IS_FALSE(value))
+#define IS_INT(value) ((value & _MASK_INTEGER) == _MASK_INTEGER)
+#define IS_NUM(value) ((value & _MASK_QNAN) != _MASK_QNAN)
+#define IS_OBJ(value) ((value & _MASK_OBJECT) == _MASK_OBJECT)
 
 // Evaluate to true if the var is an object and type of [obj_type].
 #define IS_OBJ_TYPE(var, obj_type) \
   (IS_OBJ(var) && (AS_OBJ(var)->type == (obj_type)))
 
 // Check if the 2 strings are equal.
-#define IS_STR_EQ(s1, s2)          \
- (((s1)->hash == (s2)->hash) &&    \
- ((s1)->length == (s2)->length) && \
- (memcmp((const void*)(s1)->data, (const void*)(s2)->data, (s1)->length) == 0))
+#define IS_STR_EQ(s1, s2) \
+  (((s1)->hash == (s2)->hash) && ((s1)->length == (s2)->length) \
+   && (memcmp((const void*) (s1)->data, (const void*) (s2)->data, (s1)->length) == 0))
 
 // Compare string with C string.
-#define IS_CSTR_EQ(str, cstr, len)  \
- (((str)->length == len) &&         \
-  (memcmp((const void*)(str)->data, (const void*)(cstr), len) == 0))
+#define IS_CSTR_EQ(str, cstr, len) \
+  (((str)->length == len) \
+   && (memcmp((const void*) (str)->data, (const void*) (cstr), len) == 0))
 
 // Decode types.
 #define AS_BOOL(value) ((value) == VAR_TRUE)
-#define AS_INT(value)  ((int32_t)((value) & _PAYLOAD_INTEGER))
-#define AS_NUM(value)  (varToDouble(value))
-#define AS_OBJ(value)  ((Object*)(value & _PAYLOAD_OBJECT))
+#define AS_INT(value) ((int32_t) ((value) & _PAYLOAD_INTEGER))
+#define AS_NUM(value) (varToDouble(value))
+#define AS_OBJ(value) ((Object*) (value & _PAYLOAD_OBJECT))
 
-#define AS_STRING(value)  ((String*)AS_OBJ(value))
+#define AS_STRING(value) ((String*) AS_OBJ(value))
 #define AS_CSTRING(value) (AS_STRING(value)->data)
-#define AS_ARRAY(value)   ((List*)AS_OBJ(value))
-#define AS_MAP(value)     ((Map*)AS_OBJ(value))
-#define AS_RANGE(value)   ((Range*)AS_OBJ(value))
+#define AS_ARRAY(value) ((List*) AS_OBJ(value))
+#define AS_MAP(value) ((Map*) AS_OBJ(value))
+#define AS_RANGE(value) ((Range*) AS_OBJ(value))
 
 #else
 
@@ -165,6 +163,7 @@ extern "C" {
 typedef enum {
   VAL_UNDEF,
   VAL_NULL,
+  VAL_VOID,
   VAL_TRUE,
   VAL_FALSE,
   VAL_INT,
@@ -182,45 +181,51 @@ struct Var {
   };
 };
 
-#define IS_NULL(value)  ((value).type == VAL_NULL)
+#define VAR_NULL ((Var) {VAL_NULL})
+#define VAR_UNDEFINED ((Var) {VAL_UNDEF})
+#define VAR_VOID ((Var) {VAL_VOID})
+
+#define VAR_TRUE ((Var) {VAL_TRUE, ._bool = true})
+#define VAR_FALSE ((Var) {VAL_FALSE, ._bool = false})
+
+#define IS_NULL(value) ((value).type == VAL_NULL)
 #define IS_UNDEF(value) ((value).type == VAL_UNDEF)
 #define IS_FALSE(value) ((value).type == VAL_FALSE)
-#define IS_TRUE(value)  ((value).type == VAL_TRUE)
-#define IS_BOOL(value)  ((value).type == VAL_TRUE || (value).type == VAL_FALSE)
-#define IS_INT(value)   ((value).type == VAL_INT)
-#define IS_NUM(value)   ((value).type == VAL_NUMBER)
-#define IS_OBJ(value)   ((value).type == VAL_OBJECT)
+#define IS_TRUE(value) ((value).type == VAL_TRUE)
+#define IS_BOOL(value) ((value).type == VAL_TRUE || (value).type == VAL_FALSE)
+#define IS_INT(value) ((value).type == VAL_INT)
+#define IS_NUM(value) ((value).type == VAL_NUMBER)
+#define IS_OBJ(value) ((value).type == VAL_OBJECT)
 
 #define AS_BOOL(value) ((value)._bool)
-#define AS_INT(value)  ((value)._int)
-#define AS_NUM(value)  ((value)._number)
-#define AS_OBJ(value)  ((value)._obj)
+#define AS_INT(value) ((value)._int)
+#define AS_NUM(value) ((value)._number)
+#define AS_OBJ(value) ((value)._obj)
 
-#define VAR_BOOL(value) ((Value){VAL_BOOL, ._bool = value})
-#define VAR_INT(value)  ((Value){VAL_INT, ._int = value})
-#define VAR_NUM(value)  ((Value){VAL_NUMBER, ._number = value})
-#define VAR_OBJ(value)  ((Value){VAL_OBJECT, ._obj = value})
+#define VAR_BOOL(value) ((value) ? VAR_TRUE : VAR_FALSE)
+#define VAR_INT(value) ((Var) {VAL_INT, ._int = value})
+#define VAR_NUM(value) ((Var) {VAL_NUMBER, ._number = value})
+#define VAR_OBJ(value) ((Var) {VAL_OBJECT, ._obj = value})
 
 // Evaluate to true if the var is an object and type of [obj_type].
 #define IS_OBJ_TYPE(var, obj_type) \
   (IS_OBJ(var) && (AS_OBJ(var)->type == (obj_type)))
 
 // Check if the 2 strings are equal.
-#define IS_STR_EQ(s1, s2)          \
- (((s1)->hash == (s2)->hash) &&    \
- ((s1)->length == (s2)->length) && \
- (memcmp((const void*)(s1)->data, (const void*)(s2)->data, (s1)->length) == 0))
+#define IS_STR_EQ(s1, s2) \
+  (((s1)->hash == (s2)->hash) && ((s1)->length == (s2)->length) \
+   && (memcmp((const void*) (s1)->data, (const void*) (s2)->data, (s1)->length) == 0))
 
 // Compare string with C string.
-#define IS_CSTR_EQ(str, cstr, len)  \
- (((str)->length == len) &&         \
-  (memcmp((const void*)(str)->data, (const void*)(cstr), len) == 0))
+#define IS_CSTR_EQ(str, cstr, len) \
+  (((str)->length == len) \
+   && (memcmp((const void*) (str)->data, (const void*) (cstr), len) == 0))
 
-#define AS_STRING(value)  ((String*)AS_OBJ(value))
+#define AS_STRING(value) ((String*) AS_OBJ(value))
 #define AS_CSTRING(value) (AS_STRING(value)->data)
-#define AS_ARRAY(value)   ((List*)AS_OBJ(value))
-#define AS_MAP(value)     ((Map*)AS_OBJ(value))
-#define AS_RANGE(value)   ((Range*)AS_OBJ(value))
+#define AS_ARRAY(value) ((List*) AS_OBJ(value))
+#define AS_MAP(value) ((Map*) AS_OBJ(value))
+#define AS_RANGE(value) ((Range*) AS_OBJ(value))
 
 #endif // VAR_NAN_TAGGING
 
@@ -249,12 +254,10 @@ DECLARE_BUFFER(Closure, Closure*)
 // Add all the characters to the buffer, byte buffer can also be used as a
 // buffer to write string (like a string stream). Note that this will not
 // add a null byte '\0' at the end.
-void ByteBufferAddString(ByteBuffer* this, VM* vm, const char* str,
-                           uint32_t length);
+void ByteBufferAddString(ByteBuffer* thiz, VM* vm, const char* str, uint32_t length);
 
 // Add formated string to the byte buffer.
-void ByteBufferAddStringFmt(ByteBuffer* this, VM* vm,
-                              const char* fmt, ...);
+void ByteBufferAddStringFmt(ByteBuffer* thiz, VM* vm, const char* fmt, ...);
 
 // Type enums of the heap allocated types.
 typedef enum {
@@ -269,22 +272,23 @@ typedef enum {
   OBJ_UPVALUE,
   OBJ_FIBER,
   OBJ_CLASS,
+  OBJ_POINTER,
   OBJ_INST, // OBJ_INST should be the last element of this enums (don't move).
 } ObjectType;
 
 // Base struct for all heap allocated objects.
 struct Object {
-  ObjectType type;  //< Type of the object in \ref ObjectType.
-  bool is_marked;   //< Marked when garbage collection's marking phase.
-  Object* next;     //< Next object in the heap allocated link list.
+  ObjectType type; //< Type of the object in \ref ObjectType.
+  bool is_marked;  //< Marked when garbage collection's marking phase.
+  Object* next;    //< Next object in the heap allocated link list.
 };
 
 struct String {
   Object _super;
 
-  uint32_t hash;      //< 32 bit hash value of the string.
-  uint32_t length;    //< Length of the string in \ref data.
-  uint32_t capacity;  //< Size of allocated \ref data.
+  uint32_t hash;     //< 32 bit hash value of the string.
+  uint32_t length;   //< Length of the string in \ref data.
+  uint32_t capacity; //< Size of allocated \ref data.
   char data[DYNAMIC_TAIL_ARRAY];
 };
 
@@ -365,10 +369,13 @@ struct Module {
 
 // A struct contain opcodes and other information of a compiled function.
 typedef struct {
-  ByteBuffer opcodes;  //< Buffer of opcodes.
-  UintBuffer oplines;  //< Line number of opcodes for debug (1 based).
-  int stack_size;        //< Maximum size of stack required.
+  ByteBuffer opcodes; //< Buffer of opcodes.
+  UintBuffer oplines; //< Line number of opcodes for debug (1 based).
+  int stack_size;     //< Maximum size of stack required.
 } Fn;
+
+#define ARITY_VARIADIC -1
+#define ARITY_UNINITIALIZED -2
 
 struct Function {
   Object _super;
@@ -391,10 +398,10 @@ struct Function {
   // function is alive, and it's recomented to use literal C string for that.
   const char* name;
 
-  // Number of argument the function expects. If the arity is -1 that means
-  // the function has a variadic number of parameters. When a function is
-  // constructed the value for arity is set to -2 to indicate that it hasn't
-  // initialized.
+  // Number of argument the function expects. If the arity is ARITY_VARIADIC
+  // that means the function has a variadic number of parameters. When a
+  // function is constructed the value for arity is set to ARITY_UNINITIALIZED
+  // to indicate that it hasn't initialized.
   int arity;
 
   // A function can be either a function or a method, and if it's a method, it
@@ -414,7 +421,7 @@ struct Function {
   bool is_native;
   union {
     nativeFn native; //< Native function pointer.
-    Fn* fn;            //< function pointer.
+    Fn* fn;          //< function pointer.
   };
 };
 
@@ -425,7 +432,8 @@ struct Function {
 //
 //     function foo()
 //       bar = "bar"
-//       return function()  ##< We'll be using the name 'baz' to identify this.
+//       return saynaa_function()  ##< We'll be using the name 'baz' to identify
+//       thiz.
 //         print(bar)
 //       end
 //     end
@@ -499,7 +507,7 @@ typedef struct {
   const uint8_t* ip;      //< Pointer to the next instruction byte code.
   const Closure* closure; //< Closure of the frame.
   Var* rbp;               //< Stack base pointer. (%rbp)
-  Var this;               //< This reference of the current method.
+  Var thiz;               //< This reference of the current method.
 } CallFrame;
 
 typedef enum {
@@ -528,7 +536,7 @@ struct Fiber {
   // Heap allocated array of call frames will grow as needed.
   CallFrame* frames;
   int frame_capacity; //< Capacity of the frames array.
-  int frame_count; //< Number of frame entry in frames.
+  int frame_count;    //< Number of frame entry in frames.
 
   // All the open upvalues will form a linked list in the fiber and the
   // upvalues are sorted in the same order their locals in the stack. The
@@ -546,7 +554,7 @@ struct Fiber {
   // frame we're doing it this way). Also updated just before calling a
   // script method, and will be captured by the next allocated callframe
   // and reset to VAR_UNDEFINED.
-  Var this;
+  Var thiz;
 
   // [caller] is the caller of the fiber that was created by invoking the
   // concurency model. Where [native] is the native fiber which
@@ -602,12 +610,22 @@ struct Class {
   // For script/ builtin types it'll be NULL.
   NewInstanceFn new_fn;
   DeleteInstanceFn delete_fn;
-
 };
 
+// Pointer struct for native types to interact with API.
 typedef struct {
-  Class* type;        //< Class this instance belongs to.
-  VarBuffer fields;   //< Var buffer of the instance.
+  Object _super;
+
+  String* name; // Name of the pointer, used for debugging.
+
+  void* native_ptr; // Native pointer to the API object
+
+  Destructor destructor; // Optional destructor function to clean up the native pointer.
+} Pointer;
+
+typedef struct {
+  Class* type;      //< Class this instance belongs to.
+  VarBuffer fields; //< Var buffer of the instance.
 } Inst;
 
 struct Instance {
@@ -630,7 +648,7 @@ struct Instance {
 /* "CONSTRUCTORS"                                                            */
 /*****************************************************************************/
 
-void varInitObject(Object* this, VM* vm, ObjectType type);
+void varInitObject(Object* thiz, VM* vm, ObjectType type);
 
 String* newStringLength(VM* vm, const char* text, uint32_t length);
 
@@ -646,9 +664,9 @@ String* newStringVaArgs(VM* vm, const char* fmt, va_list args);
     return newStringLength(vm, text, length);
   }
 #else // Macro implementation.
-  // Allocate new string using the cstring [text].
-  #define newString(vm, text) \
-    (newStringLength(vm, text, (!(text)) ? 0 : (uint32_t)strlen(text)))
+// Allocate new string using the cstring [text].
+#define newString(vm, text) \
+  (newStringLength(vm, text, (!(text)) ? 0 : (uint32_t) strlen(text)))
 #endif
 
 List* newList(VM* vm, uint32_t size);
@@ -673,17 +691,20 @@ Fiber* newFiber(VM* vm, Closure* closure);
 // C string liteals).
 //
 // Allocate a new function and return it.
-Function* newFunction(VM* vm, const char* name, int length,
-                      Module* owner,
-                      bool is_native, const char* docstring,
-                      int* fn_index);
+Function* newFunction(VM* vm, const char* name, int length, Module* owner,
+                      bool is_native, const char* docstring, int* fn_index);
 
 // If the module is not NULL, the name and the class object will be added to
 // the module's constant pool. The class will be added to the modules global
 // as well.
-Class* newClass(VM* vm, const char* name, int length,
-                Class* super, Module* module,
-                const char* docstring, int* cls_index);
+Class* newClass(VM* vm, const char* name, int length, Class* super,
+                Module* module, const char* docstring, int* cls_index);
+
+// Function to create a new Pointer object for Android API interaction.
+Pointer* newPointer(VM* vm, void* native_ptr, Destructor destructor);
+
+Closure* newNativeClosure(VM* vm, const char* name, nativeFn fptr, int arity,
+                          const char* docstring);
 
 // Allocate new instance with of the base [type].
 Instance* newInstance(VM* vm, Class* cls);
@@ -694,15 +715,15 @@ Instance* newInstance(VM* vm, Class* cls);
 
 // Mark the reachable objects at the mark-and-sweep phase of the garbage
 // collection.
-void markObject(VM* vm, Object* this);
+void markObject(VM* vm, Object* thiz);
 
 // Mark the reachable values at the mark-and-sweep phase of the garbage
 // collection.
-void markValue(VM* vm, Var this);
+void markValue(VM* vm, Var thiz);
 
 // Mark the elements of the buffer as reachable at the mark-and-sweep phase of
 // the garbage collection.
-void markVarBuffer(VM* vm, VarBuffer* this);
+void markVarBuffer(VM* vm, VarBuffer* thiz);
 
 // Pop the marked objects from the working set of the VM and add it's
 // referenced objects to the working set, continue traversing and mark
@@ -710,32 +731,31 @@ void markVarBuffer(VM* vm, VarBuffer* this);
 void popMarkedObjects(VM* vm);
 
 // Returns a number list from the range. starts with range.from and ends with
-List* rangeAsList(VM* vm, Range* this);
+List* rangeAsList(VM* vm, Range* thiz);
 
 // Returns a length of range
-double rangeLength(VM* vm, Range* this);
+double rangeLength(VM* vm, Range* thiz);
 
 // Returns a lower case version of the given string. If the string is
 // already lower it'll return the same string.
-String* stringLower(VM* vm, String* this);
+String* stringLower(VM* vm, String* thiz);
 
 // Returns a upper case version of the given string. If the string is
 // already upper it'll return the same string.
-String* stringUpper(VM* vm, String* this);
+String* stringUpper(VM* vm, String* thiz);
 
 // Returns string with the leading and trailing white spaces are trimmed.
 // If the string is already trimmed it'll return the same string.
-String* stringStrip(VM* vm, String* this);
+String* stringStrip(VM* vm, String* thiz);
 
 // Replace the [count] occurence of the [old] string with [new_] string. If
 // [count] == -1. It'll replace all the occurences. If nothing is replaced
 // the original string will be returned.
-String* stringReplace(VM* vm, String* this,
-                      String* old, String* new_, int count);
+String* stringReplace(VM* vm, String* thiz, String* old, String* new_, int count);
 
 // Split the string into a list of string separated by [sep]. String [sep] must
 // If [sep] == "", split string into characters.
-List* stringSplit(VM* vm, String* this, String* sep);
+List* stringSplit(VM* vm, String* thiz, String* sep);
 
 // Creates a new string from the arguments. This is intended for internal
 // usage and it has 2 formated characters (just like wren does).
@@ -754,50 +774,48 @@ String* stringJoin(VM* vm, String* str1, String* str2);
 //     for example: x = "Hello World"
 //                  x[6] = "Ok"
 //                  print(x)     output: "Hello Okrld"
-String* replaceSubstring(VM* vm, uint32_t index,
-                         String* str, String* replace);
+String* replaceSubstring(VM* vm, uint32_t index, String* str, String* replace);
 
 // An inline function/macro implementation of listAppend(). Set below 0 to 1,
 // to make the implementation a static inline function, it's totally okey to
 // define a function inside a header as long as it's static (but not a fan).
 #if 0 // Function implementation.
-  static inline void listAppend(VM* vm, List* this, Var value) {
-    VarBufferWrite(&this->elements, vm, value);
+  static inline void listAppend(VM* vm, List* thiz, Var value) {
+    VarBufferWrite(&thiz->elements, vm, value);
   }
 #else // Macro implementation.
-  #define listAppend(vm, this, value) \
-    VarBufferWrite(&this->elements, vm, value)
+#define listAppend(vm, thiz, value) VarBufferWrite(&thiz->elements, vm, value)
 #endif
 
 // Insert [value] to the list at [index] and shift down the rest of the
 // elements.
-void listInsert(VM* vm, List* this, uint32_t index, Var value);
+void listInsert(VM* vm, List* thiz, uint32_t index, Var value);
 
 // Shrink the size if it's too much excess.
 void listShrink(VM* vm, List* thiz);
 
 // Remove and return element at [index].
-Var listRemoveAt(VM* vm, List* this, uint32_t index);
+Var listRemoveAt(VM* vm, List* thiz, uint32_t index);
 
 // Remove all the elements of the list.
-void listClear(VM* vm, List* this);
+void listClear(VM* vm, List* thiz);
 
 // Create a new list by joining the 2 given list and return the result.
 List* listAdd(VM* vm, List* l1, List* l2);
 
 // Returns the value for the [key] in the map. If key not exists return
 // VAR_UNDEFINED.
-Var mapGet(Map* this, Var key);
+Var mapGet(Map* thiz, Var key);
 
 // Add the [key], [value] entry to the map.
-void mapSet(VM* vm, Map* this, Var key, Var value);
+void mapSet(VM* vm, Map* thiz, Var key, Var value);
 
 // Remove all the entries from the map.
-void mapClear(VM* vm, Map* this);
+void mapClear(VM* vm, Map* thiz);
 
 // Remove the [key] from the map. If the key exists return it's value
 // otherwise return VAR_UNDEFINED.
-Var mapRemoveKey(VM* vm, Map* this, Var key);
+Var mapRemoveKey(VM* vm, Map* thiz, Var key);
 
 // Returns true if the fiber has error, and if it has any the fiber cannot be
 // resumed anymore.
@@ -820,9 +838,7 @@ String* moduleGetStringAt(Module* module, int index);
 
 // Set the global [value] to the [module] and return its index. If the global
 // [name] already exists it'll update otherwise one will be created.
-uint32_t moduleSetGlobal(VM* vm, Module* module,
-                         const char* name, uint32_t length,
-                         Var value);
+uint32_t moduleSetGlobal(VM* vm, Module* module, const char* name, uint32_t length, Var value);
 
 // Search for the [name] in the module's globals and return it's index.
 // If not found it'll return -1.
@@ -834,8 +850,8 @@ int moduleGetGlobalIndex(Module* module, const char* name, uint32_t length);
 // function.
 void moduleAddMain(VM* vm, Module* module);
 
-// Release all the object owned by the [this] including itself.
-void freeObject(VM* vm, Object* this);
+// Release all the object owned by the [thiz] including itself.
+void freeObject(VM* vm, Object* thiz);
 
 /*****************************************************************************/
 /* UTILITY FUNCTIONS                                                         */
@@ -884,7 +900,7 @@ String* toString(VM* vm, const Var value);
 
 // Returns the representation version of the [value], similar to python's
 // __repr__() method.
-String* toRepr(VM * vm, const Var value);
+String* toRepr(VM* vm, const Var value);
 
 // Returns the truthy value of the var.
 bool toBool(Var v);
@@ -892,5 +908,3 @@ bool toBool(Var v);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif // __SAYNAA_VALUE__

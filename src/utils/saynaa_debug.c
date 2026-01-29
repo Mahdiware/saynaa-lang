@@ -3,10 +3,11 @@
  * Distributed Under The MIT License
  */
 
-#include <stdio.h>
-
 #include "saynaa_debug.h"
+
 #include "../runtime/saynaa_vm.h"
+
+#include <stdio.h>
 
 // FIXME:
 // Refactor this. Maybe move to a module, Rgb values are hardcoded ?!
@@ -21,12 +22,11 @@ static void _printRed(VM* vm, const char* msg) {
   }
 }
 
-void reportCompileTimeError(VM* vm, const char* path, int line,
-                            const char* source, const char* at, int length,
-                            const char* fmt, va_list args) {
-
+void reportCompileTimeError(VM* vm, const char* path, int line, const char* source,
+                            const char* at, int length, const char* fmt, va_list args) {
   WriteFn writefn = vm->config.stderr_write;
-  if (writefn == NULL) return;
+  if (writefn == NULL)
+    return;
 
   ByteBuffer buff;
   ByteBufferInit(&buff);
@@ -37,8 +37,8 @@ void reportCompileTimeError(VM* vm, const char* path, int line,
     buff.count = 0;
     writefn(vm, path);
     writefn(vm, ":");
-    snprintf((char*)buff.data, buff.capacity, "%d", line);
-    writefn(vm, (char*)buff.data);
+    snprintf((char*) buff.data, buff.capacity, "%d", line);
+    writefn(vm, (char*) buff.data);
     _printRed(vm, " error: ");
 
     // Print the error message.
@@ -51,14 +51,15 @@ void reportCompileTimeError(VM* vm, const char* path, int line,
 
     ASSERT(size >= 0, "vnsprintf() failed.");
     ByteBufferReserve(&buff, vm, size);
-    vsnprintf((char*)buff.data, size, fmt, args);
-    writefn(vm, (char*)buff.data);
+    vsnprintf((char*) buff.data, size, fmt, args);
+    writefn(vm, (char*) buff.data);
     writefn(vm, "\n");
 
     // Print the lines. (TODO: Optimize it).
 
     int start = line - 2; // First line.
-    if (start < 1) start = 1;
+    if (start < 1)
+      start = 1;
     int end = start + 5; // Exclisive last line.
 
     int line_number_width = 5;
@@ -70,8 +71,10 @@ void reportCompileTimeError(VM* vm, const char* path, int line,
     if (c != source) {
       do {
         c--;
-        if (*c == '\n') curr_line--;
-        if (c == source) break;
+        if (*c == '\n')
+          curr_line--;
+        if (c == source)
+          break;
       } while (curr_line >= start);
     }
 
@@ -83,62 +86,59 @@ void reportCompileTimeError(VM* vm, const char* path, int line,
 
     // Print each lines.
     while (curr_line < end) {
-
       buff.count = 0;
-      snprintf((char*)buff.data, buff.capacity,
-               "%*d", line_number_width, curr_line);
-      writefn(vm, (char*)buff.data);
+      snprintf((char*) buff.data, buff.capacity, "%*d", line_number_width, curr_line);
+      writefn(vm, (char*) buff.data);
       writefn(vm, " | ");
 
       if (curr_line != line) {
         // Run to the line end.
         const char* line_start = c;
-        while (*c != '\0' && *c != '\n') c++;
+        while (*c != '\0' && *c != '\n')
+          c++;
 
         buff.count = 0;
-        ByteBufferAddString(&buff, vm, line_start,
-                              (uint32_t)(c - line_start));
+        ByteBufferAddString(&buff, vm, line_start, (uint32_t) (c - line_start));
         ByteBufferWrite(&buff, vm, '\0');
-        writefn(vm, (char*)buff.data);
+        writefn(vm, (char*) buff.data);
         writefn(vm, "\n");
 
       } else {
-
         const char* line_start = c;
 
         // Print line till error.
         buff.count = 0;
-        ByteBufferAddString(&buff, vm, line_start,
-                              (uint32_t)(at - line_start));
+        ByteBufferAddString(&buff, vm, line_start, (uint32_t) (at - line_start));
         ByteBufferWrite(&buff, vm, '\0');
-        writefn(vm, (char*)buff.data);
+        writefn(vm, (char*) buff.data);
 
         // Print error token - if the error token is a new line ignore it.
         if (*at != '\n') {
           buff.count = 0;
           ByteBufferAddString(&buff, vm, at, length);
           ByteBufferWrite(&buff, vm, '\0');
-          _printRed(vm, (char*)buff.data);
+          _printRed(vm, (char*) buff.data);
 
-          // Run to the line end. Note that tk.length is not reliable and
-          // sometimes longer than the actual string which will cause a
-          // buffer overflow.
+          // Run to the line end. Note that tk.length is not reliable
+          // and sometimes longer than the actual string which will
+          // cause a buffer overflow.
           const char* tail_start = at;
           for (int i = 0; i < length; i++) {
-            if (*tail_start == '\0') break;
+            if (*tail_start == '\0')
+              break;
             tail_start++;
           }
 
           c = tail_start;
-          while (*c != '\0' && *c != '\n') c++;
+          while (*c != '\0' && *c != '\n')
+            c++;
 
           // Print rest of the line.
           if (c != tail_start) {
             buff.count = 0;
-            ByteBufferAddString(&buff, vm, tail_start,
-                                  (uint32_t)(c - tail_start));
+            ByteBufferAddString(&buff, vm, tail_start, (uint32_t) (c - tail_start));
             ByteBufferWrite(&buff, vm, '\0');
-            writefn(vm, (char*)buff.data);
+            writefn(vm, (char*) buff.data);
           }
         } else {
           c = at; // Run 'c' to the end of the line.
@@ -156,19 +156,20 @@ void reportCompileTimeError(VM* vm, const char* path, int line,
         }
 
         ByteBufferWrite(&buff, vm, '\0');
-        writefn(vm, (char*)buff.data);
+        writefn(vm, (char*) buff.data);
 
         // Error token underline.
         buff.count = 0;
-        ByteBufferFill(&buff, vm, '^', (uint32_t)(length ? length : 1));
+        ByteBufferFill(&buff, vm, '^', (uint32_t) (length ? length : 1));
         ByteBufferWrite(&buff, vm, '\0');
-        _printRed(vm, (char*)buff.data);
+        _printRed(vm, (char*) buff.data);
         writefn(vm, "\n");
-
       }
 
-      if (*c == '\0') break;
-      curr_line++; c++;
+      if (*c == '\0')
+        break;
+      curr_line++;
+      c++;
     }
   }
   ByteBufferClear(&buff, vm);
@@ -184,12 +185,12 @@ static void _reportStackFrame(VM* vm, CallFrame* frame) {
   // any instruction of that function, so the instruction_index possibly
   // be -1 (set it to zero in that case).
   int instruction_index = (int) (frame->ip - fn->fn->opcodes.data) - 1;
-  if (instruction_index == -1) instruction_index++;
+  if (instruction_index == -1)
+    instruction_index++;
 
   int line = fn->fn->oplines.data[instruction_index];
 
   if (fn->owner->path == NULL) {
-
     writefn(vm, "  [at:");
     char buff[STR_INT_BUFF_SIZE];
     sprintf(buff, "%2d", line);
@@ -212,9 +213,9 @@ static void _reportStackFrame(VM* vm, CallFrame* frame) {
 }
 
 void reportRuntimeError(VM* vm, Fiber* fiber) {
-
   WriteFn writefn = vm->config.stderr_write;
-  if (writefn == NULL) return;
+  if (writefn == NULL)
+    return;
 
   // Error message.
   _printRed(vm, "Error: ");
@@ -227,7 +228,7 @@ void reportRuntimeError(VM* vm, Fiber* fiber) {
   int max_dump_frames = 10;
 
   if (fiber->frame_count > 2 * max_dump_frames) {
-    for (int i =  0; i < max_dump_frames; i++) {
+    for (int i = 0; i < max_dump_frames; i++) {
       CallFrame* frame = &fiber->frames[fiber->frame_count - 1 - i];
       _reportStackFrame(vm, frame);
     }
@@ -250,26 +251,26 @@ void reportRuntimeError(VM* vm, Fiber* fiber) {
       _reportStackFrame(vm, frame);
     }
   }
-
 }
 
 // Opcode names array.
 static const char* op_names[] = {
-  #define OPCODE(name, params, stack) #name,
-  #include "../shared/saynaa_opcodes.h"
-  #undef OPCODE
+#define OPCODE(name, params, stack) #name,
+#include "../shared/saynaa_opcodes.h"
+#undef OPCODE
 };
 
 static void dumpValue(VM* vm, Var value) {
-  if (!vm->config.stdout_write) return;
+  if (!vm->config.stdout_write)
+    return;
   String* repr = toRepr(vm, value);
   vm->config.stdout_write(vm, repr->data);
   // String repr will be garbage collected - No need to clean.
 }
 
 void dumpFunctionCode(VM* vm, Function* func) {
-
-  if (!vm->config.stdout_write) return;
+  if (!vm->config.stdout_write)
+    return;
 
 #define _INDENTATION "  "
 #define _INT_WIDTH 5 // Width of the integer string to print.
@@ -277,32 +278,34 @@ void dumpFunctionCode(VM* vm, Function* func) {
 #define PRINT(str) vm->config.stdout_write(vm, str)
 #define NEWLINE() PRINT("\n")
 
-#define _PRINT_INT(value, width)                                     \
-  do {                                                               \
-    char sbuff[STR_INT_BUFF_SIZE];                                   \
-    int length;                                                      \
-    if ((width) > 0) length = sprintf(sbuff, "%*d", (width), value); \
-    else length = sprintf(sbuff, "%d", value);                       \
-    sbuff[length] = '\0';                                            \
-    PRINT(sbuff);                                                    \
-  } while(false)
+#define _PRINT_INT(value, width) \
+  do { \
+    char sbuff[STR_INT_BUFF_SIZE]; \
+    int length; \
+    if ((width) > 0) \
+      length = sprintf(sbuff, "%*d", (width), value); \
+    else \
+      length = sprintf(sbuff, "%d", value); \
+    sbuff[length] = '\0'; \
+    PRINT(sbuff); \
+  } while (false)
 #define PRINT_INT(value) _PRINT_INT(value, _INT_WIDTH)
 
 #define READ_BYTE() (opcodes[i++])
-#define READ_SHORT() (i += 2, opcodes[i - 2] << 8 | opcodes[i-1])
+#define READ_SHORT() (i += 2, opcodes[i - 2] << 8 | opcodes[i - 1])
 
 #define NO_ARGS() NEWLINE()
 
-#define BYTE_ARG()          \
-  do {                      \
+#define BYTE_ARG() \
+  do { \
     PRINT_INT(READ_BYTE()); \
-    NEWLINE();              \
+    NEWLINE(); \
   } while (false)
 
-#define SHORT_ARG()          \
-  do {                       \
+#define SHORT_ARG() \
+  do { \
     PRINT_INT(READ_SHORT()); \
-    NEWLINE();               \
+    NEWLINE(); \
   } while (false)
 
   uint32_t i = 0;
@@ -312,9 +315,8 @@ void dumpFunctionCode(VM* vm, Function* func) {
 
   // Either path or name should be valid to a module.
   ASSERT(func->owner->path != NULL || func->owner->name != NULL, OOPS);
-  const char* path = (func->owner->path)
-                       ? func->owner->path->data
-                       : func->owner->name->data;
+  const char* path = (func->owner->path) ? func->owner->path->data
+                                         : func->owner->name->data;
 
   // This will print: Instruction Dump of function 'fn' "path."\n
   PRINT("Instruction Dump of function ");
@@ -344,27 +346,27 @@ void dumpFunctionCode(VM* vm, Function* func) {
     PRINT(_INDENTATION);
 
     const char* op_name = op_names[opcodes[i]];
-    uint32_t op_length = (uint32_t)strlen(op_name);
+    uint32_t op_length = (uint32_t) strlen(op_name);
     PRINT(op_name);
     for (uint32_t j = 0; j < 16 - op_length; j++) { // Padding.
       PRINT(" ");
     }
 
-    Opcode op = (Opcode)func->fn->opcodes.data[i++];
+    Opcode op = (Opcode) func->fn->opcodes.data[i++];
     switch (op) {
       case OP_PUSH_CONSTANT:
-      {
-        int index = READ_SHORT();
-        ASSERT_INDEX((uint32_t)index, func->owner->constants.count);
-        Var value = func->owner->constants.data[index];
+        {
+          int index = READ_SHORT();
+          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
+          Var value = func->owner->constants.data[index];
 
-        // Prints: %5d [val]\n
-        PRINT_INT(index);
-        PRINT(" ");
-        dumpValue(vm, value);
-        NEWLINE();
-        break;
-      }
+          // Prints: %5d [val]\n
+          PRINT_INT(index);
+          PRINT(" ");
+          dumpValue(vm, value);
+          NEWLINE();
+          break;
+        }
 
       case OP_PUSH_NULL:
       case OP_PUSH_0:
@@ -396,28 +398,28 @@ void dumpFunctionCode(VM* vm, Function* func) {
       case OP_PUSH_LOCAL_7:
       case OP_PUSH_LOCAL_8:
       case OP_PUSH_LOCAL_N:
-      {
+        {
+          int arg;
+          if (op == OP_PUSH_LOCAL_N) {
+            arg = READ_BYTE();
+            PRINT_INT(arg);
 
-        int arg;
-        if (op == OP_PUSH_LOCAL_N) {
-          arg = READ_BYTE();
-          PRINT_INT(arg);
+          } else {
+            arg = (int) (op - OP_PUSH_LOCAL_0);
+            for (int j = 0; j < _INT_WIDTH; j++)
+              PRINT(" ");
+          }
 
-        } else {
-          arg = (int)(op - OP_PUSH_LOCAL_0);
-          for (int j = 0; j < _INT_WIDTH; j++) PRINT(" ");
+          // Prints: (arg:%d)\n
+          if (arg < func->arity) {
+            PRINT(" (param:");
+            _PRINT_INT(arg, 1);
+            PRINT(")\n");
+          } else {
+            NEWLINE();
+          }
         }
-
-        // Prints: (arg:%d)\n
-        if (arg < func->arity) {
-          PRINT(" (param:");
-          _PRINT_INT(arg, 1);
-          PRINT(")\n");
-        } else {
-          NEWLINE();
-        }
-
-      } break;
+        break;
 
       case OP_STORE_LOCAL_0:
       case OP_STORE_LOCAL_1:
@@ -429,111 +431,112 @@ void dumpFunctionCode(VM* vm, Function* func) {
       case OP_STORE_LOCAL_7:
       case OP_STORE_LOCAL_8:
       case OP_STORE_LOCAL_N:
-      {
-        int arg;
-        if (op == OP_STORE_LOCAL_N) {
-          arg = READ_BYTE();
-          PRINT_INT(arg);
+        {
+          int arg;
+          if (op == OP_STORE_LOCAL_N) {
+            arg = READ_BYTE();
+            PRINT_INT(arg);
 
-        } else {
-          arg = (int)(op - OP_STORE_LOCAL_0);
-          for (int j = 0; j < _INT_WIDTH; j++) PRINT(" ");
+          } else {
+            arg = (int) (op - OP_STORE_LOCAL_0);
+            for (int j = 0; j < _INT_WIDTH; j++)
+              PRINT(" ");
+          }
+
+          if (arg < func->arity) {
+            // Prints: (arg:%d)\n
+            PRINT(" (param:");
+            _PRINT_INT(arg, 1);
+            PRINT(")\n");
+          } else {
+            NEWLINE();
+          }
         }
-
-        if (arg < func->arity) {
-          // Prints: (arg:%d)\n
-          PRINT(" (param:");
-          _PRINT_INT(arg, 1);
-          PRINT(")\n");
-        } else {
-          NEWLINE();
-        }
-
-      } break;
+        break;
 
       case OP_PUSH_GLOBAL:
       case OP_STORE_GLOBAL:
-      {
-        int index = READ_BYTE();
-        ASSERT_INDEX(index, (int)func->owner->global_names.count);
-        int name_index = func->owner->global_names.data[index];
-        ASSERT_INDEX(name_index, (int)func->owner->constants.count);
+        {
+          int index = READ_BYTE();
+          ASSERT_INDEX(index, (int) func->owner->global_names.count);
+          int name_index = func->owner->global_names.data[index];
+          ASSERT_INDEX(name_index, (int) func->owner->constants.count);
 
-        Var name = func->owner->constants.data[name_index];
-        ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
+          Var name = func->owner->constants.data[name_index];
+          ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
 
-        // Prints: %5d '%s'\n
-        PRINT_INT(index);
-        PRINT(" '");
-        PRINT(((String*)AS_OBJ(name))->data);
-        PRINT("'\n");
-        break;
-      }
+          // Prints: %5d '%s'\n
+          PRINT_INT(index);
+          PRINT(" '");
+          PRINT(((String*) AS_OBJ(name))->data);
+          PRINT("'\n");
+          break;
+        }
 
       case OP_PUSH_BUILTIN_FN:
-      {
-        int index = READ_BYTE();
-        ASSERT_INDEX(index, vm->builtins_count);
-        const char* name = vm->builtins_funcs[index]->fn->name;
-        // Prints: %5d [Fn:%s]\n
-        PRINT_INT(index);
-        PRINT(" [Fn:");
-        PRINT(name);
-        PRINT("]\n");
-        break;
-      }
+        {
+          int index = READ_BYTE();
+          ASSERT_INDEX(index, vm->builtins_count);
+          const char* name = vm->builtins_funcs[index]->fn->name;
+          // Prints: %5d [Fn:%s]\n
+          PRINT_INT(index);
+          PRINT(" [Fn:");
+          PRINT(name);
+          PRINT("]\n");
+          break;
+        }
 
       case OP_PUSH_BUILTIN_TY:
-      {
-        int index = READ_BYTE();
-        ASSERT_INDEX(index, vINSTANCE);
-        const char* name = vm->builtin_classes[index]->name->data;
-        // Prints: %5d [Fn:%s]\n
-        PRINT_INT(index);
-        PRINT(" [Class:");
-        PRINT(name);
-        PRINT("]\n");
-        break;
-      }
+        {
+          int index = READ_BYTE();
+          ASSERT_INDEX(index, vINSTANCE);
+          const char* name = vm->builtin_classes[index]->name->data;
+          // Prints: %5d [Fn:%s]\n
+          PRINT_INT(index);
+          PRINT(" [Class:");
+          PRINT(name);
+          PRINT("]\n");
+          break;
+        }
 
       case OP_PUSH_UPVALUE:
       case OP_STORE_UPVALUE:
-      {
-        int index = READ_BYTE();
-        PRINT_INT(index);
-        NEWLINE();
-        break;
-      }
+        {
+          int index = READ_BYTE();
+          PRINT_INT(index);
+          NEWLINE();
+          break;
+        }
 
       case OP_PUSH_CLOSURE:
-      {
-        int index = READ_SHORT();
-        ASSERT_INDEX((uint32_t)index, func->owner->constants.count);
-        Var value = func->owner->constants.data[index];
-        ASSERT(IS_OBJ_TYPE(value, OBJ_FUNC), OOPS);
+        {
+          int index = READ_SHORT();
+          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
+          Var value = func->owner->constants.data[index];
+          ASSERT(IS_OBJ_TYPE(value, OBJ_FUNC), OOPS);
 
-        // Prints: %5d [val]\n
-        PRINT_INT(index);
-        PRINT(" ");
-        dumpValue(vm, value);
-        NEWLINE();
-        break;
-      }
+          // Prints: %5d [val]\n
+          PRINT_INT(index);
+          PRINT(" ");
+          dumpValue(vm, value);
+          NEWLINE();
+          break;
+        }
 
       case OP_CREATE_CLASS:
-      {
-        int index = READ_SHORT();
-        ASSERT_INDEX((uint32_t)index, func->owner->constants.count);
-        Var value = func->owner->constants.data[index];
-        ASSERT(IS_OBJ_TYPE(value, OBJ_CLASS), OOPS);
+        {
+          int index = READ_SHORT();
+          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
+          Var value = func->owner->constants.data[index];
+          ASSERT(IS_OBJ_TYPE(value, OBJ_CLASS), OOPS);
 
-        // Prints: %5d [val]\n
-        PRINT_INT(index);
-        PRINT(" ");
-        dumpValue(vm, value);
-        NEWLINE();
-        break;
-      }
+          // Prints: %5d [val]\n
+          PRINT_INT(index);
+          PRINT(" ");
+          dumpValue(vm, value);
+          NEWLINE();
+          break;
+        }
 
       case OP_BIND_METHOD:
       case OP_CLOSE_UPVALUE:
@@ -542,36 +545,36 @@ void dumpFunctionCode(VM* vm, Function* func) {
         break;
 
       case OP_IMPORT:
-      {
-        int index = READ_SHORT();
-        String* name = moduleGetStringAt(func->owner, index);
-        ASSERT(name != NULL, OOPS);
-        // Prints: %5d '%s'\n
-        PRINT_INT(index);
-        PRINT(" '");
-        PRINT(name->data);
-        PRINT("'\n");
-        break;
-      }
+        {
+          int index = READ_SHORT();
+          String* name = moduleGetStringAt(func->owner, index);
+          ASSERT(name != NULL, OOPS);
+          // Prints: %5d '%s'\n
+          PRINT_INT(index);
+          PRINT(" '");
+          PRINT(name->data);
+          PRINT("'\n");
+          break;
+        }
 
       case OP_SUPER_CALL:
       case OP_METHOD_CALL:
-      {
-        int argc = READ_BYTE();
-        int index = READ_SHORT();
-        String* name = moduleGetStringAt(func->owner, index);
-        ASSERT(name != NULL, OOPS);
+        {
+          int argc = READ_BYTE();
+          int index = READ_SHORT();
+          String* name = moduleGetStringAt(func->owner, index);
+          ASSERT(name != NULL, OOPS);
 
-        // Prints: %5d (argc) %d '%s'\n
-        PRINT_INT(argc);
-        PRINT(" (argc) ");
+          // Prints: %5d (argc) %d '%s'\n
+          PRINT_INT(argc);
+          PRINT(" (argc) ");
 
-        _PRINT_INT(index, 0);
-        PRINT(" '");
-        PRINT(name->data);
-        PRINT("'\n");
-        break;
-      }
+          _PRINT_INT(index, 0);
+          PRINT(" '");
+          PRINT(name->data);
+          PRINT("'\n");
+          break;
+        }
 
       case OP_CALL:
         // Prints: %5d (argc)\n
@@ -585,7 +588,9 @@ void dumpFunctionCode(VM* vm, Function* func) {
         PRINT(" (argc)\n");
         break;
 
-      case OP_ITER_TEST: NO_ARGS(); break;
+      case OP_ITER_TEST:
+        NO_ARGS();
+        break;
 
       case OP_ITER:
       case OP_JUMP:
@@ -593,43 +598,46 @@ void dumpFunctionCode(VM* vm, Function* func) {
       case OP_JUMP_IF_NOT:
       case OP_OR:
       case OP_AND:
-      {
-        int offset = READ_SHORT();
-        // Prints: %5d (ip:%d)\n
-        PRINT_INT(offset);
-        PRINT(" (ip:");
-        _PRINT_INT(i + offset, 0);
-        PRINT(")\n");
-        break;
-      }
+        {
+          int offset = READ_SHORT();
+          // Prints: %5d (ip:%d)\n
+          PRINT_INT(offset);
+          PRINT(" (ip:");
+          _PRINT_INT(i + offset, 0);
+          PRINT(")\n");
+          break;
+        }
 
       case OP_LOOP:
-      {
-        int offset = READ_SHORT();
-        // Prints: %5d (ip:%d)\n
-        PRINT_INT(-offset);
-        PRINT(" (ip:");
-        _PRINT_INT(i - offset, 0);
-        PRINT(")\n");
-        break;
-      }
+        {
+          int offset = READ_SHORT();
+          // Prints: %5d (ip:%d)\n
+          PRINT_INT(-offset);
+          PRINT(" (ip:");
+          _PRINT_INT(i - offset, 0);
+          PRINT(")\n");
+          break;
+        }
 
-      case OP_RETURN: NO_ARGS(); break;
+      case OP_RETURN:
+        NO_ARGS();
+        break;
 
       case OP_GET_ATTRIB:
       case OP_GET_ATTRIB_KEEP:
       case OP_SET_ATTRIB:
-      {
-        int index = READ_SHORT();
-        String* name = moduleGetStringAt(func->owner, index);
-        ASSERT(name != NULL, OOPS);
+        {
+          int index = READ_SHORT();
+          String* name = moduleGetStringAt(func->owner, index);
+          ASSERT(name != NULL, OOPS);
 
-        // Prints: %5d '%s'\n
-        PRINT_INT(index);
-        PRINT(" '");
-        PRINT(name->data);
-        PRINT("'\n");
-      } break;
+          // Prints: %5d '%s'\n
+          PRINT_INT(index);
+          PRINT(" '");
+          PRINT(name->data);
+          PRINT("'\n");
+        }
+        break;
 
       case OP_GET_SUBSCRIPT:
       case OP_GET_SUBSCRIPT_KEEP:
@@ -653,16 +661,16 @@ void dumpFunctionCode(VM* vm, Function* func) {
       case OP_BIT_XOR:
       case OP_BIT_LSHIFT:
       case OP_BIT_RSHIFT:
-      {
-        uint8_t inplace = READ_BYTE();
-        if (inplace == 1) {
-          PRINT("(inplace)\n");
-        } else {
-          PRINT("\n");
-          ASSERT(inplace == 0, "inplace should be either 0 or 1");
+        {
+          uint8_t inplace = READ_BYTE();
+          if (inplace == 1) {
+            PRINT("(inplace)\n");
+          } else {
+            PRINT("\n");
+            ASSERT(inplace == 0, "inplace should be either 0 or 1");
+          }
+          break;
         }
-        break;
-      }
 
       case OP_EQEQ:
       case OP_NOTEQ:

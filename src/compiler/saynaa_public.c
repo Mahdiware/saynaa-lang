@@ -5,35 +5,47 @@
 
 // This file contains all the public function implementations.
 
-#include <math.h>
-
 #include "../cli/saynaa.h"
 #include "../runtime/saynaa_core.h"
-#include "../utils/saynaa_utils.h"
-#include "../shared/saynaa_value.h"
-#include "../shared/saynaa_readline.h"
 #include "../runtime/saynaa_vm.h"
+#include "../shared/saynaa_readline.h"
+#include "../shared/saynaa_value.h"
+#include "../utils/saynaa_utils.h"
 
-// FIXME: Document this or Find a better way.
+#include <math.h>
+
+// Path Resolving Functionality Documentation:
 //
-//  core doesn't implement path resolving funcionality. Rather it
-// should be provided the host application. By default we're using an
-// implementation from the path library. However core cannot be depend
-// on its libs, otherwise it'll breaks the encapsulation.
+// The core does not implement path resolving functionality directly.
+// Instead, this functionality is expected to be provided by the host
+// application. By default, we use an implementation from the path library.
+// However, the core cannot depend on external libraries to maintain
+// encapsulation.
 //
-// As a workaround we declare the default path resolver here and use it.
-// But if someone wants to compile just the core without libs
-// they have to define NO_OPTIONAL to prevent the compiler from not be able
-// to find functions when linking.
+// Workaround:
+// To address thiz, we declare the default path resolver here and use it.
+// If someone wants to compile just the core without optional libraries,
+// they must define NO_OPTIONAL. This prevents the compiler from attempting
+// to link functions that are unavailable.
+//
+// Implications:
+// - This approach ensures modularity and encapsulation.
+// - Developers compiling the core without optional libraries must ensure
+//   that NO_OPTIONAL is defined to avoid linking errors.
+//
+// Note:
+// Future improvements may involve finding a better way to handle path
+// resolution without relying on external libraries or requiring conditional
+// compilation.
 #ifndef NO_OPTIONAL
-  void registerLibs(VM* vm);
-  void cleanupLibs(VM* vm);
-  char* pathResolveImport(VM* vm, const char* from, const char* path);
+void registerLibs(VM* vm);
+void cleanupLibs(VM* vm);
+char* pathResolveImport(VM* vm, const char* from, const char* path);
 
 #ifndef NO_DL
-  void* osLoadDL(VM* vm, const char* path);
-  Handle* osImportDL(VM* vm, void* handle);
-  void osUnloadDL(VM* vm, void* handle);
+void* osLoadDL(VM* vm, const char* path);
+Handle* osImportDL(VM* vm, void* handle);
+void osUnloadDL(VM* vm, void* handle);
 
 #endif // NO_DL
 #endif // NO_OPTIONAL
@@ -41,42 +53,41 @@
 #define CHECK_ARG_NULL(name) \
   ASSERT((name) != NULL, "Argument " #name " was NULL.");
 
-#define CHECK_HANDLE_TYPE(handle, type)          \
-  do {                                           \
-    CHECK_ARG_NULL(handle);                      \
-    ASSERT(IS_OBJ_TYPE(handle->value, type),     \
-      "Given handle is not of type " #type "."); \
+#define CHECK_HANDLE_TYPE(handle, type) \
+  do { \
+    CHECK_ARG_NULL(handle); \
+    ASSERT(IS_OBJ_TYPE(handle->value, type), \
+           "Given handle is not of type " #type "."); \
   } while (false)
 
-#define VALIDATE_SLOT_INDEX(index)                                           \
-  do {                                                                       \
-    ASSERT(index >= 0, "Slot index was negative.");                          \
-    ASSERT(index < GetSlotsCount(vm),                                        \
-      "Slot index is too large. Did you forget to call reserveSlots()?.");   \
+#define VALIDATE_SLOT_INDEX(index) \
+  do { \
+    ASSERT(index >= 0, "Slot index was negative."); \
+    ASSERT(index < GetSlotsCount(vm), "Slot index is too large. Did you " \
+                                      "forget to call reserveSlots()?."); \
   } while (false)
 
-#define CHECK_FIBER_EXISTS(vm)                                           \
-  do {                                                                   \
-    ASSERT(vm->fiber != NULL,                                            \
-           "No fiber exists. Did you forget to call reserveSlots()?");   \
+#define CHECK_FIBER_EXISTS(vm) \
+  do { \
+    ASSERT(vm->fiber != NULL, \
+           "No fiber exists. Did you forget to call reserveSlots()?"); \
   } while (false)
 
-// A convenient macro to get the nth (1 based) argument of the current
-// function.
+// Macro to access the nth argument (0-based) of the current function.
 #define ARG(n) (vm->fiber->ret[n])
 
-// Nth slot is same as Nth argument, It'll also work if we allocate more
-// slots but the caller should ensure the index.
+// Alias for ARG(n). This macro is valid even if additional slots are allocated,
+// but the caller must ensure the index is within bounds.
 #define SLOT(n) ARG(n)
 
-// This will work.
+// Macro to set the value of the nth slot.
 #define SET_SLOT(n, val) SLOT(n) = (val);
 
 // Evaluates to the current function's argument count.
-#define ARGC ((int)(vm->fiber->sp - vm->fiber->ret) - 1)
+#define ARGC ((int) (vm->fiber->sp - vm->fiber->ret) - 1)
 
-// The default allocator that will be used to initialize the VM's
-// configuration if the host doesn't provided any allocators for us.
+// Default allocator used to initialize the VM configuration if the host
+// does not provide one.
 static void* defaultRealloc(void* memory, size_t new_size, void* _);
 
 static void stderrWrite(VM* vm, const char* text);
@@ -114,19 +125,19 @@ Configuration NewConfiguration() {
 }
 
 VM* NewVM(Configuration* config) {
-
   Configuration default_config = NewConfiguration();
 
-  if (config == NULL) config = &default_config;
+  if (config == NULL)
+    config = &default_config;
 
-  VM* vm = (VM*)config->realloc_fn(NULL, sizeof(VM), config->user_data);
+  VM* vm = (VM*) config->realloc_fn(NULL, sizeof(VM), config->user_data);
   memset(vm, 0, sizeof(VM));
 
   vm->config = *config;
   vm->working_set_count = 0;
   vm->working_set_capacity = MIN_CAPACITY;
-  vm->working_set = (Object**)vm->config.realloc_fn(
-                       NULL, sizeof(Object*) * vm->working_set_capacity, NULL);
+  vm->working_set = (Object**) vm->config.realloc_fn(
+      NULL, sizeof(Object*) * vm->working_set_capacity, NULL);
   vm->next_gc = INITIAL_GC_SIZE;
   vm->collecting_garbage = false;
   vm->min_heap_size = MIN_HEAP_SIZE;
@@ -154,7 +165,6 @@ VM* NewVM(Configuration* config) {
 }
 
 void FreeVM(VM* vm) {
-
 #ifndef NO_OPTIONAL
   cleanupLibs(vm);
 #endif
@@ -166,11 +176,11 @@ void FreeVM(VM* vm) {
     obj = next;
   }
 
-  vm->working_set = (Object**)vm->config.realloc_fn(
-    vm->working_set, 0, vm->config.user_data);
+  vm->working_set = (Object**) vm->config.realloc_fn(vm->working_set, 0,
+                                                     vm->config.user_data);
 
-  // Tell the host application that it forget to release all of it's handles
-  // before freeing the VM.
+  // Validate that all handles have been released by the host application.
+  // If handles remain, it indicates a resource leak in the host's usage of the VM.
   ASSERT(vm->handles == NULL, "Not all handles were released.");
 
   DEALLOCATE(vm, vm, VM);
@@ -184,23 +194,21 @@ void SetUserData(VM* vm, void* user_data) {
   vm->config.user_data = user_data;
 }
 
-void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn,
-                         int arity, const char* docstring) {
+void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn, int arity, const char* docstring) {
   ASSERT(vm->builtins_count < BUILTIN_FN_CAPACITY,
-        "Maximum builtin function limit reached, To increase the limit set "
-        "BUILTIN_FN_CAPACITY and recompile.");
+         "Maximum builtin function limit reached, To increase the limit set "
+         "BUILTIN_FN_CAPACITY and recompile.");
 
-  // TODO: if the functions are sorted, we can do a binary search, but builtin
-  // functions are not searched at runtime, just looked up using it's index
-  // O(1) However it'll decrease the compile time.
+  // TODO: Optimize builtin function lookup during compilation.
+  // If the functions are sorted, we can use binary search instead of linear scan.
+  // Note that runtime lookup is already O(1) via index, so this only affects compile time.
   for (int i = 0; i < vm->builtins_count; i++) {
     Closure* bfn = vm->builtins_funcs[i];
     ASSERT(strcmp(bfn->fn->name, name) != 0,
            "Overriding existing function not supported yet.");
   }
 
-  Function* fptr = newFunction(vm, name, (int) strlen(name), NULL,
-                               true, docstring, NULL);
+  Function* fptr = newFunction(vm, name, (int) strlen(name), NULL, true, docstring, NULL);
   vmPushTempRef(vm, &fptr->_super); // fptr.
   fptr->native = fn;
   fptr->arity = arity;
@@ -238,24 +246,20 @@ Handle* NewModule(VM* vm, const char* name) {
 void registerModule(VM* vm, Handle* module) {
   CHECK_HANDLE_TYPE(module, OBJ_MODULE);
 
-  Module* module_ = (Module*)AS_OBJ(module->value);
+  Module* module_ = (Module*) AS_OBJ(module->value);
   vmRegisterModule(vm, module_, module_->name);
 }
 
-void ModuleAddFunction(VM* vm, Handle* module, const char* name,
-                         nativeFn fptr, int arity, const char* docstring) {
+void ModuleAddFunction(VM* vm, Handle* module, const char* name, nativeFn fptr,
+                       int arity, const char* docstring) {
   CHECK_HANDLE_TYPE(module, OBJ_MODULE);
   CHECK_ARG_NULL(fptr);
 
-  moduleAddFunctionInternal(vm, (Module*)AS_OBJ(module->value),
-                            name, fptr, arity, docstring);
+  moduleAddFunctionInternal(vm, (Module*) AS_OBJ(module->value), name, fptr, arity, docstring);
 }
 
-Handle* NewClass(VM* vm, const char* name,
-                     Handle* base_class, Handle* module,
-                     NewInstanceFn new_fn,
-                     DeleteInstanceFn delete_fn,
-                     const char* docstring) {
+Handle* NewClass(VM* vm, const char* name, Handle* base_class, Handle* module,
+                 NewInstanceFn new_fn, DeleteInstanceFn delete_fn, const char* docstring) {
   CHECK_ARG_NULL(module);
   CHECK_ARG_NULL(name);
   CHECK_HANDLE_TYPE(module, OBJ_MODULE);
@@ -263,12 +267,11 @@ Handle* NewClass(VM* vm, const char* name,
   Class* super = vm->builtin_classes[vOBJECT];
   if (base_class != NULL) {
     CHECK_HANDLE_TYPE(base_class, OBJ_CLASS);
-    super = (Class*)AS_OBJ(base_class->value);
+    super = (Class*) AS_OBJ(base_class->value);
   }
 
-  Class* class_ = newClass(vm, name, (int)strlen(name),
-                           super, (Module*)AS_OBJ(module->value),
-                           docstring, NULL);
+  Class* class_ = newClass(vm, name, (int) strlen(name), super,
+                           (Module*) AS_OBJ(module->value), docstring, NULL);
   class_->new_fn = new_fn;
   class_->delete_fn = delete_fn;
 
@@ -278,30 +281,63 @@ Handle* NewClass(VM* vm, const char* name,
   return handle;
 }
 
-void ClassAddMethod(VM* vm, Handle* cls,
-                      const char* name,
-                      nativeFn fptr, int arity, const char* docstring) {
+Class* NewNativeClass(VM* vm, const char* name, NewInstanceFn new_fn,
+                      DeleteInstanceFn delete_fn, const char* docstring) {
+  CHECK_ARG_NULL(name);
+  Class* super = vm->builtin_classes[vOBJECT];
+
+  Class* class_ = newClass(vm, name, (int) strlen(name), super, NULL, docstring, NULL);
+  class_->new_fn = new_fn;
+  class_->delete_fn = delete_fn;
+  return class_;
+}
+
+void NativeClassAddMethod(VM* vm, Class* cls, const char* name, nativeFn fptr,
+                          int arity, const char* docstring) {
+  CHECK_ARG_NULL(cls);
+  CHECK_ARG_NULL(fptr);
+
+  Class* class_ = cls;
+
+  Function* fn = newFunction(vm, name, (int) strlen(name), class_->owner, true,
+                             docstring, NULL);
+  vmPushTempRef(vm, &fn->_super);
+
+  fn->arity = arity;
+  fn->is_method = true;
+  fn->native = fptr;
+
+  Closure* method = newClosure(vm, fn);
+  vmPopTempRef(vm);
+
+  vmPushTempRef(vm, &method->_super);
+  bindMethod(vm, class_, method);
+  vmPopTempRef(vm);
+}
+
+void ClassAddMethod(VM* vm, Handle* cls, const char* name, nativeFn fptr,
+                    int arity, const char* docstring) {
   CHECK_ARG_NULL(cls);
   CHECK_ARG_NULL(fptr);
   CHECK_HANDLE_TYPE(cls, OBJ_CLASS);
 
   // TODO:
   // Check if the method name is valid, and validate argc for special
-  // methods (like "@getter", "@call", "+", "-", etc).
+  // methods (like "_getter", "_call", "+", "-", etc).
 
-  Class* class_ = (Class*)AS_OBJ(cls->value);
+  Class* class_ = (Class*) AS_OBJ(cls->value);
 
-  Function* fn = newFunction(vm, name, (int)strlen(name),
-                             class_->owner, true, docstring, NULL);
+  Function* fn = newFunction(vm, name, (int) strlen(name), class_->owner, true,
+                             docstring, NULL);
   vmPushTempRef(vm, &fn->_super); // fn.
 
   fn->arity = arity;
   fn->is_method = true;
   fn->native = fptr;
 
-  // No need to push the function to temp references of the VM
-  // since it's written to the constant pool of the module and the module
-  // won't be garbage collected (class handle has reference to the module).
+  // No need to push the function to the VM's temporary references because it is
+  // written into the module's constant pool. The module itself is reachable via
+  // the class handle, protecting it from garbage collection.
 
   Closure* method = newClosure(vm, fn);
   vmPopTempRef(vm); // fn.
@@ -327,8 +363,10 @@ void releaseHandle(VM* vm, Handle* handle) {
   }
 
   // Remove the handle from the chain by connecting the both ends together.
-  if (handle->next) handle->next->prev = handle->prev;
-  if (handle->prev) handle->prev->next = handle->next;
+  if (handle->next)
+    handle->next->prev = handle->prev;
+  if (handle->prev)
+    handle->prev->next = handle->next;
 
   // Free the handle.
   DEALLOCATE(vm, handle, Handle);
@@ -339,7 +377,6 @@ double vm_time(VM* vm) {
 }
 
 Result RunString(VM* vm, const char* source) {
-
   Result result = RESULT_SUCCESS;
 
   // Create a temproary module for the source.
@@ -348,10 +385,11 @@ Result RunString(VM* vm, const char* source) {
   {
     module->path = newString(vm, "@(String)");
     result = compile(vm, module, source, NULL);
-    if (result != RESULT_SUCCESS) return result;
+    if (result != RESULT_SUCCESS)
+      return result;
 
-    // Module initialized needs to be set to true just before executing their
-    // main function to avoid cyclic inclusion crash the VM.
+    // Module initialized needs to be set to true just before executing
+    // their main function to avoid cyclic inclusion crash the VM.
     module->initialized = true;
 
     Fiber* fiber = newFiber(vm, module->body);
@@ -370,10 +408,9 @@ Result RunString(VM* vm, const char* source) {
 }
 
 Result RunFile(VM* vm, const char* path) {
-
-  // Note: The file may have been imported by some other script and cached in
-  // the VM's scripts cache. But we're not using that instead, we'll recompile
-  // the file and update the cache.
+  // Note: Even if the file is already in the VM's script cache (e.g., via import),
+  // we explicitly recompile it here to ensure the cache reflects the latest content
+  // on disk.
 
   ASSERT(vm->config.load_script_fn != NULL,
          "No script loading functions defined.");
@@ -388,7 +425,7 @@ Result RunFile(VM* vm, const char* path) {
   }
 
   if (resolved_ == NULL) {
-    // FIXME: Error print should be moved and check for ascii color codes.
+    // FIXME: Standardize error reporting (e.g., check for ANSI color code support).
     if (vm->config.stderr_write != NULL) {
       vm->config.stderr_write(vm, "Error finding script at \"");
       vm->config.stderr_write(vm, path);
@@ -430,7 +467,8 @@ Result RunFile(VM* vm, const char* path) {
   }
   vmPopTempRef(vm); // module.
 
-  if (result != RESULT_SUCCESS) return result;
+  if (result != RESULT_SUCCESS)
+    return result;
 
   // Module initialized needs to be set to true just before executing their
   // main function to avoid cyclic inclusion crash the VM.
@@ -448,28 +486,26 @@ Result RunFile(VM* vm, const char* path) {
   return result;
 }
 
-// FIXME: this should be moved to somewhere general.
-//
-// Returns true if the string is empty, used to check if the input line is
-// empty to skip compilation of empty string in the bellow repl mode.
+// FIXME: Move to a shared utility location.
+// Checks if the string consists solely of whitespace.
+// Used to skip compilation of empty lines in REPL mode.
 static inline bool isStringEmpty(const char* line) {
   ASSERT(line != NULL, OOPS);
 
   for (const char* c = line; *c != '\0'; c++) {
-    if (!utilIsSpace(*c)) return false;
+    if (!utilIsSpace(*c))
+      return false;
   }
   return true;
 }
 
-// FIXME:
-// this should be moved to somewhere general along with isStringEmpty().
-//
-// This function will get the main function from the module to run it in the
-// repl mode.
+// FIXME: Move to a shared utility location (along with isStringEmpty).
+// Retrieves the implicit main function from a module for REPL execution.
 Closure* moduleGetMainFunction(VM* vm, Module* module) {
   int main_index = moduleGetGlobalIndex(module, IMPLICIT_MAIN_NAME,
                                         (uint32_t) strlen(IMPLICIT_MAIN_NAME));
-  if (main_index == -1) return NULL;
+  if (main_index == -1)
+    return NULL;
   ASSERT_INDEX(main_index, (int) module->globals.count);
   Var main_fn = module->globals.data[main_index];
   ASSERT(IS_OBJ_TYPE(main_fn, OBJ_CLOSURE), OOPS);
@@ -477,7 +513,6 @@ Closure* moduleGetMainFunction(VM* vm, Module* module) {
 }
 
 Result RunREPL(VM* vm) {
-
   WriteFn printfn = vm->config.stdout_write;
   WriteFn printerrfn = vm->config.stderr_write;
   ReadFn inputfn = vm->config.stdin_read;
@@ -487,45 +522,46 @@ Result RunREPL(VM* vm) {
   options.repl_mode = true;
 
   if (inputfn == NULL) {
-    if (printerrfn) printerrfn(vm, "REPL failed to input.");
+    if (printerrfn)
+      printerrfn(vm, "REPL failed to input.");
     return RESULT_RUNTIME_ERROR;
   }
 
-  // The main module that'll be used to compile and execute the input source.
+  // Create the main module used to compile and execute input source code.
   Handle* module = NewModule(vm, "@(REPL)");
   ASSERT(IS_OBJ_TYPE(module->value, OBJ_MODULE), OOPS);
   Module* _module = (Module*) AS_OBJ(module->value);
   initializeModule(vm, _module, true);
 
-  // A buffer to store multiple lines read from stdin.
+  // A buffer to accumulate multiple lines from stdin.
   ByteBuffer lines;
   ByteBufferInit(&lines);
 
-  // Will be set to true if the compilation failed with unexpected EOF to add
-  // more lines to the [lines] buffer.
+  // Indicates if compilation failed due to an unexpected EOF, requiring
+  // additional lines to be appended to the buffer.
   bool need_more_lines = false;
 
   bool done = false;
   char* line;
   do {
-
     const char* listening = (!need_more_lines) ? ">>> " : "... ";
 
-    // Read a line from stdin and add the line to the lines buffer.
-    #if defined(__linux) && defined(READLINE)
-      line = saynaa_readline(listening);
+    // Read a line from stdin.
+#if defined(__linux) && defined(READLINE)
+    line = saynaa_readline(listening);
 
-    #else
-      printfn(vm, listening);
-      line = inputfn(vm);
-    #endif
+#else
+    printfn(vm, listening);
+    line = inputfn(vm);
+#endif
     if (line == NULL) {
-      if (printerrfn) printerrfn(vm, "REPL failed to input.\n");
+      if (printerrfn)
+        printerrfn(vm, "REPL failed to input.\n");
       result = RESULT_RUNTIME_ERROR;
       break;
     }
 
-    // If the line contains EOF, REPL should be stopped.
+    // Stop the REPL if EOF is encountered.
     size_t line_length = strlen(line);
     if (line_length >= 1 && *(line + line_length - 1) == EOF) {
       printfn(vm, "\n");
@@ -534,38 +570,40 @@ Result RunREPL(VM* vm) {
       break;
     }
 
-    // If the line is empty, we don't have to compile it.
+    // Skip compilation for empty lines.
     if (isStringEmpty(line)) {
-      if (need_more_lines) ASSERT(lines.count != 0, OOPS);
+      if (need_more_lines)
+        ASSERT(lines.count != 0, OOPS);
       Realloc(vm, line, 0);
       continue;
     }
 
-    // Add the line to the lines buffer.
-    if (lines.count != 0) ByteBufferWrite(&lines, vm, '\n');
+    // Append the new line to the buffer.
+    if (lines.count != 0)
+      ByteBufferWrite(&lines, vm, '\n');
     ByteBufferAddString(&lines, vm, line, (uint32_t) line_length);
     Realloc(vm, line, 0);
     ByteBufferWrite(&lines, vm, '\0');
 
-    // Compile the buffer to the module.
+    // Attempt to compile the accumulated buffer.
     result = compile(vm, _module, (const char*) lines.data, &options);
 
     if (result == RESULT_UNEXPECTED_EOF) {
       ASSERT(lines.count > 0 && lines.data[lines.count - 1] == '\0', OOPS);
-      lines.count -= 1; // Remove the null byte to append a new string.
+      lines.count -= 1; // Remove the null terminator to allow appending.
       need_more_lines = true;
       continue;
     }
 
-    // We're buffering the lines for unexpected EOF, if we reached here that
-    // means it's either successfully compiled or compilation error. Clean the
-    // buffer for the next iteration.
+    // If execution reaches here, compilation either succeeded or failed with a
+    // different error. Clear the buffer for the next input cycle.
     need_more_lines = false;
     ByteBufferClear(&lines, vm);
 
-    if (result != RESULT_SUCCESS) continue;
+    if (result != RESULT_SUCCESS)
+      continue;
 
-    // Compiled source would be the "main" function of the module. Run it.
+    // The compiled source becomes the "@main" function of the module. Execute it.
     Closure* _main = moduleGetMainFunction(vm, _module);
     ASSERT(_main != NULL, OOPS);
     result = vmCallFunction(vm, _main, 0, NULL, NULL);
@@ -595,8 +633,8 @@ void SetRuntimeErrorFmt(VM* vm, const char* fmt, ...) {
 
 void* GetThis(const VM* vm) {
   CHECK_FIBER_EXISTS(vm);
-  ASSERT(IS_OBJ_TYPE(vm->fiber->this, OBJ_INST), OOPS);
-  Instance* inst = (Instance*) AS_OBJ(vm->fiber->this);
+  ASSERT(IS_OBJ_TYPE(vm->fiber->thiz, OBJ_INST), OOPS);
+  Instance* inst = (Instance*) AS_OBJ(vm->fiber->thiz);
   ASSERT(inst->native != NULL, OOPS);
   return inst->native;
 }
@@ -611,32 +649,31 @@ bool CheckArgcRange(VM* vm, int argc, int min, int max) {
   ASSERT(min <= max, "invalid argc range (min > max).");
 
   if (argc < min) {
-    char buff[STR_INT_BUFF_SIZE]; sprintf(buff, "%d", min);
-    VM_SET_ERROR(vm, stringFormat(vm, "Expected at least $ argument(s).",
-                                       buff));
+    char buff[STR_INT_BUFF_SIZE];
+    sprintf(buff, "%d", min);
+    VM_SET_ERROR(vm, stringFormat(vm, "Expected at least $ argument(s).", buff));
     return false;
 
   } else if (argc > max) {
-    char buff[STR_INT_BUFF_SIZE]; sprintf(buff, "%d", max);
-    VM_SET_ERROR(vm, stringFormat(vm, "Expected at most $ argument(s).",
-                                       buff));
+    char buff[STR_INT_BUFF_SIZE];
+    sprintf(buff, "%d", max);
+    VM_SET_ERROR(vm, stringFormat(vm, "Expected at most $ argument(s).", buff));
     return false;
   }
 
   return true;
 }
 
-// Set error for incompatible type provided as an argument. (TODO: got type).
-#define ERR_INVALID_SLOT_TYPE(slot, ty_name)                       \
-  do {                                                             \
-    char buff[STR_INT_BUFF_SIZE];                                  \
-    sprintf(buff, "%d", slot);                                     \
-    VM_SET_ERROR(vm, stringFormat(vm, "Argument $ must be a $.",   \
-                                      buff, ty_name));             \
+// Set error for incompatible type provided as an argument.
+// TODO: Include the actual type received in the error message.
+#define ERR_INVALID_SLOT_TYPE(slot, ty_name) \
+  do { \
+    char buff[STR_INT_BUFF_SIZE]; \
+    sprintf(buff, "%d", slot); \
+    VM_SET_ERROR(vm, stringFormat(vm, "Argument $ must be a $.", buff, ty_name)); \
   } while (false)
 
-// FIXME: If the user needs just the boolean value of the object, they should
-// use GetSlotBool().
+// FIXME: Encourage use of `GetSlotBool()` if strictly extracting boolean values.
 bool ValidateSlotBool(VM* vm, int slot, bool* value) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(slot);
@@ -647,7 +684,8 @@ bool ValidateSlotBool(VM* vm, int slot, bool* value) {
     return false;
   }
 
-  if (value) *value = AS_BOOL(val);
+  if (value)
+    *value = AS_BOOL(val);
   return true;
 }
 
@@ -661,7 +699,8 @@ bool ValidateSlotNumber(VM* vm, int slot, double* value) {
     return false;
   }
 
-  if (value) *value = AS_NUM(val);
+  if (value)
+    *value = AS_NUM(val);
   return true;
 }
 
@@ -670,19 +709,20 @@ bool ValidateSlotInteger(VM* vm, int slot, int32_t* value) {
   VALIDATE_SLOT_INDEX(slot);
 
   double n;
-  if (!ValidateSlotNumber(vm, slot, &n)) return false;
+  if (!ValidateSlotNumber(vm, slot, &n))
+    return false;
 
   if (floor(n) != n) {
     VM_SET_ERROR(vm, newString(vm, "Expected an integer got float."));
     return false;
   }
 
-  if (value) *value = (int32_t) n;
+  if (value)
+    *value = (int32_t) n;
   return true;
 }
 
-bool ValidateSlotString(VM* vm, int slot, const char** value,
-                                    uint32_t* length) {
+bool ValidateSlotString(VM* vm, int slot, const char** value, uint32_t* length) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(slot);
 
@@ -691,9 +731,11 @@ bool ValidateSlotString(VM* vm, int slot, const char** value,
     ERR_INVALID_SLOT_TYPE(slot, "String");
     return false;
   }
-  String* str = (String*)AS_OBJ(val);
-  if (value) *value = str->data;
-  if (length) *length = str->length;
+  String* str = (String*) AS_OBJ(val);
+  if (value)
+    *value = str->data;
+  if (length)
+    *length = str->length;
   return true;
 }
 
@@ -716,8 +758,9 @@ bool ValidateSlotInstanceOf(VM* vm, int slot, int cls) {
   Var instance = ARG(slot), class_ = SLOT(cls);
   if (!varIsType(vm, instance, class_)) {
     // If [class_] is not a valid class, it's already an error.
-    if (VM_HAS_ERROR(vm)) return false;
-    ERR_INVALID_SLOT_TYPE(slot, ((Class*)AS_OBJ(class_))->name->data);
+    if (VM_HAS_ERROR(vm))
+      return false;
+    ERR_INVALID_SLOT_TYPE(slot, ((Class*) AS_OBJ(class_))->name->data);
     return false;
   }
 
@@ -735,14 +778,15 @@ bool IsSlotInstanceOf(VM* vm, int inst, int cls, bool* val) {
 }
 
 void reserveSlots(VM* vm, int count) {
-  if (vm->fiber == NULL) vm->fiber = newFiber(vm, NULL);
-  int needed = (int)(vm->fiber->ret - vm->fiber->stack) + count;
+  if (vm->fiber == NULL)
+    vm->fiber = newFiber(vm, NULL);
+  int needed = (int) (vm->fiber->ret - vm->fiber->stack) + count;
   vmEnsureStackSize(vm, vm->fiber, needed);
 }
 
 int GetSlotsCount(VM* vm) {
   CHECK_FIBER_EXISTS(vm);
-  return vm->fiber->stack_size - (int)(vm->fiber->ret - vm->fiber->stack);
+  return vm->fiber->stack_size - (int) (vm->fiber->ret - vm->fiber->stack);
 }
 
 VarType GetSlotType(VM* vm, int index) {
@@ -771,8 +815,20 @@ const char* GetSlotString(VM* vm, int index, uint32_t* length) {
   VALIDATE_SLOT_INDEX(index);
   Var value = SLOT(index);
   ASSERT(IS_OBJ_TYPE(value, OBJ_STRING), "Slot value wasn't a String.");
-  if (length != NULL) *length = ((String*)AS_OBJ(value))->length;
-  return ((String*)AS_OBJ(value))->data;
+  if (length != NULL)
+    *length = ((String*) AS_OBJ(value))->length;
+  return ((String*) AS_OBJ(value))->data;
+}
+
+void* GetSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor) {
+  CHECK_FIBER_EXISTS(vm);
+  VALIDATE_SLOT_INDEX(index);
+
+  Var value = SLOT(index);
+
+  ASSERT(IS_OBJ_TYPE(value, OBJ_POINTER), "Slot value wasn't a Pointer.");
+
+  return ((Pointer*) AS_OBJ(value))->native_ptr;
 }
 
 Handle* GetSlotHandle(VM* vm, int index) {
@@ -820,15 +876,26 @@ void setSlotString(VM* vm, int index, const char* value) {
   SET_SLOT(index, VAR_OBJ(newString(vm, value)));
 }
 
-void setSlotStringLength(VM* vm, int index,
-                                     const char* value, uint32_t length) {
+void setSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor) {
+  CHECK_FIBER_EXISTS(vm);
+  VALIDATE_SLOT_INDEX(index);
+  SET_SLOT(index, VAR_OBJ(newPointer(vm, native_ptr, destructor)));
+}
+
+void setSlotClosure(VM* vm, int index, const char* name, nativeFn fptr,
+                    int arity, const char* docstring) {
+  CHECK_FIBER_EXISTS(vm);
+  VALIDATE_SLOT_INDEX(index);
+  SET_SLOT(index, VAR_OBJ(newNativeClosure(vm, name, fptr, arity, docstring)));
+}
+
+void setSlotStringLength(VM* vm, int index, const char* value, uint32_t length) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(index);
   SET_SLOT(index, VAR_OBJ(newStringLength(vm, value, length)));
 }
 
 void setSlotStringFmt(VM* vm, int index, const char* fmt, ...) {
-
   va_list args;
   va_start(args, fmt);
   SET_SLOT(index, VAR_OBJ(newStringVaArgs(vm, fmt, args)));
@@ -864,8 +931,7 @@ bool setAttribute(VM* vm, int instance, const char* name, int value) {
   return !VM_HAS_ERROR(vm);
 }
 
-bool GetAttribute(VM* vm, int instance, const char* name,
-                              int index) {
+bool GetAttribute(VM* vm, int instance, const char* name, int index) {
   CHECK_FIBER_EXISTS(vm);
   CHECK_ARG_NULL(name);
   VALIDATE_SLOT_INDEX(instance);
@@ -873,7 +939,7 @@ bool GetAttribute(VM* vm, int instance, const char* name,
 
   String* sname = newString(vm, name);
   vmPushTempRef(vm, &sname->_super); // sname.
-  SET_SLOT(index, varGetAttrib(vm, SLOT(instance), sname, true));
+  SET_SLOT(index, varGetAttrib(vm, SLOT(instance), sname, true, false));
   vmPopTempRef(vm); // sname.
 
   return !VM_HAS_ERROR(vm);
@@ -881,7 +947,8 @@ bool GetAttribute(VM* vm, int instance, const char* name,
 
 static Var _newInstance(VM* vm, Class* cls, int argc, Var* argv) {
   Var instance = preConstructThis(vm, cls);
-  if (VM_HAS_ERROR(vm)) return VAR_NULL;
+  if (VM_HAS_ERROR(vm))
+    return VAR_NULL;
 
   bool pushed = false;
   if (IS_OBJ(instance)) {
@@ -893,10 +960,10 @@ static Var _newInstance(VM* vm, Class* cls, int argc, Var* argv) {
   if (init != NULL) {
     // for builtin classes, preConstructThis returns null,
     // and instance is returned by _init.
-    vmCallMethod(vm, instance, init, argc, argv,
-      IS_NULL(instance) ? &instance : NULL);
+    vmCallMethod(vm, instance, init, argc, argv, IS_NULL(instance) ? &instance : NULL);
   }
-  if (pushed) vmPopTempRef(vm); // instance.
+  if (pushed)
+    vmPopTempRef(vm); // instance.
 
   return instance;
 }
@@ -946,6 +1013,20 @@ void NewString(VM* vm, int index) {
   SET_SLOT(index, VAR_OBJ(newString(vm, "")));
 }
 
+void NewPointer(VM* vm, int index, void* native_ptr, Destructor destructor) {
+  CHECK_FIBER_EXISTS(vm);
+  VALIDATE_SLOT_INDEX(index);
+
+  SET_SLOT(index, VAR_OBJ(newPointer(vm, native_ptr, destructor)));
+}
+
+void NewClosure(VM* vm, int index, const char* name, nativeFn fptr, int arity,
+                const char* docstring) {
+  CHECK_FIBER_EXISTS(vm);
+  VALIDATE_SLOT_INDEX(index);
+  SET_SLOT(index, VAR_OBJ(newNativeClosure(vm, name, fptr, arity, docstring)));
+}
+
 bool ListInsert(VM* vm, int list, int32_t index, int value) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(list);
@@ -953,7 +1034,8 @@ bool ListInsert(VM* vm, int list, int32_t index, int value) {
 
   ASSERT(IS_OBJ_TYPE(SLOT(list), OBJ_LIST), "Slot value wasn't a List");
   List* l = (List*) AS_OBJ(SLOT(list));
-  if (index < 0) index = l->elements.count + index + 1;
+  if (index < 0)
+    index = l->elements.count + index + 1;
 
   if (index < 0 || (uint32_t) index > l->elements.count) {
     VM_SET_ERROR(vm, newString(vm, "Index out of bounds."));
@@ -967,11 +1049,13 @@ bool ListInsert(VM* vm, int list, int32_t index, int value) {
 bool ListPop(VM* vm, int list, int32_t index, int popped) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(list);
-  if (popped >= 0) VALIDATE_SLOT_INDEX(popped);
+  if (popped >= 0)
+    VALIDATE_SLOT_INDEX(popped);
 
   ASSERT(IS_OBJ_TYPE(SLOT(list), OBJ_LIST), "Slot value wasn't a List");
   List* l = (List*) AS_OBJ(SLOT(list));
-  if (index < 0) index += l->elements.count;
+  if (index < 0)
+    index += l->elements.count;
 
   if (index < 0 || (uint32_t) index >= l->elements.count) {
     VM_SET_ERROR(vm, newString(vm, "Index out of bounds."));
@@ -979,7 +1063,8 @@ bool ListPop(VM* vm, int list, int32_t index, int popped) {
   }
 
   Var p = listRemoveAt(vm, l, index);
-  if (popped >= 0) SET_SLOT(popped, p);
+  if (popped >= 0)
+    SET_SLOT(popped, p);
   return true;
 }
 
@@ -988,7 +1073,7 @@ uint32_t ListLength(VM* vm, int list) {
   VALIDATE_SLOT_INDEX(list);
 
   ASSERT(IS_OBJ_TYPE(SLOT(list), OBJ_LIST), "Slot value wasn't a List");
-  List* l = (List*)AS_OBJ(SLOT(list));
+  List* l = (List*) AS_OBJ(SLOT(list));
 
   return l->elements.count;
 }
@@ -1000,29 +1085,29 @@ bool CallFunction(VM* vm, int fn, int argc, int argv, int ret) {
     VALIDATE_SLOT_INDEX(argv);
     VALIDATE_SLOT_INDEX(argv + argc - 1);
   }
-  if (ret >= 0) VALIDATE_SLOT_INDEX(ret);
+  if (ret >= 0)
+    VALIDATE_SLOT_INDEX(ret);
 
   // Calls a class == construct.
   if (IS_OBJ_TYPE(SLOT(fn), OBJ_CLASS)) {
-    Var inst = _newInstance(vm, (Class*) AS_OBJ(SLOT(fn)), argc,
-                            vm->fiber->ret + argv);
-    if (ret >= 0) SET_SLOT(ret, inst);
+    Var inst = _newInstance(vm, (Class*) AS_OBJ(SLOT(fn)), argc, vm->fiber->ret + argv);
+    if (ret >= 0)
+      SET_SLOT(ret, inst);
     return !VM_HAS_ERROR(vm);
   }
 
   if (IS_OBJ_TYPE(SLOT(fn), OBJ_CLOSURE)) {
-
     Closure* func = (Closure*) AS_OBJ(SLOT(fn));
 
     // Methods are not first class. Accessing a method will return a method
-    // bind instance which has a reference to an instance and invoking it will
-    // calls the method with that instance.
+    // bind instance which has a reference to an instance and invoking it
+    // will calls the method with that instance.
     ASSERT(!func->fn->is_method, OOPS);
 
     Var retval;
-    vmCallFunction(vm, func, argc,
-                   vm->fiber->ret + argv, &retval);
-    if (ret >= 0) SET_SLOT(ret, retval);
+    vmCallFunction(vm, func, argc, vm->fiber->ret + argv, &retval);
+    if (ret >= 0)
+      SET_SLOT(ret, retval);
     return !VM_HAS_ERROR(vm);
   }
 
@@ -1030,8 +1115,7 @@ bool CallFunction(VM* vm, int fn, int argc, int argv, int ret) {
   return false;
 }
 
-bool CallMethod(VM* vm, int instance, const char* method,
-                            int argc, int argv, int ret) {
+bool CallMethod(VM* vm, int instance, const char* method, int argc, int argv, int ret) {
   CHECK_FIBER_EXISTS(vm);
   CHECK_ARG_NULL(method);
   VALIDATE_SLOT_INDEX(instance);
@@ -1039,22 +1123,23 @@ bool CallMethod(VM* vm, int instance, const char* method,
     VALIDATE_SLOT_INDEX(argv);
     VALIDATE_SLOT_INDEX(argv + argc - 1);
   }
-  if (ret >= 0) VALIDATE_SLOT_INDEX(ret);
+  if (ret >= 0)
+    VALIDATE_SLOT_INDEX(ret);
 
   bool is_method = false;
   String* smethod = newString(vm, method);
   vmPushTempRef(vm, &smethod->_super); // smethod.
-  Var callable = getMethod(vm, SLOT(instance), smethod,
-                          &is_method);
+  Var callable = getMethod(vm, SLOT(instance), smethod, &is_method);
   vmPopTempRef(vm); // smethod.
 
-  if (VM_HAS_ERROR(vm)) return false;
+  if (VM_HAS_ERROR(vm))
+    return false;
 
   // Calls a class == construct.
   if (IS_OBJ_TYPE(callable, OBJ_CLASS)) {
-    Var inst = _newInstance(vm, (Class*) AS_OBJ(callable), argc,
-                            vm->fiber->ret + argv);
-    if (ret >= 0) SET_SLOT(ret, inst);
+    Var inst = _newInstance(vm, (Class*) AS_OBJ(callable), argc, vm->fiber->ret + argv);
+    if (ret >= 0)
+      SET_SLOT(ret, inst);
     return !VM_HAS_ERROR(vm);
   }
 
@@ -1062,19 +1147,19 @@ bool CallMethod(VM* vm, int instance, const char* method,
     Var retval;
     vmCallMethod(vm, SLOT(instance), (Closure*) AS_OBJ(callable), argc,
                  vm->fiber->ret + argv, &retval);
-    if (ret >= 0) SET_SLOT(ret, retval);
+    if (ret >= 0)
+      SET_SLOT(ret, retval);
     return !VM_HAS_ERROR(vm);
   }
 
-  VM_SET_ERROR(vm, stringFormat(vm, "Instance has no method named '$'.",
-                                method));
+  VM_SET_ERROR(vm, stringFormat(vm, "Instance has no method named '$'.", method));
   return false;
 }
 
 void PlaceThis(VM* vm, int index) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(index);
-  SET_SLOT(index, vm->fiber->this);
+  SET_SLOT(index, vm->fiber->thiz);
 }
 
 bool ImportModule(VM* vm, const char* path, int index) {
@@ -1127,27 +1212,27 @@ void stdoutWrite(VM* vm, const char* text) {
 }
 
 static char* stdinRead(VM* vm) {
-
   ByteBuffer buff;
   ByteBufferInit(&buff);
   char c;
   do {
     c = (char) fgetc(stdin);
-    if (c == '\n') break;
-    ByteBufferWrite(&buff, vm, (uint8_t)c);
+    if (c == '\n')
+      break;
+    ByteBufferWrite(&buff, vm, (uint8_t) c);
   } while (c != EOF);
   ByteBufferWrite(&buff, vm, '\0');
 
-  char* str = (char*)Realloc(vm, NULL, buff.count);
+  char* str = (char*) Realloc(vm, NULL, buff.count);
   memcpy(str, buff.data, buff.count);
   ByteBufferClear(&buff, vm);
   return str;
 }
 
 static char* loadScript(VM* vm, const char* path) {
-
   FILE* file = fopen(path, "r");
-  if (file == NULL) return NULL;
+  if (file == NULL)
+    return NULL;
 
   // Get the source length. In windows the ftell will includes the cariage
   // return when using ftell with fseek. But that's not an issue since
@@ -1157,7 +1242,7 @@ static char* loadScript(VM* vm, const char* path) {
   fseek(file, 0, SEEK_SET);
 
   // Allocate string + 1 for the NULL terminator.
-  char* buff = (char *)Realloc(vm, NULL, file_size + 1);
+  char* buff = (char*) Realloc(vm, NULL, file_size + 1);
   ASSERT(buff != NULL, "Realloc failed.");
 
   clearerr(file);

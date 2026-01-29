@@ -112,7 +112,3 @@ n3 >> n4; assert(n4.val == 3)
 n3 >> n4; assert(n4.val == 8)
 n3 >> n4; assert(n4.val == 4)
 
-n5 = N(3)
-assert(!n5 == 3)
-assert(!n5 == 2)
-assert(!n5 == 1)

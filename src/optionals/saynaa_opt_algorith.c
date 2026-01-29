@@ -3,61 +3,68 @@
  * Distributed Under The MIT License
  */
 
-#include <math.h>
 #include "saynaa_optionals.h"
-
 #include "thirdparty/timsort/timsort_m.c"
+
+#include <math.h>
 
 #define ARG(n) (vm->fiber->ret[n])
 
-int cmpVarAsc(const void * a, const void * b, void * c) {
+int cmpVarAsc(const void* a, const void* b, void* c) {
   VM* vm = (VM*) c;
   Var l = *((Var*) a), r = *((Var*) b);
   Var isGreater = varGreater(vm, l, r);
-  if (VM_HAS_ERROR(vm)) return 0;
+  if (VM_HAS_ERROR(vm))
+    return 0;
   Var isLesser = varLesser(vm, l, r);
-  if (VM_HAS_ERROR(vm)) return 0;
+  if (VM_HAS_ERROR(vm))
+    return 0;
   return toBool(isGreater) - toBool(isLesser);
 }
 
-int cmpVarDesc(const void * a, const void * b, void * c) {
+int cmpVarDesc(const void* a, const void* b, void* c) {
   VM* vm = (VM*) c;
   Var l = *((Var*) a), r = *((Var*) b);
   Var isGreater = varGreater(vm, l, r);
-  if (VM_HAS_ERROR(vm)) return 0;
+  if (VM_HAS_ERROR(vm))
+    return 0;
   Var isLesser = varLesser(vm, l, r);
-  if (VM_HAS_ERROR(vm)) return 0;
+  if (VM_HAS_ERROR(vm))
+    return 0;
   return toBool(isLesser) - toBool(isGreater);
 }
 
-int cmpVarCustomAsc(const void * a, const void * b, void * c) {
+int cmpVarCustomAsc(const void* a, const void* b, void* c) {
   VM* vm = (VM*) c;
   Var l = *((Var*) a), r = *((Var*) b);
 
   // 0: closure, 1: l, 2: r, 3: ret
-  ARG(1) = l; ARG(2) = r;
+  ARG(1) = l;
+  ARG(2) = r;
   CallFunction(vm, 0, 2, 1, 3);
 
-  if (GetSlotType(vm, 3) != vNUMBER || VM_HAS_ERROR(vm)) return 0;
+  if (GetSlotType(vm, 3) != vNUMBER || VM_HAS_ERROR(vm))
+    return 0;
   double ret = GetSlotNumber(vm, 3);
-  return ret > 0 ? 1 : (ret < 0 ? -1 : 0) ;
+  return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
 }
 
-int cmpVarCustomDesc(const void * a, const void * b, void * c) {
+int cmpVarCustomDesc(const void* a, const void* b, void* c) {
   VM* vm = (VM*) c;
   Var l = *((Var*) a), r = *((Var*) b);
 
   // 0: closure, 1: l, 2: r, 3: ret
-  ARG(1) = l; ARG(2) = r;
+  ARG(1) = l;
+  ARG(2) = r;
   CallFunction(vm, 0, 2, 1, 3);
 
-  if (GetSlotType(vm, 3) != vNUMBER || VM_HAS_ERROR(vm)) return 0;
+  if (GetSlotType(vm, 3) != vNUMBER || VM_HAS_ERROR(vm))
+    return 0;
   double ret = GetSlotNumber(vm, 3);
-  return ret < 0 ? 1 : (ret > 0 ? -1 : 0) ;
+  return ret < 0 ? 1 : (ret > 0 ? -1 : 0);
 }
 
-bool checkSlotClosureOrBool(VM* vm, int argc, int slot,
-                            int* cmpSlot, bool* reverse) {
+bool checkSlotClosureOrBool(VM* vm, int argc, int slot, int* cmpSlot, bool* reverse) {
   if (argc >= slot) {
     if (GetSlotType(vm, slot) == vBOOL) {
       *reverse = GetSlotBool(vm, slot);
@@ -68,7 +75,6 @@ bool checkSlotClosureOrBool(VM* vm, int argc, int slot,
       return true;
 
     } else {
-
       SetRuntimeError(vm, "Expected a 'Bool' or a 'Closure'");
       return false;
     }
@@ -77,7 +83,8 @@ bool checkSlotClosureOrBool(VM* vm, int argc, int slot,
 }
 
 bool checkSlotClosureCmp(VM* vm, int cmpSlot) {
-  if (!GetAttribute(vm, cmpSlot, "arity", 0)) return false;
+  if (!GetAttribute(vm, cmpSlot, "arity", 0))
+    return false;
 
   if ((int) GetSlotNumber(vm, 0) != 2) {
     SetRuntimeError(vm, "Expected exactly 2 argument(s) for function cmp.");
@@ -87,24 +94,27 @@ bool checkSlotClosureCmp(VM* vm, int cmpSlot) {
   return true;
 }
 
-function(algorithmSort,
-  "sort(list:List[, cmp:Closure, reverse=false]) -> List",
-  "Sort a [list] by TimSort algorithm.") {
-
+saynaa_function(algorithmSort, "sort(list:List[, cmp:Closure, reverse=false]) -> List",
+                "Sort a [list] by TimSort algorithm.") {
   int argc = GetArgc(vm);
   int cmpSlot = 0;
   bool reverse = false;
 
-  if (!CheckArgcRange(vm, argc, 1, 3)) return;
-  if (!ValidateSlotType(vm, 1, vLIST)) return;
+  if (!CheckArgcRange(vm, argc, 1, 3))
+    return;
+  if (!ValidateSlotType(vm, 1, vLIST))
+    return;
 
-  if (!checkSlotClosureOrBool(vm, argc, 2, &cmpSlot, &reverse)) return;
-  if (!checkSlotClosureOrBool(vm, argc, 3, &cmpSlot, &reverse)) return;
-  if (cmpSlot != 0 && !checkSlotClosureCmp(vm, cmpSlot)) return;
+  if (!checkSlotClosureOrBool(vm, argc, 2, &cmpSlot, &reverse))
+    return;
+  if (!checkSlotClosureOrBool(vm, argc, 3, &cmpSlot, &reverse))
+    return;
+  if (cmpSlot != 0 && !checkSlotClosureCmp(vm, cmpSlot))
+    return;
 
   Handle* handle = GetSlotHandle(vm, 1);
   List* list = (List*) AS_OBJ(ARG(1));
-  int (*cmp)(const void *, const void *, void *);
+  int (*cmp)(const void*, const void*, void*);
 
   if (list->elements.count >= 2) {
     if (cmpSlot != 0) {
@@ -116,31 +126,33 @@ function(algorithmSort,
       cmp = reverse ? cmpVarDesc : cmpVarAsc;
     }
 
-    timsort_r(list->elements.data,
-              list->elements.count, sizeof(Var), cmp, vm);
+    timsort_r(list->elements.data, list->elements.count, sizeof(Var), cmp, vm);
   }
 
   setSlotHandle(vm, 0, handle);
   releaseHandle(vm, handle);
 }
 
-function(algorithmIsSorted,
-  "isSorted(list:List[, cmp:Closure, reverse=false]) -> Bool",
-  "Checks to see whether [list] is already sorted.") {
-
+saynaa_function(algorithmIsSorted, "isSorted(list:List[, cmp:Closure, reverse=false]) -> Bool",
+                "Checks to see whether [list] is already sorted.") {
   int argc = GetArgc(vm);
   int cmpSlot = 0;
   bool reverse = false;
 
-  if (!CheckArgcRange(vm, argc, 1, 3)) return;
-  if (!ValidateSlotType(vm, 1, vLIST)) return;
+  if (!CheckArgcRange(vm, argc, 1, 3))
+    return;
+  if (!ValidateSlotType(vm, 1, vLIST))
+    return;
 
-  if (!checkSlotClosureOrBool(vm, argc, 2, &cmpSlot, &reverse)) return;
-  if (!checkSlotClosureOrBool(vm, argc, 3, &cmpSlot, &reverse)) return;
-  if (cmpSlot != 0 && !checkSlotClosureCmp(vm, cmpSlot)) return;
+  if (!checkSlotClosureOrBool(vm, argc, 2, &cmpSlot, &reverse))
+    return;
+  if (!checkSlotClosureOrBool(vm, argc, 3, &cmpSlot, &reverse))
+    return;
+  if (cmpSlot != 0 && !checkSlotClosureCmp(vm, cmpSlot))
+    return;
 
   List* list = (List*) AS_OBJ(ARG(1));
-  int (*cmp)(const void *, const void *, void *);
+  int (*cmp)(const void*, const void*, void*);
   bool result = true;
 
   if (list->elements.count >= 2) {
@@ -154,8 +166,7 @@ function(algorithmIsSorted,
     }
 
     for (uint32_t i = 0; i < list->elements.count - 1; i++) {
-      if (cmp(&list->elements.data[i],
-              &list->elements.data[i + 1], vm) > 0) {
+      if (cmp(&list->elements.data[i], &list->elements.data[i + 1], vm) > 0) {
         result = false;
         break;
       }
@@ -168,9 +179,11 @@ function(algorithmIsSorted,
 int32_t bSearch(VM* vm, List* list, Var* key, comparator cmp) {
   int32_t count = list->elements.count;
 
-  if (count <= 0) return -1;
+  if (count <= 0)
+    return -1;
   if (count == 1) {
-    if (cmp(&list->elements.data[0], key, vm) == 0) return 0;
+    if (cmp(&list->elements.data[0], key, vm) == 0)
+      return 0;
     return -1;
   }
 
@@ -181,8 +194,10 @@ int32_t bSearch(VM* vm, List* list, Var* key, comparator cmp) {
     if (cmpRes == 0)
       return mid;
 
-    if (cmpRes < 0) a = mid + 1;
-    else b = mid;
+    if (cmpRes < 0)
+      a = mid + 1;
+    else
+      b = mid;
   }
 
   if (a >= count || cmp(&list->elements.data[a], key, vm) != 0)
@@ -191,42 +206,43 @@ int32_t bSearch(VM* vm, List* list, Var* key, comparator cmp) {
   return a;
 }
 
-function(algorithmBinarySearch,
-  "binarySearch(list:List, key:Var[, cmp:Closure]) -> Number",
-  "Binary search for key in [list]. "
-  "Return the index of key or -1 if not found. "
-  "Assumes that list is sorted.") {
-
+saynaa_function(algorithmBinarySearch, "binarySearch(list:List, key:Var[, cmp:Closure]) -> Number",
+                "Binary search for key in [list]. "
+                "Return the index of key or -1 if not found. "
+                "Assumes that list is sorted.") {
   int argc = GetArgc(vm);
-  if (!CheckArgcRange(vm, argc, 2, 3)) return;
-  if (!ValidateSlotType(vm, 1, vLIST)) return;
+  if (!CheckArgcRange(vm, argc, 2, 3))
+    return;
+  if (!ValidateSlotType(vm, 1, vLIST))
+    return;
 
   List* list = (List*) AS_OBJ(ARG(1));
   Var* key = &(ARG(2));
   comparator cmp;
 
   if (argc == 3) {
-    if (!ValidateSlotType(vm, 3, vCLOSURE)) return;
-    if (!checkSlotClosureCmp(vm, 3)) return;
+    if (!ValidateSlotType(vm, 3, vCLOSURE))
+      return;
+    if (!checkSlotClosureCmp(vm, 3))
+      return;
 
     ARG(0) = ARG(3);
     reserveSlots(vm, 4);
     cmp = cmpVarCustomAsc;
-  }
-  else {
+  } else {
     cmp = cmpVarAsc;
   }
 
   setSlotNumber(vm, 0, (double) bSearch(vm, list, key, cmp));
 }
 
-function(algorithmReverse,
-  "reverse(list:List[, range:Range]) -> List",
-  "Reverse a [list].") {
-
+saynaa_function(algorithmReverse, "reverse(list:List[, range:Range]) -> List",
+                "Reverse a [list].") {
   int argc = GetArgc(vm);
-  if (!CheckArgcRange(vm, argc, 1, 2)) return;
-  if (!ValidateSlotType(vm, 1, vLIST)) return;
+  if (!CheckArgcRange(vm, argc, 1, 2))
+    return;
+  if (!ValidateSlotType(vm, 1, vLIST))
+    return;
 
   Handle* handle = GetSlotHandle(vm, 1);
   List* list = (List*) AS_OBJ(ARG(1));
@@ -236,25 +252,28 @@ function(algorithmReverse,
     int32_t first = 0, last = count - 1;
 
     if (argc == 2) {
-      if (!ValidateSlotType(vm, 2, vRANGE)) break;
-      Range* r = (Range*)AS_OBJ(ARG(2));
+      if (!ValidateSlotType(vm, 2, vRANGE))
+        break;
+      Range* r = (Range*) AS_OBJ(ARG(2));
 
       if ((floor(r->from) != r->from) || (floor(r->to) != r->to)) {
         SetRuntimeError(vm, "Expected a whole number.");
         break;
       }
 
-      first = (int32_t)r->from;
-      last = (int32_t)r->to;
-      if (first < 0) first = count + first;
-      if (last < 0) last = count + last;
+      first = (int32_t) r->from;
+      last = (int32_t) r->to;
+      if (first < 0)
+        first = count + first;
+      if (last < 0)
+        last = count + last;
       if (last < first) {
         int32_t tmp = last;
         last = first;
         first = tmp;
       }
 
-      if (first < 0 || (uint32_t)last >= count) {
+      if (first < 0 || (uint32_t) last >= count) {
         SetRuntimeError(vm, "List index out of bound.");
         break;
       }
@@ -264,7 +283,8 @@ function(algorithmReverse,
       Var tmp = list->elements.data[first];
       list->elements.data[first] = list->elements.data[last];
       list->elements.data[last] = tmp;
-      last--; first++;
+      last--;
+      first++;
     }
 
   } while (false);
@@ -286,33 +306,32 @@ static void _callfn(VM* vm, nativeFn fn) {
   vm->fiber->sp -= 1;
 }
 
-function(listSort,
-  "List.sort([cmp:Closure, reverse=false]) -> List",
-  "Sort the [list] by TimSort algorithm.") {
-  if (!CheckArgcRange(vm, GetArgc(vm), 0, 2)) return;
+saynaa_function(listSort, "List.sort([cmp:Closure, reverse=false]) -> List",
+                "Sort the [list] by TimSort algorithm.") {
+  if (!CheckArgcRange(vm, GetArgc(vm), 0, 2))
+    return;
   _callfn(vm, algorithmSort);
 }
 
-function(listIsSorted,
-  "List.isSorted([cmp:Closure, reverse=false]) -> Bool",
-  "Checks to see whether [list] is already sorted.") {
-  if (!CheckArgcRange(vm, GetArgc(vm), 0, 2)) return;
+saynaa_function(listIsSorted, "List.isSorted([cmp:Closure, reverse=false]) -> Bool",
+                "Checks to see whether [list] is already sorted.") {
+  if (!CheckArgcRange(vm, GetArgc(vm), 0, 2))
+    return;
   _callfn(vm, algorithmIsSorted);
 }
 
-function(listBinarySearch,
-  "List.binarySearch(key:Var[, cmp:Closure]) -> Number",
-  "Binary search for key in [list]. "
-  "Return the index of key or -1 if not found. "
-  "Assumes that list is sorted.") {
-  if (!CheckArgcRange(vm, GetArgc(vm), 1, 2)) return;
+saynaa_function(listBinarySearch, "List.binarySearch(key:Var[, cmp:Closure]) -> Number",
+                "Binary search for key in [list]. "
+                "Return the index of key or -1 if not found. "
+                "Assumes that list is sorted.") {
+  if (!CheckArgcRange(vm, GetArgc(vm), 1, 2))
+    return;
   _callfn(vm, algorithmBinarySearch);
 }
 
-function(listReverse,
-  "List.reverse([range:Range]) -> List",
-  "Reverse the [list].") {
-  if (!CheckArgcRange(vm, GetArgc(vm), 0, 1)) return;
+saynaa_function(listReverse, "List.reverse([range:Range]) -> List", "Reverse the [list].") {
+  if (!CheckArgcRange(vm, GetArgc(vm), 0, 1))
+    return;
   _callfn(vm, algorithmReverse);
 }
 

@@ -3,25 +3,22 @@
  * Distributed Under The MIT License
  */
 
-// TODO: i am using linux don't have macos,
-// i think linux and macos use the same readline,
-// if you confirm add macro defined(__APPLE__) otherwise do this right
-
 #if defined(__linux) && defined(READLINE)
+#include "saynaa_readline.h"
 
-#include <readline/readline.h>
 #include <readline/history.h>
+#include <readline/readline.h>
 #include <readline/tilde.h>
 
 // Array of character names
-char *character_names[] = {"print(", "input(", "exit();", NULL};
+char* character_names[] = {"print(", "input(", "exit();", NULL};
 
 // Generator function for character name completion
-char *character_name_generator(const char *text, int state) {
+char* character_name_generator(const char* text, int state) {
   // Variables to keep track of list and length
   static int list_index, len;
   // Name of the character
-  char *name;
+  char* name;
 
   // If it's the first call
   if (!state) {
@@ -45,15 +42,15 @@ char *character_name_generator(const char *text, int state) {
 }
 
 // Completion function for character names
-char **character_name_completion(const char *text, int start, int end) {
+char** character_name_completion(const char* text, int start, int end) {
   // Signal completion is over
   rl_attempted_completion_over = 1;
   // Call the completion generator
   return rl_completion_matches(text, character_name_generator);
 }
 
-char* saynaa_readline(char *listening) {
-  rl_readline_name="saynaa";
+char* saynaa_readline(const char* listening) {
+  rl_readline_name = "saynaa";
   // Enable history
   using_history();
 
@@ -67,7 +64,7 @@ char* saynaa_readline(char *listening) {
   // Set the completion function
   rl_attempted_completion_function = character_name_completion;
 
-  char *input = readline(listening);
+  char* input = readline(listening);
 
   if (input[0] != '\0')
     add_history(input);
@@ -75,7 +72,7 @@ char* saynaa_readline(char *listening) {
   return input;
 }
 
-void saynaa_saveline(char *input) {
+void saynaa_saveline(const char* input) {
   if (input[0] == '\0')
     return;
 
