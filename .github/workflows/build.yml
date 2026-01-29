@@ -3,7 +3,6 @@ name: CI
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  ## Check for trailing white space, line width, tabs, etc.
   style-check:
     runs-on: ubuntu-latest
     steps:
@@ -11,7 +10,6 @@ jobs:
       - name: Run static checks.
         run: python3 util/check.py
 
-  ## Compile and run test on linux.
   linux-build:
     runs-on: ubuntu-latest
     steps:
@@ -29,35 +27,37 @@ jobs:
           name: saynaa-linux
           path: saynaa
 
-  ## Compile and run tests on windows.
   windows-build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install PCRE2 via vcpkg
+      - name: Install PCRE2 (Regex Dependency)
         run: |
+          # 1. Install the static library
           vcpkg install pcre2:x64-windows-static
-          # Create the folder structure build.bat expects
-          mkdir -p deps/pcre2/include
-          mkdir -p deps/pcre2/lib
-          # Copy headers and static lib into the project deps folder
-          cp $VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/include/pcre2* deps/pcre2/include/
-          cp $VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/lib/pcre2-8-static.lib deps/pcre2/lib/
-        shell: bash
+          
+          # 2. Create the deps folder structure
+          New-Item -ItemType Directory -Force -Path deps/pcre2/include
+          New-Item -ItemType Directory -Force -Path deps/pcre2/lib
+          
+          # 3. Copy files using PowerShell (safer with Windows paths)
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          Copy-Item "$vcpkgRoot/installed/x64-windows-static/include/pcre2*" -Destination "deps/pcre2/include/"
+          Copy-Item "$vcpkgRoot/installed/x64-windows-static/lib/pcre2-8-static.lib" -Destination "deps/pcre2/lib/"
+        shell: pwsh
 
-      - name: Run build batch script
+      - name: Run build batch script.
         run: cmd /c build.bat
 
-      - name: Run tests
-        run: python3 util/test.py
+      - name: Run tests.
+        run: python util/test.py
         
       - uses: actions/upload-artifact@v4
         with:
           name: saynaa-windows
           path: saynaa.exe
 
-  ## Compile and run tests on macos.
   macos-build:
     runs-on: macos-latest
     steps:
