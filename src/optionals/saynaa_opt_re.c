@@ -9,27 +9,168 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 
-/* Stubs for platforms without POSIX regex.h (Windows) */
+/* * Windows Implementation using PCRE2
+ * Note: Define PCRE2_STATIC if linking against the static library.
+ */
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+#include <string.h>
+
+// Helper to convert PCRE2 errors to VM errors
+void setRegexError(VM* vm, int errornumber) {
+  PCRE2_UCHAR buffer[256];
+  pcre2_get_error_message(errornumber, buffer, sizeof(buffer));
+  SetRuntimeErrorFmt(vm, "Regex Error: %s", (char*) buffer);
+}
+
 saynaa_function(_reMatch, "re.match(pattern: String, text: String) -> Bool",
-                "Unavailable on Windows.") {
-  SetRuntimeErrorFmt(
-      vm,
-      "Regex module requires POSIX regex.h, which is unavailable on Windows.");
+                "Returns true if the pattern matches anywhere in the string.") {
+  const char* pattern;
+  const char* text;
+  if (!ValidateSlotString(vm, 1, &pattern, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &text, NULL))
+    return;
+
+  int errornumber;
+  PCRE2_SIZE erroroffset;
+  pcre2_code* re = pcre2_compile((PCRE2_SPTR) pattern, PCRE2_ZERO_TERMINATED, 0,
+                                 &errornumber, &erroroffset, NULL);
+
+  if (re == NULL) {
+    setRegexError(vm, errornumber);
+    return;
+  }
+
+  pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+  int rc = pcre2_match(re, (PCRE2_SPTR) text, (PCRE2_SIZE) strlen(text), 0, 0,
+                       match_data, NULL);
+
+  setSlotBool(vm, 0, rc >= 0);
+
+  pcre2_match_data_free(match_data);
+  pcre2_code_free(re);
 }
 
 saynaa_function(_reSearch, "re.search(pattern: String, text: String) -> String|Null",
-                "Unavailable on Windows.") {
-  SetRuntimeErrorFmt(vm, "Regex module unavailable on Windows.");
+                "Returns the first matching substring.") {
+  const char* pattern;
+  const char* text;
+  if (!ValidateSlotString(vm, 1, &pattern, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &text, NULL))
+    return;
+
+  int errornumber;
+  PCRE2_SIZE erroroffset;
+  pcre2_code* re = pcre2_compile((PCRE2_SPTR) pattern, PCRE2_ZERO_TERMINATED, 0,
+                                 &errornumber, &erroroffset, NULL);
+  if (!re) {
+    setRegexError(vm, errornumber);
+    return;
+  }
+
+  pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+  int rc = pcre2_match(re, (PCRE2_SPTR) text, strlen(text), 0, 0, match_data, NULL);
+
+  if (rc >= 0) {
+    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+    setSlotStringLength(vm, 0, text + ovector[0], ovector[1] - ovector[0]);
+  } else {
+    setSlotNull(vm, 0);
+  }
+
+  pcre2_match_data_free(match_data);
+  pcre2_code_free(re);
 }
 
 saynaa_function(_reExtract, "re.extract(pattern: String, text: String) -> List|Null",
-                "Unavailable on Windows.") {
-  SetRuntimeErrorFmt(vm, "Regex module unavailable on Windows.");
+                "Returns a list of captured groups.") {
+  const char* pattern;
+  const char* text;
+  if (!ValidateSlotString(vm, 1, &pattern, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &text, NULL))
+    return;
+
+  int errornumber;
+  PCRE2_SIZE erroroffset;
+  pcre2_code* re = pcre2_compile((PCRE2_SPTR) pattern, PCRE2_ZERO_TERMINATED, 0,
+                                 &errornumber, &erroroffset, NULL);
+  if (!re) {
+    setRegexError(vm, errornumber);
+    return;
+  }
+
+  pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+  int rc = pcre2_match(re, (PCRE2_SPTR) text, strlen(text), 0, 0, match_data, NULL);
+
+  if (rc >= 0) {
+    NewList(vm, 0);
+    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+    for (int i = 0; i < rc; i++) {
+      setSlotStringLength(vm, 1, text + ovector[2 * i],
+                          ovector[2 * i + 1] - ovector[2 * i]);
+      ListInsert(vm, 0, -1, 1);
+    }
+  } else {
+    setSlotNull(vm, 0);
+  }
+
+  pcre2_match_data_free(match_data);
+  pcre2_code_free(re);
 }
 
 saynaa_function(_reFindAll, "re.findall(pattern: String, text: String) -> List",
-                "Unavailable on Windows.") {
-  SetRuntimeErrorFmt(vm, "Regex module unavailable on Windows.");
+                "Returns all non-overlapping matches.") {
+  const char* pattern;
+  const char* text;
+  if (!ValidateSlotString(vm, 1, &pattern, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &text, NULL))
+    return;
+
+  int errornumber;
+  PCRE2_SIZE erroroffset;
+  pcre2_code* re = pcre2_compile((PCRE2_SPTR) pattern, PCRE2_ZERO_TERMINATED, 0,
+                                 &errornumber, &erroroffset, NULL);
+  if (!re) {
+    setRegexError(vm, errornumber);
+    return;
+  }
+
+  NewList(vm, 0);
+  pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
+  PCRE2_SIZE offset = 0;
+  PCRE2_SIZE len = strlen(text);
+
+  while (offset < len) {
+    int rc = pcre2_match(re, (PCRE2_SPTR) text, len, offset, 0, match_data, NULL);
+    if (rc < 0)
+      break;
+
+    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+
+    // If groups exist, logic mirrors your Linux code (List of groups or single string)
+    if (rc == 1) {
+      setSlotStringLength(vm, 1, text + ovector[0], ovector[1] - ovector[0]);
+      ListInsert(vm, 0, -1, 1);
+    } else {
+      NewList(vm, 1);
+      for (int i = 1; i < rc; i++) {
+        setSlotStringLength(vm, 2, text + ovector[2 * i],
+                            ovector[2 * i + 1] - ovector[2 * i]);
+        ListInsert(vm, 1, -1, 2);
+      }
+      ListInsert(vm, 0, -1, 1);
+    }
+    offset = ovector[1];
+    if (ovector[0] == ovector[1])
+      offset++; // Avoid infinite loop on empty matches
+  }
+
+  pcre2_match_data_free(match_data);
+  pcre2_code_free(re);
 }
 
 #else /* POSIX builds (Linux, macOS, BSD) */
