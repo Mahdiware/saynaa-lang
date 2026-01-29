@@ -11,7 +11,6 @@ set "project_root=%~dp0"
 :: ----------------------------------------------------------------------------
 :: DEPENDENCIES
 :: ----------------------------------------------------------------------------
-:: These paths are populated by the GitHub Action PowerShell step
 set "pcre2_path=%project_root%deps\pcre2"
 set "pcre2_inc=/I"%pcre2_path%\include""
 set "pcre2_lib="%pcre2_path%\lib\pcre2-8-static.lib""
@@ -75,7 +74,7 @@ if not exist "!target_dir!saynaa\" mkdir "!target_dir!saynaa\"
 if not exist "!target_dir!cli\" mkdir "!target_dir!cli\"
 if not exist "!target_dir!lib\" mkdir "!target_dir!lib\"
 
-:: 1. Compile Core (Compiler, VM, Optionals)
+:: 1. Compile Core
 cd /d "!target_dir!saynaa"
 cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! ^
     "!project_root!src\compiler\*.c" ^
@@ -95,7 +94,7 @@ cd /d "!target_dir!cli"
 cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! "!project_root!src\cli\*.c"
 if errorlevel 1 goto :FAIL
 
-:: 4. Final Link to Executable
+:: 4. Final Link
 cd /d "!project_root!"
 cl /nologo !add_defines! "!target_dir!cli\*.obj" "!mylib!" !pcre2_lib! /Fe"saynaa.exe"
 if errorlevel 1 goto :FAIL
