@@ -1,4 +1,5 @@
 name: CI
+
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
@@ -6,7 +7,7 @@ jobs:
   style-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run static checks.
         run: |
           python3 util/check.py
@@ -15,7 +16,7 @@ jobs:
   linux-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run the Makefile.
         run: |
           make all
@@ -23,7 +24,7 @@ jobs:
         run: |
           python3 util/test.py
         working-directory: ./
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: saynaa-linux
           path: |
@@ -33,7 +34,7 @@ jobs:
   windows-build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run build batch script.
         run: |
           cmd /c build.bat
@@ -41,7 +42,7 @@ jobs:
         run: |
           python3 util/test.py
         working-directory: ./
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: saynaa-windows
           path: |
@@ -51,7 +52,7 @@ jobs:
   macos-build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run the Makefile.
         run: |
           make all
@@ -59,7 +60,7 @@ jobs:
         run: |
           python3 util/test.py
         working-directory: ./
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: saynaa-mac
           path: |
