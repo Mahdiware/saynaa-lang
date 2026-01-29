@@ -3,16 +3,14 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_DEBUG__
-#define __SAYNAA_DEBUG__
+#pragma once
 
 #include "../shared/saynaa_internal.h"
 #include "../shared/saynaa_value.h"
 
 // Pretty print compile time error.
-void reportCompileTimeError(VM* vm, const char* path, int line,
-                            const char* source, const char* at, int length,
-                            const char* fmt, va_list args);
+void reportCompileTimeError(VM* vm, const char* path, int line, const char* source,
+                            const char* at, int length, const char* fmt, va_list args);
 
 // Pretty print runtime error.
 void reportRuntimeError(VM* vm, Fiber* fiber);
@@ -25,5 +23,3 @@ void dumpGlobalValues(VM* vm);
 
 // Dump the current (top most) stack call frame to the stdout.
 void dumpStackFrame(VM* vm);
-
-#endif // __SAYNAA_DEBUG__

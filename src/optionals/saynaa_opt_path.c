@@ -10,33 +10,34 @@
 // check if it's MSVC (and tcc in windows) or not for posix headers and
 // Refactor the bellow macro includes.
 
-#include "thirdparty/cwalk/cwalk.h"
 #include "thirdparty/cwalk/cwalk.c"
+#include "thirdparty/cwalk/cwalk.h"
 
 #include <sys/stat.h>
 
 #ifdef _WIN32
-  #include <windows.h>
+#include <windows.h>
 #endif
 
 #if defined(_MSC_VER) || (defined(_WIN32) && defined(__TINYC__))
-  #include <direct.h>
-  #include <io.h>
+#include "thirdparty/dirent/dirent.h" //<< AMALG_INLINE >>
 
-  #include "thirdparty/dirent/dirent.h"  //<< AMALG_INLINE >>
+#include <direct.h>
+#include <io.h>
 
-  // access() function flag defines for windows.
-  // Reference :https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/access-waccess?view=msvc-170#remarks
-  #define F_OK 0
-  #define W_OK 2
-  #define R_OK 4
+// access() function flag defines for windows.
+// Reference
+// :https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/access-waccess?view=msvc-170#remarks
+#define F_OK 0
+#define W_OK 2
+#define R_OK 4
 
-  #define access _access
-  #define getcwd _getcwd
+#define access _access
+#define getcwd _getcwd
 
 #else
-  #include <dirent.h>
-  #include <unistd.h>
+#include <dirent.h>
+#include <unistd.h>
 #endif
 
 // The maximum path size that default import system supports
@@ -64,19 +65,20 @@ static inline bool pathIsDir(const char* path);
 // [path] and [buff] should be char array with size of FILENAME_MAX. This
 // function will write path + ext to the buff. If the path exists it'll return
 // true.
-static inline size_t checkImportExists(char* path, const char* ext,
-                                       char* buff) {
+static inline size_t checkImportExists(char* path, const char* ext, char* buff) {
   size_t path_size = strlen(path);
   size_t ext_size = strlen(ext);
 
   // If the path size is too large we're bailing out.
-  if (path_size + ext_size + 1 >= FILENAME_MAX) return 0;
+  if (path_size + ext_size + 1 >= FILENAME_MAX)
+    return 0;
 
   // Now we're safe to use strcpy.
   strcpy(buff, path);
   strcpy(buff + path_size, ext);
 
-  if (!pathIsFile(buff)) return 0;
+  if (!pathIsFile(buff))
+    return 0;
   return path_size + ext_size;
 }
 
@@ -89,32 +91,28 @@ static inline size_t checkImportExists(char* path, const char* ext,
 static char* tryImportPaths(VM* vm, char* path, char* buff) {
   size_t path_size = 0;
   static const char* EXT[] = {
-    // Path can already end with '.sa' or anything when running from
-    // RunFile() so it's mandatory for the bellow empty string.
-    ".sa",
-    "",
+      // Path can already end with '.sa' or anything when running from
+      // RunFile() so it's mandatory for the bellow empty string.
+      ".sa",        "",
 
 #ifdef _WIN32
-    "\\_init.sa",
+      "\\_init.sa",
 #else
-    "/_init.sa",
+      "/_init.sa",
 #endif
 
 #ifndef NO_DL
-  #if defined(_WIN32)
-    ".dll",
-    "\\_init.dll",
+#if defined(_WIN32)
+      ".dll",       "\\_init.dll",
 
-  #elif defined(__APPLE__)
-    ".dylib",
-    "/_init.dylib",
+#elif defined(__APPLE__)
+      ".dylib",     "/_init.dylib",
 
-  #elif defined(__linux__)
-    ".so",
-    "/_init.so",
-  #endif
+#elif defined(__linux__)
+      ".so",        "/_init.so",
 #endif
-    NULL, // Sentinal to mark the array end.
+#endif
+      NULL, // Sentinal to mark the array end.
   };
 
   for (const char** ext = EXT; *ext != NULL; ext++) {
@@ -133,7 +131,6 @@ static char* tryImportPaths(VM* vm, char* path, char* buff) {
 
 // Implementation import path resolving function.
 char* pathResolveImport(VM* vm, const char* from, const char* path) {
-
   // Buffers to store intermediate path results.
   char buff1[FILENAME_MAX];
   char buff2[FILENAME_MAX];
@@ -141,7 +138,6 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
   // If the path is absolute, Just normalize and return it. Resolve path will
   // only be absolute when the path is provided from the command line.
   if (cwk_path_is_absolute(path)) {
-
     // buff1 = normalized path. +1 for null terminator.
     cwk_path_normalize(path, buff1, sizeof(buff1));
 
@@ -171,7 +167,8 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
   if (last != '/' && last != '\\') {
     size_t from_dir_length = 0;
     cwk_path_get_dirname(buff1, &from_dir_length);
-    if (from_dir_length == 0) return NULL;
+    if (from_dir_length == 0)
+      return NULL;
     buff1[from_dir_length] = '\0';
   }
 
@@ -190,19 +187,22 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
 
 static inline bool pathIsFile(const char* path) {
   struct stat path_stat;
-  if (stat(path, &path_stat)) return false; // Error: might be path not exists.
+  if (stat(path, &path_stat))
+    return false; // Error: might be path not exists.
   return (path_stat.st_mode & S_IFMT) == S_IFREG;
 }
 
 static inline bool pathIsDir(const char* path) {
   struct stat path_stat;
-  if (stat(path, &path_stat)) return false; // Error: might be path not exists.
+  if (stat(path, &path_stat))
+    return false; // Error: might be path not exists.
   return (path_stat.st_mode & S_IFMT) == S_IFDIR;
 }
 
 static inline time_t pathMtime(const char* path) {
   struct stat path_stat;
-  if (stat(path, &path_stat)) return 0; // Error: might be path not exists.
+  if (stat(path, &path_stat))
+    return 0; // Error: might be path not exists.
   return path_stat.st_mtime;
 }
 
@@ -211,7 +211,6 @@ static inline bool pathIsExists(const char* path) {
 }
 
 static inline size_t pathAbs(const char* path, char* buff, size_t buffsz) {
-
   char cwd[MAX_PATH_LEN];
 
   if (getcwd(cwd, sizeof(cwd)) == NULL) {
@@ -225,9 +224,7 @@ static inline size_t pathAbs(const char* path, char* buff, size_t buffsz) {
 /* PATH MODULE FUNCTIONS                                                     */
 /*****************************************************************************/
 
-function(_pathGetCWD,
-  "path.getcwd() -> String",
-  "Returns the current working directory.") {
+saynaa_function(_pathGetCWD, "path.getcwd() -> String", "Returns the current working directory.") {
   char cwd[MAX_PATH_LEN];
   if (getcwd(cwd, sizeof(cwd)) == NULL) {
     // TODO: Handle error.
@@ -235,24 +232,26 @@ function(_pathGetCWD,
   setSlotString(vm, 0, cwd);
 }
 
-function(_pathAbspath,
-  "path.abspath(path:String) -> String",
-  "Returns the absolute path of the [path].") {
+saynaa_function(_pathAbspath, "path.abspath(path:String) -> String",
+                "Returns the absolute path of the [path].") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   char abspath[MAX_PATH_LEN];
   uint32_t len = (uint32_t) pathAbs(path, abspath, sizeof(abspath));
   setSlotStringLength(vm, 0, abspath, len);
 }
 
-function(_pathRelpath,
-  "path.relpath(path:String, from:String) -> String",
-  "Returns the relative path of the [path] argument from the [from] "
-  "directory.") {
-  const char* path, * from;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
-  if (!ValidateSlotString(vm, 2, &from, NULL)) return;
+saynaa_function(
+    _pathRelpath, "path.relpath(path:String, from:String) -> String",
+    "Returns the relative path of the [path] argument from the [from] "
+    "directory.") {
+  const char *path, *from;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
+  if (!ValidateSlotString(vm, 2, &from, NULL))
+    return;
 
   char abs_path[MAX_PATH_LEN];
   pathAbs(path, abs_path, sizeof(abs_path));
@@ -261,21 +260,21 @@ function(_pathRelpath,
   pathAbs(from, abs_from, sizeof(abs_from));
 
   char result[MAX_PATH_LEN];
-  uint32_t len = (uint32_t) cwk_path_get_relative(abs_from, abs_path,
-                                                  result, sizeof(result));
+  uint32_t len = (uint32_t) cwk_path_get_relative(abs_from, abs_path, result,
+                                                  sizeof(result));
   setSlotStringLength(vm, 0, result, len);
 }
 
-function(_pathJoin,
-  "path.join(...) -> String",
-  "Joins path with path seperator and return it. The maximum count of paths "
-  "which can be joined for a call is " TOSTRING(MAX_JOIN_PATHS) ".") {
+saynaa_function(
+    _pathJoin, "path.join(...) -> String",
+    "Joins path with path seperator and return it. The maximum count of paths "
+    "which can be joined for a call is " TOSTRING(MAX_JOIN_PATHS) ".") {
   const char* paths[MAX_JOIN_PATHS + 1]; // +1 for NULL.
   int argc = GetArgc(vm);
 
   if (argc > MAX_JOIN_PATHS) {
-    SetRuntimeError(vm, "Cannot join more than " STRINGIFY(MAX_JOIN_PATHS)
-                           "paths.");
+    SetRuntimeError(
+        vm, "Cannot join more than " STRINGIFY(MAX_JOIN_PATHS) "paths.");
     return;
   }
 
@@ -285,102 +284,102 @@ function(_pathJoin,
   paths[argc] = NULL;
 
   char result[MAX_PATH_LEN];
-  uint32_t len = (uint32_t) cwk_path_join_multiple(paths, result,
-                                                   sizeof(result));
+  uint32_t len = (uint32_t) cwk_path_join_multiple(paths, result, sizeof(result));
   setSlotStringLength(vm, 0, result, len);
 }
 
-function(_pathNormpath,
-  "path.normpath(path:String) -> String",
-  "Returns the normalized path of the [path].") {
+saynaa_function(_pathNormpath, "path.normpath(path:String) -> String",
+                "Returns the normalized path of the [path].") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   char result[MAX_PATH_LEN];
   uint32_t len = (uint32_t) cwk_path_normalize(path, result, sizeof(result));
   setSlotStringLength(vm, 0, result, len);
 }
 
-function(_pathBaseName,
-  "path.basename(path:String) -> String",
-  "Returns the final component for the path") {
+saynaa_function(_pathBaseName, "path.basename(path:String) -> String",
+                "Returns the final component for the path") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   const char* base_name;
   size_t length;
   cwk_path_get_basename(path, &base_name, &length);
-  setSlotStringLength(vm, 0, base_name, (uint32_t)length);
+  setSlotStringLength(vm, 0, base_name, (uint32_t) length);
 }
 
-function(_pathDirName,
-  "path.dirname(path:String) -> String",
-  "Returns the directory of the path.") {
+saynaa_function(_pathDirName, "path.dirname(path:String) -> String",
+                "Returns the directory of the path.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   size_t length;
   cwk_path_get_dirname(path, &length);
-  setSlotStringLength(vm, 0, path, (uint32_t)length);
+  setSlotStringLength(vm, 0, path, (uint32_t) length);
 }
 
-function(_pathIsPathAbs,
-  "path.isabspath(path:String) -> Bool",
-  "Returns true if the path is absolute otherwise false.") {
+saynaa_function(_pathIsPathAbs, "path.isabspath(path:String) -> Bool",
+                "Returns true if the path is absolute otherwise false.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   setSlotBool(vm, 0, cwk_path_is_absolute(path));
 }
 
-function(_pathGetExtension,
-  "path.getext(path:String) -> String",
-  "Returns the file extension of the path.") {
+saynaa_function(_pathGetExtension, "path.getext(path:String) -> String",
+                "Returns the file extension of the path.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
 
   const char* ext;
   size_t length;
   if (cwk_path_get_extension(path, &ext, &length)) {
-    setSlotStringLength(vm, 0, ext, (uint32_t)length);
+    setSlotStringLength(vm, 0, ext, (uint32_t) length);
   } else {
     setSlotStringLength(vm, 0, NULL, 0);
   }
 }
 
-function(_pathExists,
-  "path.exists(path:String) -> String",
-  "Returns true if the file exists.") {
+saynaa_function(_pathExists, "path.exists(path:String) -> String",
+                "Returns true if the file exists.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
   setSlotBool(vm, 0, pathIsExists(path));
 }
 
-function(_pathIsFile,
-  "path.isfile(path:String) -> Bool",
-  "Returns true if the path is a file.") {
+saynaa_function(_pathIsFile, "path.isfile(path:String) -> Bool",
+                "Returns true if the path is a file.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
   setSlotBool(vm, 0, pathIsFile(path));
 }
 
-function(_pathIsDir,
-  "path.isdir(path:String) -> Bool",
-  "Returns true if the path is a directory.") {
+saynaa_function(_pathIsDir, "path.isdir(path:String) -> Bool",
+                "Returns true if the path is a directory.") {
   const char* path;
-  if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &path, NULL))
+    return;
   setSlotBool(vm, 0, pathIsDir(path));
 }
 
-function(_pathListDir,
-  "path.listdir(path:String='.') -> List",
-  "Returns all the entries in the directory at the [path].") {
-
+saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
+                "Returns all the entries in the directory at the [path].") {
   int argc = GetArgc(vm);
-  if (!CheckArgcRange(vm, argc, 0, 1)) return;
+  if (!CheckArgcRange(vm, argc, 0, 1))
+    return;
 
   const char* path = ".";
-  if (argc == 1) if (!ValidateSlotString(vm, 1, &path, NULL)) return;
+  if (argc == 1)
+    if (!ValidateSlotString(vm, 1, &path, NULL))
+      return;
 
   if (!pathIsExists(path)) {
     SetRuntimeErrorFmt(vm, "Path '%s' does not exists.", path);
@@ -395,11 +394,14 @@ function(_pathListDir,
   if (dirstream) {
     struct dirent* dir;
     while ((dir = readdir(dirstream)) != NULL) {
-      if (!strcmp(dir->d_name, ".")) continue;
-      if (!strcmp(dir->d_name, "..")) continue;
+      if (!strcmp(dir->d_name, "."))
+        continue;
+      if (!strcmp(dir->d_name, ".."))
+        continue;
 
       setSlotString(vm, 1, dir->d_name);
-      if (!ListInsert(vm, 0, -1, 1)) return;
+      if (!ListInsert(vm, 0, -1, 1))
+        return;
     }
     closedir(dirstream);
   }
@@ -425,10 +427,12 @@ void _registerSearchPaths(VM* vm) {
   }
 
   char buff[MAX_PATH_LEN];
-  if (!osGetExeFilePath(buff, MAX_PATH_LEN)) return;
+  if (!osGetExeFilePath(buff, MAX_PATH_LEN))
+    return;
   size_t length;
   cwk_path_get_dirname(buff, &length);
-  if (length == 0) return;
+  if (length == 0)
+    return;
 
   // Add path separator. Otherwise AddSearchPath will fail an assertion.
   char last = buff[length - 1];
@@ -445,24 +449,23 @@ void _registerSearchPaths(VM* vm) {
 }
 
 void registerModulePath(VM* vm) {
-
   _registerSearchPaths(vm);
 
   Handle* path = NewModule(vm, "path");
 
-  REGISTER_FN(path, "getcwd",    _pathGetCWD,       0);
-  REGISTER_FN(path, "abspath",   _pathAbspath,      1);
-  REGISTER_FN(path, "relpath",   _pathRelpath,      2);
-  REGISTER_FN(path, "join",      _pathJoin,        -1);
-  REGISTER_FN(path, "normpath",  _pathNormpath,     1);
-  REGISTER_FN(path, "basename",  _pathBaseName,     1);
-  REGISTER_FN(path, "dirname",   _pathDirName,      1);
-  REGISTER_FN(path, "isabspath", _pathIsPathAbs,    1);
-  REGISTER_FN(path, "getext",    _pathGetExtension, 1);
-  REGISTER_FN(path, "exists",    _pathExists,       1);
-  REGISTER_FN(path, "isfile",    _pathIsFile,       1);
-  REGISTER_FN(path, "isdir",     _pathIsDir,        1);
-  REGISTER_FN(path, "listdir",   _pathListDir,     -1);
+  REGISTER_FN(path, "getcwd", _pathGetCWD, 0);
+  REGISTER_FN(path, "abspath", _pathAbspath, 1);
+  REGISTER_FN(path, "relpath", _pathRelpath, 2);
+  REGISTER_FN(path, "join", _pathJoin, -1);
+  REGISTER_FN(path, "normpath", _pathNormpath, 1);
+  REGISTER_FN(path, "basename", _pathBaseName, 1);
+  REGISTER_FN(path, "dirname", _pathDirName, 1);
+  REGISTER_FN(path, "isabspath", _pathIsPathAbs, 1);
+  REGISTER_FN(path, "getext", _pathGetExtension, 1);
+  REGISTER_FN(path, "exists", _pathExists, 1);
+  REGISTER_FN(path, "isfile", _pathIsFile, 1);
+  REGISTER_FN(path, "isdir", _pathIsDir, 1);
+  REGISTER_FN(path, "listdir", _pathListDir, -1);
 
   registerModule(vm, path);
   releaseHandle(vm, path);

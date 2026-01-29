@@ -4,8 +4,8 @@
 To install, simply execute the commands given below.
 
 ```bash
-  git clone https://github.com/saynaa-lang/saynaa.git
-  cd saynaa
+  git clone https://github.com/mahdiware/saynaa-lang.git
+  cd saynaa-lang
 ```
 
 ### Makefile

@@ -3,65 +3,51 @@
  * Distributed Under The MIT License
  */
 
-#include <stdio.h>
 #include "saynaa.h"
 
-// FIXME: Everything below here is temporary and for testing.
+#include "../utils/saynaa_utils.h"
 
-#if defined(__GNUC__)
-  #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
-  #pragma GCC diagnostic ignored "-Wunused-parameter"
-#elif defined(__clang__)
-  #pragma clang diagnostic ignored "-Wint-to-pointer-cast"
-  #pragma clang diagnostic ignored "-Wunused-parameter"
-#elif defined(_MSC_VER)
-  #pragma warning(disable:26812)
-#endif
+#include <stdio.h>
 
 #define _ARGPARSE_IMPL
 #include "argparse.h"
 #undef _ARGPARSE_IMPL
 
-// FIXME:
-// Included for isatty(). This should be moved to somewhere. and I'm not sure
-// about the portability of these headers. and isatty() function.
+// FIXME: Refactor `isatty` logic to a portable utility module.
+// Verify portability of `<unistd.h>` and `<io.h>` across target platforms.
 #ifdef _WIN32
-  #include <Windows.h>
-  #include <io.h>
-  #define isatty _isatty
-  #define fileno _fileno
+#include <Windows.h>
+#include <io.h>
+#define isatty _isatty
+#define fileno _fileno
 #else
-  #include <unistd.h>
+#include <unistd.h>
 #endif
 
 #if defined(__linux__)
-  #include <signal.h>
-  static bool typeAgain = 0;
+#include <signal.h>
+static bool typeAgain = 0;
 
-  void signalHandler(int signum)
-  {
-    if(!typeAgain){
-      printf("\n\aTo exit, press ^C again or ^D or type exit();\n");
-      typeAgain++;
-      return;
-    }
-    // You can perform additional cleanup or actions here if needed
-    // ...
-    // Exit the program
-    exit(0);
+void signalHandler(int signum) {
+  if (!typeAgain) {
+    printf("\n\aTo exit, press ^C again or ^D or type exit();\n");
+    typeAgain++;
+    return;
   }
+  // Perform necessary cleanup here if needed.
+  // Terminate the process.
+  exit(0);
+}
 #endif
 
-// Create new VM and set it's configuration.
-static VM* intializeVM(int argc, const char** argv) {
-
+// Initialize a new VM instance with default configuration.
+static VM* initializeVM(int argc, const char** argv) {
   Configuration config = NewConfiguration();
   config.argument.argc = argc;
   config.argument.argv = argv;
 
-// FIXME:
-// Refactor and make it portable. Maybe custom is_tty() function?.
-// Windows isatty depricated -- use _isatty.
+  // FIXME: Implement a portable `is_tty()` wrapper.
+  // Note: Windows deprecates `isatty` in favor of `_isatty`.
   if (!!isatty(fileno(stderr))) {
 #ifdef _WIN32
     DWORD outmode = 0;
@@ -77,43 +63,39 @@ static VM* intializeVM(int argc, const char** argv) {
 }
 
 int main(int argc, const char** argv) {
-
-  // Register the signal handler
-  #if defined(__linux__)
-  // signal(SIGINT, signalHandler);
-  // signal(SIGTSTP, signalHandler);
-  // signal(SIGSEGV, signalHandler);
-  #endif
+  // Register signal handlers for graceful termination.
+#if defined(__linux__)
+  signal(SIGINT, signalHandler);
+  signal(SIGTSTP, signalHandler);
+  signal(SIGSEGV, signalHandler);
+#endif
   // Parse command line arguments.
 
   const char* usage[] = {
-    "saynaa ... [-c cmd | file] ...",
-    NULL,
+      "saynaa ... [-c cmd | file] ...",
+      NULL,
   };
 
   nanotime_t tstart, tend;
   const char* cmd = NULL;
-  int debug = false, help = false, quiet = false,
-      version = false, millisecond = false;
+  int debug = false, help = false, quiet = false, version = false, millisecond = false;
   struct argparse_option cli_opts[] = {
-      OPT_STRING('c', "cmd", (void*)&cmd,
-        "Evaluate and run the passed string.", NULL, 0, 0),
+      OPT_STRING('c', "cmd", (void*) &cmd, "Evaluate and run the passed string.", NULL, 0, 0),
 
-      OPT_BOOLEAN('d', "debug", (void*)&debug,
-        "Compile and run the debug version.", NULL, 0, 0),
+      OPT_BOOLEAN('d', "debug", (void*) &debug,
+                  "Compile and run the debug version.", NULL, 0, 0),
 
-      OPT_BOOLEAN('h', "help",  (void*)&help,
-        "Prints this help message and exit.", NULL, 0, 0),
+      OPT_BOOLEAN('h', "help", (void*) &help,
+                  "Prints this help message and exit.", NULL, 0, 0),
 
-      OPT_BOOLEAN('q', "quiet", (void*)&quiet,
-        "Don't print version and copyright statement on REPL startup.",
-        NULL, 0, 0),
+      OPT_BOOLEAN('q', "quiet", (void*) &quiet,
+                  "Don't print version and copyright "
+                  "statement on REPL startup.",
+                  NULL, 0, 0),
 
-      OPT_BOOLEAN('v', "version", &version,
-        "Print version and exit.", NULL, 0, 0),
+      OPT_BOOLEAN('v', "version", &version, "Print version and exit.", NULL, 0, 0),
 
-      OPT_BOOLEAN('m', "ms", &millisecond,
-        "Prints runtime millisecond.", NULL, 0, 0),
+      OPT_BOOLEAN('m', "ms", &millisecond, "Prints runtime millisecond.", NULL, 0, 0),
 
       OPT_END(),
   };
@@ -135,8 +117,8 @@ int main(int argc, const char** argv) {
 
   int exitcode = 0;
 
-  // Create and initialize VM.
-  VM* vm = intializeVM(argc, argv);
+  // Create and initialize the VM.
+  VM* vm = initializeVM(argc, argv);
 
   if (cmd != NULL) { // -c "print('foo')"
     Result result = RunString(vm, cmd);
@@ -144,7 +126,7 @@ int main(int argc, const char** argv) {
 
   } else if (arg_parse == 0) { // Run on REPL mode.
 
-   // Print the copyright and license notice, if --quiet not set.
+    // Print the copyright and license notice, if --quiet not set.
     if (!quiet) {
       printf("%s\n", COPYRIGHT);
     }
@@ -157,7 +139,7 @@ int main(int argc, const char** argv) {
     exitcode = (int) result;
   }
 
-  if(millisecond)
+  if (millisecond)
     printf("runtime: %.4f ms\n", vm_time(vm));
 
   // Cleanup the VM and exit.

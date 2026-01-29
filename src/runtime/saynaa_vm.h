@@ -3,11 +3,10 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_VM__
-#define __SAYNAA_VM__
+#pragma once
 
-#include "saynaa_core.h"
 #include "../compiler/saynaa_compiler.h"
+#include "saynaa_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,10 +16,10 @@ extern "C" {
 #define VM_HAS_ERROR(vm) (vm->fiber->error != NULL)
 
 // Set the error message [err] to the [vm]'s current fiber.
-#define VM_SET_ERROR(vm, err)        \
-  do {                               \
+#define VM_SET_ERROR(vm, err) \
+  do { \
     ASSERT(!VM_HAS_ERROR(vm), OOPS); \
-    (vm->fiber->error = err);        \
+    (vm->fiber->error = err); \
   } while (false)
 
 // A doubly link list of vars that have reference in the host application.
@@ -35,7 +34,6 @@ struct Handle {
 //  Virtual Machine. It'll contain the state of the execution, stack,
 // heap, and manage memory allocations.
 struct VM {
-
   // The first object in the link list of all heap allocated objects.
   Object* first;
 
@@ -60,9 +58,9 @@ struct VM {
   // from the list color it black and add it's referenced objects to gray_list.
 
   // Working set is the is the list of objects that were marked reachable from
-  // VM's root (ex: stack values, temp references, handles, vm's running fiber,
-  // current compiler etc). But yet tobe perform a reachability analysis of the
-  // objects it reference to.
+  // VM's root (ex: stack values, temp references, handles, vm's running
+  // fiber, current compiler etc). But yet tobe perform a reachability
+  // analysis of the objects it reference to.
   Object** working_set;
   int working_set_count;
   int working_set_capacity;
@@ -132,7 +130,8 @@ Handle* vmNewHandle(VM* vm, Var value);
 void vmEnsureStackSize(VM* vm, Fiber* fiber, int size);
 
 // Trigger garbage collection. This is an implementation of mark and sweep
-// garbage collection (https://en.wikipedia.org/wiki/Tracing_garbage_collection).
+// garbage collection
+// (https://en.wikipedia.org/wiki/Tracing_garbage_collection).
 //
 // 1. MARKING PHASE
 //
@@ -214,12 +213,11 @@ Result vmRunFiber(VM* vm, Fiber* fiber);
 // arguments in an array.
 Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret);
 
-// Call the method on the [this], (witch has retrieved by the getMethod()
+// Call the method on the [thiz], (witch has retrieved by the getMethod()
 // function) and if the [ret] is not NULL, the return value will be set.
 // [argv] should be the first argument pointer following the rest of the
 // arguments in an array.
-Result vmCallMethod(VM* vm, Var this, Closure* fn,
-                      int argc, Var* argv, Var* ret);
+Result vmCallMethod(VM* vm, Var thiz, Closure* fn, int argc, Var* argv, Var* ret);
 
 // Import a module with the [path] and return it. The path sepearation should
 // be '/' example: to import module "a.b" the [path] should be "a/b".
@@ -237,5 +235,3 @@ void vmUnloadDlHandle(VM* vm, void* handle);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif // VM_H

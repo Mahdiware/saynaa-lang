@@ -3,8 +3,7 @@
  * Distributed Under The MIT License
  */
 
-#ifndef STD_TERM_INC
-#define STD_TERM_INC
+#pragma once
 
 const char ext_term[] = "import io\n"
 "from time import clock, sleep\n"
@@ -279,4 +278,3 @@ const char ext_term[] = "import io\n"
 "  \n"
 "end\n";
 
-#endif

@@ -3,8 +3,7 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_CORE__
-#define __SAYNAA_CORE__
+#pragma once
 
 #include "../shared/saynaa_internal.h"
 #include "../shared/saynaa_value.h"
@@ -16,14 +15,14 @@ extern "C" {
 // Literal strings used in various places. For now these are
 // defined as macros so that it'll be easier in the future to refactor or
 // restructre. The names of the macros are begin with LIST_ and the string.
-#define LITS__init      "_init"
-#define LITS__str       "_str"
-#define LITS__repr      "_repr"
-#define LITS__getter    "_getter"
-#define LITS__setter    "_setter"
-#define LITS__call      "_call"
-#define LITS__next      "_next"
-#define LITS__value     "_value"
+#define LITS__init "_init"
+#define LITS__str "_str"
+#define LITS__repr "_repr"
+#define LITS__getter "_getter"
+#define LITS__setter "_setter"
+#define LITS__call "_call"
+#define LITS__next "_next"
+#define LITS__value "_value"
 
 // Functions, methods, classes and  other names which are intrenal / special to
 // starts with the following character (ex: @main, @literalFn).
@@ -58,9 +57,8 @@ Module* newModuleInternal(VM* vm, const char* name);
 
 // Adds a function to the module with the give properties and add the function
 // to the module's globals variables.
-void moduleAddFunctionInternal(VM* vm, Module* module,
-                               const char* name, nativeFn fptr,
-                               int arity, const char* docstring);
+void moduleAddFunctionInternal(VM* vm, Module* module, const char* name,
+                               nativeFn fptr, int arity, const char* docstring);
 
 // Bind a method to a class and deal with magic methods.
 void bindMethod(VM* vm, Class* cls, Closure* method);
@@ -84,20 +82,20 @@ Var preConstructThis(VM* vm, Class* cls);
 // Returns the class of the [instance].
 Class* getClass(VM* vm, Var instance);
 
-// Returns the method (closure) in the instance [this]. If it's not an method
+// Returns the method (closure) in the instance [thiz]. If it's not an method
 // but just an attribute the [is_method] pointer will be set to false and
 // returns the value.
 // If the method / attribute not found, it'll set a runtime error on the VM.
-Var getMethod(VM* vm, Var this, String* name, bool* is_method);
+Var getMethod(VM* vm, Var thiz, String* name, bool* is_method);
 
 // Returns the method (closure) from the instance's super class. If the method
 // doesn't exists, it'll set an error on the VM.
-Closure* getSuperMethod(VM* vm, Var this, String* name);
+Closure* getSuperMethod(VM* vm, Var thiz, String* name);
 
 // Unlike getMethod this will not set error and will not try to get attribute
-// with the same name. It'll return true if the method exists on [this], false
+// with the same name. It'll return true if the method exists on [thiz], false
 // otherwise and if the [method] argument is not NULL, method will be set.
-bool hasMethod(VM* vm, Var this, String* name, Closure** method);
+bool hasMethod(VM* vm, Var thiz, String* name, Closure** method);
 
 // Returns the string value of the variable, a wrapper of toString() function
 // but for instances it'll try to calll "_to_string" function and on error
@@ -106,19 +104,19 @@ bool hasMethod(VM* vm, Var this, String* name, Closure** method);
 // instances it'll call "_repr()" method.
 // Note that if _str method does not exists it'll use _repr method for to
 // string.
-String* varToString(VM* vm, Var this, bool repr);
+String* varToString(VM* vm, Var thiz, bool repr);
 
 Var varPositive(VM* vm, Var v); // Returns +v.
 Var varNegative(VM* vm, Var v); // Returns -v.
 Var varNot(VM* vm, Var v);      // Returns !v.
 Var varBitNot(VM* vm, Var v);   // Returns ~v.
 
-Var varAdd(VM* vm, Var v1, Var v2, bool inplace);       // Returns v1 + v2.
-Var varSubtract(VM* vm, Var v1, Var v2, bool inplace);  // Returns v1 - v2.
-Var varMultiply(VM* vm, Var v1, Var v2, bool inplace);  // Returns v1 * v2.
-Var varDivide(VM* vm, Var v1, Var v2, bool inplace);    // Returns v1 / v2.
-Var varExponent(VM* vm, Var v1, Var v2, bool inplace);  // Returns v1 ** v2.
-Var varModulo(VM* vm, Var v1, Var v2, bool inplace);    // Returns v1 % v2.
+Var varAdd(VM* vm, Var v1, Var v2, bool inplace);      // Returns v1 + v2.
+Var varSubtract(VM* vm, Var v1, Var v2, bool inplace); // Returns v1 - v2.
+Var varMultiply(VM* vm, Var v1, Var v2, bool inplace); // Returns v1 * v2.
+Var varDivide(VM* vm, Var v1, Var v2, bool inplace);   // Returns v1 / v2.
+Var varExponent(VM* vm, Var v1, Var v2, bool inplace); // Returns v1 ** v2.
+Var varModulo(VM* vm, Var v1, Var v2, bool inplace);   // Returns v1 % v2.
 
 Var varBitAnd(VM* vm, Var v1, Var v2, bool inplace);    // Returns v1 & v2.
 Var varBitOr(VM* vm, Var v1, Var v2, bool inplace);     // Returns v1 | v2.
@@ -126,11 +124,11 @@ Var varBitXor(VM* vm, Var v1, Var v2, bool inplace);    // Returns v1 ^ v2.
 Var varBitLshift(VM* vm, Var v1, Var v2, bool inplace); // Returns v1 << v2.
 Var varBitRshift(VM* vm, Var v1, Var v2, bool inplace); // Returns v1 >> v2.
 
-Var varEqals(VM* vm, Var v1, Var v2);       // Returns v1 == v2.
-Var varGreater(VM* vm, Var v1, Var v2);     // Returns v1 > v2.
-Var varLesser(VM* vm, Var v1, Var v2);      // Returns v1 < v2.
+Var varEqals(VM* vm, Var v1, Var v2);   // Returns v1 == v2.
+Var varGreater(VM* vm, Var v1, Var v2); // Returns v1 > v2.
+Var varLesser(VM* vm, Var v1, Var v2);  // Returns v1 < v2.
 
-Var varOpRange(VM* vm, Var v1, Var v2);     // Returns v1 .. v2.
+Var varOpRange(VM* vm, Var v1, Var v2); // Returns v1 .. v2.
 
 // Returns [elem] in [container]. Sets an error if the [container] is not an
 // iterable.
@@ -140,7 +138,7 @@ bool varContains(VM* vm, Var elem, Var container);
 bool varIsType(VM* vm, Var inst, Var type);
 
 // Returns the attribute named [attrib] on the variable [on].
-Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter);
+Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable);
 
 // Set the attribute named [attrib] on the variable [on] with the given
 // [value].
@@ -159,5 +157,3 @@ bool varIterate(VM* vm, Var seq, Var* iterator, Var* value);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif // CORE_H

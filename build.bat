@@ -9,6 +9,14 @@ cd %~dp0
 set project_root=%~dp0
 
 :: ----------------------------------------------------------------------------
+:: DEPENDENCIES
+:: ----------------------------------------------------------------------------
+:: Adjust these paths to where PCRE2 is located on your machine or CI environment.
+set pcre2_path=%project_root%deps\pcre2
+set pcre2_inc=/I"%pcre2_path%\include"
+set pcre2_lib="%pcre2_path%\lib\pcre2-8-static.lib"
+
+:: ----------------------------------------------------------------------------
 :: PARSE COMMAND LINE ARGUMENTS
 :: ----------------------------------------------------------------------------
 
@@ -64,7 +72,7 @@ if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
 )
 
 :: Get the VC installation path
-%VSWHERE_PATH% -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -latest -property installationPath > _path_temp.txt
+"%VSWHERE_PATH%" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -latest -property installationPath > _path_temp.txt
 set /p VSWHERE_PATH= < _path_temp.txt
 del _path_temp.txt
 if not exist "%VSWHERE_PATH%" (
@@ -92,10 +100,10 @@ goto :END
 set target_dir=
 set additional_cflags=-W3 -GR /FS -EHsc
 set additional_linkflags=/SUBSYSTEM:CONSOLE
-set additional_defines=/D_CRT_SECURE_NO_WARNINGS
+:: Added /DPCRE2_STATIC so the headers know we aren't using a DLL
+set additional_defines=/D_CRT_SECURE_NO_WARNINGS /DPCRE2_STATIC
 
 :: Relative root directory from a single intermediate directory.
-
 if "%enable_debug%"=="false" (
     set cflags=%cflags% -O2 -MD /DNDEBUG
     set target_dir=%project_root%obj\
@@ -110,19 +118,26 @@ if "%use_shared_lib%"=="true" (
 )
 
 :: Make intermediate folders.
-if not exist %target_dir% mkdir %target_dir%
-if not exist %target_dir%lib\ mkdir %target_dir%lib\
-if not exist %target_dir%saynaa mkdir %target_dir%saynaa\
-if not exist %target_dir%cli\ mkdir %target_dir%cli\
+if not exist "%target_dir%" mkdir "%target_dir%"
+if not exist "%target_dir%lib\" mkdir "%target_dir%lib\"
+if not exist "%target_dir%saynaa\" mkdir "%target_dir%saynaa\"
+if not exist "%target_dir%cli\" mkdir "%target_dir%cli\"
 
 :: ----------------------------------------------------------------------------
-:: COMPILE
+:: COMPILE CORE & OPTIONALS
 :: ----------------------------------------------------------------------------
 :COMPILE
 
-cd %target_dir%saynaa
+cd "%target_dir%saynaa"
 
-cl /nologo /c %additional_defines% %additional_cflags% %project_root%src\compiler\*.c %project_root%src\optionals\*.c %project_root%src\runtime\*.c %project_root%src\shared\*.c %project_root%src\utils\*.c
+:: Added %pcre2_inc% here to find regex headers
+cl /nologo /c %additional_defines% %pcre2_inc% %additional_cflags% ^
+    %project_root%src\compiler\*.c ^
+    %project_root%src\optionals\*.c ^
+    %project_root%src\runtime\*.c ^
+    %project_root%src\shared\*.c ^
+    %project_root%src\utils\*.c
+
 if errorlevel 1 goto :FAIL
 
 :: If compiling a shared lib, jump past the lib/cli binaries.
@@ -132,45 +147,42 @@ if "%use_shared_lib%"=="true" (
   set mylib=%target_dir%lib\saynaa.lib
 )
 
-:: If compiling a shared lib, jump past the lib/cli binaries.
 if "%use_shared_lib%"=="true" goto :SHARED
-lib /nologo %additional_linkflags% /OUT:%mylib% *.obj
+
+:: Static Library
+lib /nologo %additional_linkflags% /OUT:"%mylib%" *.obj
 goto :SRC_END
 
 :SHARED
-link /nologo /dll /out:%target_dir%bin\saynaa.dll /implib:%mylib% *.obj
+:: Link PCRE2 into the DLL if using shared mode
+if not exist "%target_dir%bin\" mkdir "%target_dir%bin\"
+link /nologo /dll /out:"%target_dir%bin\saynaa.dll" /implib:"%mylib%" *.obj %pcre2_lib%
 
 :SRC_END
 if errorlevel 1 goto :FAIL
 
-cd %target_dir%cli
+:: ----------------------------------------------------------------------------
+:: COMPILE CLI
+:: ----------------------------------------------------------------------------
+cd "%target_dir%cli"
 
-cl /nologo /c %additional_defines% %additional_cflags% %project_root%src\cli\*.c
+cl /nologo /c %additional_defines% %pcre2_inc% %additional_cflags% %project_root%src\cli\*.c
 if errorlevel 1 goto :FAIL
 
-cd %project_root%
+cd "%project_root%"
 
-:: Compile the cli executable.
-cl /nologo %additional_defines% %target_dir%cli\*.obj %mylib% /Fe%project_root%saynaa.exe
+:: Compile and Link the final cli executable.
+:: Added %pcre2_lib% here to resolve regex symbols
+cl /nologo %additional_defines% %target_dir%cli\*.obj "%mylib%" %pcre2_lib% /Fe"%project_root%saynaa.exe"
 if errorlevel 1 goto :FAIL
-
-:: Navigate to the root directory.
-cd ..\
 
 goto :SUCCESS
 
 :CLEAN
-
 if exist "%project_root%obj" rmdir /S /Q "%project_root%obj"
-if exist "%project_root%obj" rmdir /S /Q "%project_root%obj"
-
 echo.
 echo Files were cleaned.
 goto :END
-
-:: ----------------------------------------------------------------------------
-:: END
-:: ----------------------------------------------------------------------------
 
 :SUCCESS
 echo.

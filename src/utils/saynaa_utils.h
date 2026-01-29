@@ -3,24 +3,33 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_UTILS__
-#define __SAYNAA_UTILS__
+#pragma once
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #if defined(_WIN32)
-  #include <windows.h>
-  typedef unsigned __int64  nanotime_t;
-  #define DIRREF        HANDLE
+#include <windows.h>
+typedef unsigned __int64 nanotime_t;
+#define DIRREF HANDLE
 #else
-  #include <dirent.h>
-  typedef uint64_t      nanotime_t;
-  #define DIRREF        DIR*
+#include <dirent.h>
+typedef uint64_t nanotime_t;
+#define DIRREF DIR*
 #endif
 
+nanotime_t nanotime(void);
+double microtime(nanotime_t, nanotime_t);
+double millitime(nanotime_t, nanotime_t);
+
+// Returns a pointer to the beginning of the substring (of length [s_len])
+// in the string (of length [l_len]), or NULL if the substring is not found.
+const void* utilMemMem(const void* l, size_t l_len, const void* s, size_t s_len);
+
 // Returns the smallest power of two that is equal to or greater than [n].
-// From : http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float
+// From :
+// http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float
 int utilPowerOf2Ceil(int n);
 
 // Returns true if c in [ ' ', '\t', '\n', '\v' ]
@@ -98,7 +107,7 @@ const char* utilToNumber(const char* str, double* num);
  *
  * (note that the character é is 8 bit long with ANSI encoding)
  *
-*/
+ */
 
 // Returns the number of bytes the the [value] would take to encode. returns 0
 // if the value is invalid utf8 representation.
@@ -136,5 +145,3 @@ int utf8_encodeValue(int value, uint8_t* bytes);
 // returns the number of bytes the value decoded, if invalid write -1 to the
 // value.
 int utf8_decodeBytes(uint8_t* bytes, int* value);
-
-#endif // __SAYNAA_UTILS__

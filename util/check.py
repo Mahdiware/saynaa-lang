@@ -3,41 +3,31 @@
 ## Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
 ## Distributed Under The MIT License
 
-## This will run static checks on the source files, for line length,
-## uses of tabs, and trailing white spaces, etc.
+"""
+This script runs static checks on source files for line length, use of tabs, trailing whitespace, etc.
+"""
 
-import os, sys, re
-from os import listdir
-from os.path import *
+import os
+import sys
+import re
+from typing import List, Iterable
 
-## root directory. All the listed paths bellow are relative to
-## the root path.
-ROOT_PATH = abspath(join(dirname(__file__), ".."))
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-## A list of source files, to check if the fnv1a hash values match it's
-## corresponding cstring in the CASE_ATTRIB(name, hash) macro calls.
 HASH_CHECK_LIST = [
   "src/runtime/saynaa_core.c",
   "src/shared/saynaa_value.c",
 ]
 
-## A list of extension to perform static checks, of all the files in the
-## SOURCE_DIRS.
-CHECK_EXTENTIONS = ('.c', '.h', '.sa', '.py', '.js')
+CHECK_EXTENSIONS = ('.c', '.h', '.sa', '.py', '.js')
 
-## A list of strings, if a line contains it we allow it to be longer than
-## 80 characters, It's not "the correct way" but it works.
 ALLOW_LONG_LINES = ('http://', 'https://', '<script ', '<link ', '<svg ')
 
-## A list of files that are ignored for static check. Usually third party
-## files and generated source files.
 IGNORE_FILES = (
   "src/runtime/saynaa_native.h",
   "src/optionals/saynaa_opt_term.c",
 )
 
-## A list of directory, contains C source files to perform static checks.
-## This will include all files with extension from CHECK_EXTENTIONS.
 SOURCE_DIRS = [
   "src/cli/",
   "src/compiler/",
@@ -47,127 +37,108 @@ SOURCE_DIRS = [
   "src/utils/",
 ]
 
-## This global variable will be set to true if any check failed.
 checks_failed = False
 
-## Converts a list of relative paths from the working directory
-## to a list of relative paths from this file's absolute directory.
-def to_abs_paths(sources):
-  return map(lambda s: os.path.join(ROOT_PATH, s), sources)
+def to_abs_paths(sources: Iterable[str]) -> List[str]:
+  """Converts relative paths to absolute paths."""
+  return [os.path.join(ROOT_PATH, source) for source in sources]
 
-## Converts the path from absolute path to relative path from the
-## toplelve of the project.
-def to_rel_path(path):
-  return relpath(path, ROOT_PATH)
-  
-def main():
+
+def to_rel_path(path: str) -> str:
+  """Converts an absolute path to a relative path from the project root."""
+  return os.path.relpath(path, ROOT_PATH)
+
+
+def main() -> None:
+  """Main function to run all checks."""
   check_fnv1_hash(to_abs_paths(HASH_CHECK_LIST))
   check_static(to_abs_paths(SOURCE_DIRS))
   if checks_failed:
     sys.exit(1)
-  print("Static checks were passed.")
+  print("Static checks passed.")
 
-def check_fnv1_hash(sources):
-  PATTERN = r'CHECK_HASH\(\s*"([A-Za-z0-9_]+)"\s*,\s*(0x[0-9abcdef]+)\)'
+
+def check_fnv1_hash(sources: Iterable[str]) -> None:
+  """Checks if FNV-1a hash values match their corresponding strings."""
+  pattern = r'CHECK_HASH\(\s*"([A-Za-z0-9_]+)"\s*,\s*(0x[0-9abcdef]+)\)'
   for file in sources:
-    fp = open(file, 'r')
-    
-    line_no = 0
-    for line in fp.readlines():
-      line_no += 1
-      match = re.findall(PATTERN, line)
-      if len(match) == 0: continue
-      name, val = match[0]
-      hash = hex(fnv1a_hash(name))
-      
-      if val == hash: continue
-      
-      ## Path of the file relative to top-level.
-      file_path = to_rel_path(file)
-      report_error(f"{location(file_path, line_no)} - hash mismatch. "
-        f"hash('{name}') = {hash} not {val}")
-        
-    fp.close()
-
-## Check each source file ('.c', '.h', '.py') in the [dirs] contains tabs,
-## more than 80 characters, and trailing white space.
-def check_static(dirs):
-  for dir in dirs:
-    
-    for file in listdir(dir):
-      if not file.endswith(CHECK_EXTENTIONS): continue
-      if os.path.isdir(join(dir, file)): continue
-      
-      curr_file = normpath(join(dir, file))
-
-      skip = False
-      for ignore in IGNORE_FILES:
-        if curr_file == normpath(join(ROOT_PATH, ignore)):
-          skip = True; break;
-      if skip: continue
-
-      fp = open(curr_file, 'r')
-      
-      ## Path of the file relative to top-level.
-      file_path = to_rel_path(join(dir, file))
-      lines = list(fp.readlines())
-      fp.close()
-
-      ## This will be set to true if the last line is empty.
-      is_last_empty = False; line_no = 0
-      for line in lines:
-        line_no += 1; line = line[:-1] # remove the line ending.
-        
-        ## Check if the line contains any tabs.
-        if '\t' in line:
-          _location = location(file_path, line_no)
-          report_error(f"{_location} - contains tab(s) ({repr(line)}).")
-            
-        if len(line) >= 80:
-          skip = False
-          for ignore in ALLOW_LONG_LINES:
-            if ignore in line:
-              skip = True
-              break
-          if skip: continue
-          
-          _location = location(file_path, line_no)
+    with open(file, 'r') as fp:
+      for line_no, line in enumerate(fp, start=1):
+        matches = re.findall(pattern, line)
+        if not matches:
+          continue
+        name, expected_hash = matches[0]
+        computed_hash = hex(fnv1a_hash(name))
+        if expected_hash != computed_hash:
+          file_path = to_rel_path(file)
           report_error(
-            f"{_location} - contains {len(line)} (> 80) characters.")
-            
+            f"{location(file_path, line_no)} - hash mismatch. "
+            f"hash('{name}') = {computed_hash} not {expected_hash}"
+          )
+
+
+def check_static(dirs: Iterable[str]) -> None:
+  """Performs static checks on source files."""
+  for dir in dirs:
+    for file in os.listdir(dir):
+      if not file.endswith(CHECK_EXTENSIONS):
+        continue
+      if os.path.isdir(os.path.join(dir, file)):
+        continue
+
+      curr_file = os.path.normpath(os.path.join(dir, file))
+      if any(curr_file == os.path.normpath(os.path.join(ROOT_PATH, ignore)) for ignore in IGNORE_FILES):
+        continue
+
+      with open(curr_file, 'r') as fp:
+        file_path = to_rel_path(curr_file)
+        lines = fp.readlines()
+
+      is_last_empty = False
+      for line_no, line in enumerate(lines, start=1):
+        line = line.rstrip('\n')
+
+        if '\t' in line:
+          report_error(f"{location(file_path, line_no)} - contains tab(s) ({repr(line)}).")
+
+        if len(line) >= 100 and not any(ignore in line for ignore in ALLOW_LONG_LINES):
+          report_error(f"{location(file_path, line_no)} - contains {len(line)} (> 100) characters.")
+
         if line.endswith(' '):
-          _location = location(file_path, line_no)
-          report_error(f"{_location} - contains trailing white space.")
-            
+          report_error(f"{location(file_path, line_no)} - contains trailing whitespace.")
+
         if line == '':
           if is_last_empty:
-            _location = location(file_path, line_no)
-            report_error(f"{_location} - consequent empty lines.")
+            report_error(f"{location(file_path, line_no)} - consecutive empty lines.")
           is_last_empty = True
         else:
           is_last_empty = False
 
-## Returns a formated string of the error location.
-def location(file, line):
-  return f"{'%-17s'%file} : {'%4s'%line}"
 
-## FNV-1a hash. See: http://www.isthe.com/chongo/tech/comp/fnv/
-def fnv1a_hash(string):
+def location(file: str, line: int) -> str:
+  """Returns a formatted string of the error location."""
+  return f"{file:<17} : {line:4}"
+
+
+def fnv1a_hash(string: str) -> int:
+  """Computes the FNV-1a hash of a string."""
   FNV_prime_32_bit = 16777619
   FNV_offset_basis_32_bit = 2166136261
-  
-  hash = FNV_offset_basis_32_bit
-  
-  for c in string:
-    hash ^= ord(c)
-    hash *= FNV_prime_32_bit
-    hash &= 0xffffffff ## intentional 32 bit overflow.
-  return hash
 
-def report_error(msg):
+  hash_value = FNV_offset_basis_32_bit
+  for char in string:
+    hash_value ^= ord(char)
+    hash_value *= FNV_prime_32_bit
+    hash_value &= 0xffffffff  # Intentional 32-bit overflow
+  return hash_value
+
+
+def report_error(msg: str) -> None:
+  """Reports an error and sets the global flag."""
   global checks_failed
   checks_failed = True
   print(msg, file=sys.stderr)
+
 
 if __name__ == '__main__':
   main()

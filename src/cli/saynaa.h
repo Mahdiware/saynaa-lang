@@ -3,8 +3,7 @@
  * Distributed Under The MIT License
  */
 
-#ifndef SAYNAA_H
-#define SAYNAA_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,22 +14,8 @@ extern "C" {
 #include <stdlib.h>
 
 #ifdef _MSC_VER
-  #pragma comment (lib,"uuid.lib")
+#pragma comment(lib, "uuid.lib")
 #endif
-
-#if defined(_WIN32)
-  #include <windows.h>
-  typedef unsigned __int64  nanotime_t;
-  #define DIRREF            HANDLE
-#else
-  #include <dirent.h>
-  typedef uint64_t          nanotime_t;
-  #define DIRREF            DIR*
-#endif
-
-nanotime_t nanotime (void);
-double microtime (nanotime_t, nanotime_t);
-double millitime (nanotime_t, nanotime_t);
 
 /*****************************************************************************/
 /* SAYNAA DEFINES                                                            */
@@ -40,44 +25,44 @@ double millitime (nanotime_t, nanotime_t);
 // Major Version - Increment when changes break compatibility.
 // Minor Version - Increment when new functionality added to public api.
 // Patch Version - Increment when bug fixed or minor changes between releases.
-#define VERSION_MAJOR        1
-#define VERSION_MINOR        0
-#define VERSION_PATCH        1
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 0
+#define VERSION_PATCH 1
 
 // language name
-#define LANGUAGE             "saynaa"
+#define LANGUAGE "saynaa"
 
 // String representation of the version.
-#define VERSION_STRING       "1.0.1"
-#define VERSION_NUMBER       101
+#define VERSION_STRING "1.0.1"
+#define VERSION_NUMBER 101
 
-#define VERSION              LANGUAGE " " VERSION_STRING
-#define COPYRIGHT            VERSION " Copyright (C) 2022-2023 mahdiware.me"
-#define AUTHORS              "Mohamed Abdifatah"
+#define VERSION LANGUAGE " " VERSION_STRING
+#define COPYRIGHT VERSION " Copyright (C) 2022-2023 mahdiware.me"
+#define AUTHORS "Mohamed Abdifatah"
 
 //  visibility macros. define DLL for using
 // shared library and define COMPILE to export symbols when compiling the
 // it self as a shared library.
 
 #ifdef _MSC_VER
-  #define EXPORT __declspec(dllexport)
-  #define IMPORT __declspec(dllimport)
-#elif defined(__GNUC__)
-  #define EXPORT __attribute__((visibility ("default")))
-  #define IMPORT
+#define EXPORT __declspec(dllexport)
+#define IMPORT __declspec(dllimport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define EXPORT __attribute__((visibility("default")))
+#define IMPORT
 #else
-  #define EXPORT
-  #define IMPORT
+#define EXPORT
+#define IMPORT
 #endif
 
 #ifdef _DLL_
-  #ifdef _COMPILE_
-    #define PUBLIC EXPORT
-  #else
-    #define PUBLIC IMPORT
-  #endif
+#ifdef _COMPILE_
+#define PUBLIC EXPORT
 #else
-  #define PUBLIC
+#define PUBLIC IMPORT
+#endif
+#else
+#define PUBLIC
 #endif
 
 /*****************************************************************************/
@@ -92,6 +77,8 @@ typedef struct VM VM;
 // variable and ensure that the variable it holds won't be garbage collected
 // till it's released with releaseHandle().
 typedef struct Handle Handle;
+
+typedef struct Class Class;
 
 typedef struct Configuration Configuration;
 
@@ -112,40 +99,40 @@ typedef void (*nativeFn)(VM* vm);
 typedef void* (*ReallocFn)(void* memory, size_t new_size, void* user_data);
 
 // Function callback to write [text] to stdout or stderr.
-typedef void (*WriteFn) (VM* vm, const char* text);
+typedef void (*WriteFn)(VM* vm, const char* text);
 
 // A function callback to read a line from stdin. The returned string shouldn't
 // contain a line ending (\n or \r\n). The returned string **must** be
 // allocated with Realloc() and the VM will claim the ownership of the
 // string.
-typedef char* (*ReadFn) (VM* vm);
+typedef char* (*ReadFn)(VM* vm);
 
 // A generic function thiat could be used by the VM to signal something to
 // the host application. The first argument is depend on the callback it's
 // registered.
-typedef void (*SignalFn) (void*);
+typedef void (*SignalFn)(void*);
 
 // Load and return the script. Called by the compiler to fetch initial source
 // code and source for import statements. Return NULL to indicate failure to
 // load. Otherwise the string **must** be allocated with Realloc() and
 // the VM will claim the ownership of the string.
-typedef char* (*LoadScriptFn) (VM* vm, const char* path);
+typedef char* (*LoadScriptFn)(VM* vm, const char* path);
 
 #ifndef NO_DL
 
 // Load and return the native extension (*.dll, *.so) from the path, this will
 // then used to import the module with the ImportImportDL function. On error
 // the function should return NULL and shouldn't use any error api function.
-typedef void* (*LoadDL) (VM* vm, const char* path);
+typedef void* (*LoadDL)(VM* vm, const char* path);
 
 // Native extension loader from the dynamic library. The handle should be vaiid
 // as long as the module handle is alive. On error the function should return
 // NULL and shouldn't use any error api function.
-typedef Handle* (*ImportDL) (VM* vm, void* handle);
+typedef Handle* (*ImportDL)(VM* vm, void* handle);
 
 // Once the native module is gargage collected, the dl handle will be released
 // with UnloadDL function.
-typedef void (*UnloadDL) (VM* vm, void* handle);
+typedef void (*UnloadDL)(VM* vm, void* handle);
 
 #endif // NO_DL
 
@@ -159,19 +146,22 @@ typedef void (*UnloadDL) (VM* vm, void* handle);
 // NULL to indicate failure to resolve. Othrewise the string **must** be
 // allocated with Realloc() and the VM will claim the ownership of the
 // string.
-typedef char* (*ResolvePathFn) (VM* vm, const char* from,
-                                  const char* path);
+typedef char* (*ResolvePathFn)(VM* vm, const char* from, const char* path);
 
 // A function callback to allocate and return a new instance of the registered
 // class. Which will be called when the instance is constructed. The returned/
 // data is expected to be alive till the delete callback occurs.
-typedef void* (*NewInstanceFn) (VM* vm);
+typedef void* (*NewInstanceFn)(VM* vm);
 
 // A function callback to de-allocate the allocated native instance of the
 // registered class. This function is invoked at the GC execution. No object
 // allocations are allowed during it, so **NEVER** allocate any objects
 // inside them.
-typedef void (*DeleteInstanceFn) (VM* vm, void*);
+typedef void (*DeleteInstanceFn)(VM* vm, void*);
+
+// A destructor function will de-allocate the native pointer
+// when the handle is released. This function is invoked at the GC execution.
+typedef void (*Destructor)(void*);
 
 /*****************************************************************************/
 /* SAYNAA TYPES                                                          */
@@ -194,13 +184,14 @@ typedef enum VarType {
   vMETHOD_BIND,
   vFIBER,
   vCLASS,
+  vPOINTER,
   vINSTANCE,
 } VarType;
 
 // Result that will return after a compilation or running a script
 // or a function or evaluating an expression.
 typedef enum Result {
-  RESULT_SUCCESS = 0,    // Successfully finished the execution.
+  RESULT_SUCCESS = 0, // Successfully finished the execution.
 
   // Note that this result is internal and will not be returned to the host
   // anymore.
@@ -211,8 +202,8 @@ typedef enum Result {
   // to the last input. If REPL is not enabled this will be compile error.
   RESULT_UNEXPECTED_EOF,
 
-  RESULT_COMPILE_ERROR,  // Compilation failed.
-  RESULT_RUNTIME_ERROR,  // An error occurred at runtime.
+  RESULT_COMPILE_ERROR, // Compilation failed.
+  RESULT_RUNTIME_ERROR, // An error occurred at runtime.
 } Result;
 
 typedef struct Argument {
@@ -224,7 +215,6 @@ typedef struct Argument {
 } Argument;
 
 typedef struct Configuration {
-
   // The callback used to allocate, reallocate, and free. If the function
   // pointer is NULL it defaults to the VM's realloc(), free() wrappers.
   ReallocFn realloc_fn;
@@ -238,11 +228,11 @@ typedef struct Configuration {
   ResolvePathFn resolve_path_fn;
   LoadScriptFn load_script_fn;
 
-  #ifndef NO_DL
+#ifndef NO_DL
   LoadDL load_dl_fn;
   ImportDL import_dl_fn;
   UnloadDL unload_dl_fn;
-  #endif
+#endif
 
   // If true stderr calls will use ansi color codes.
   bool use_ansi_escape;
@@ -277,8 +267,8 @@ PUBLIC void* GetUserData(const VM* vm);
 // Register a new builtin function with the given [name]. [docstring] could be
 // NULL or will always valid pointer since VM doesn't allocate a string for
 // docstrings.
-PUBLIC void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn,
-                                   int arity, const char* docstring);
+PUBLIC void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn, int arity,
+                              const char* docstring);
 
 // Adds a new search path to the VM, the path will be appended to the list of
 // search paths. Search path orders are the same as the registered order.
@@ -310,32 +300,31 @@ PUBLIC void registerModule(VM* vm, Handle* module);
 // the function has variadic parameters and use GetArgc() to get the argc.
 // Note that the function will be added as a global variable of the module.
 // [docstring] is optional and could be omitted with NULL.
-PUBLIC void ModuleAddFunction(VM* vm, Handle* module,
-                                   const char* name,
-                                   nativeFn fptr, int arity,
-                                   const char* docstring);
+PUBLIC void ModuleAddFunction(VM* vm, Handle* module, const char* name,
+                              nativeFn fptr, int arity, const char* docstring);
 
 // Create a new class on the [module] with the [name] and return it.
 // If the [base_class] is NULL by default it'll set to "Object" class.
 // [docstring] is optional and could be omitted with NULL.
-PUBLIC Handle* NewClass(VM* vm, const char* name,
-                               Handle* base_class, Handle* module,
-                               NewInstanceFn new_fn,
-                               DeleteInstanceFn delete_fn,
-                               const char* docstring);
+PUBLIC Handle* NewClass(VM* vm, const char* name, Handle* base_class,
+                        Handle* module, NewInstanceFn new_fn,
+                        DeleteInstanceFn delete_fn, const char* docstring);
 
 // Add a native method to the given class. If the [arity] is -1 that means
 // the method has variadic parameters and use GetArgc() to get the argc.
 // [docstring] is optional and could be omitted with NULL.
-PUBLIC void ClassAddMethod(VM* vm, Handle* cls,
-                                const char* name,
-                                nativeFn fptr, int arity,
-                                const char* docstring);
+PUBLIC void ClassAddMethod(VM* vm, Handle* cls, const char* name, nativeFn fptr,
+                           int arity, const char* docstring);
+
+PUBLIC Class* NewNativeClass(VM* vm, const char* name, NewInstanceFn new_fn,
+                             DeleteInstanceFn delete_fn, const char* docstring);
+
+PUBLIC void NativeClassAddMethod(VM* vm, Class* cls, const char* name,
+                                 nativeFn fptr, int arity, const char* docstring);
 
 // It'll compile the [source] for the module which result all the
 // functions and classes in that [source] to register on the module.
-PUBLIC void ModuleAddSource(VM* vm, Handle* module,
-                                 const char* source);
+PUBLIC void ModuleAddSource(VM* vm, Handle* module, const char* source);
 
 // Run the source string. The [source] is expected to be valid till this
 // function returns.
@@ -391,8 +380,7 @@ PUBLIC bool ValidateSlotInteger(VM* vm, int slot, int32_t* value);
 
 // Helper function to check if the argument at the [slot] slot is String and
 // if not set a runtime error.
-PUBLIC bool ValidateSlotString(VM* vm, int slot,
-                                    const char** value, uint32_t* length);
+PUBLIC bool ValidateSlotString(VM* vm, int slot, const char** value, uint32_t* length);
 
 // Helper function to check if the argument at the [slot] slot is of type
 // [type] and if not sets a runtime error.
@@ -433,9 +421,11 @@ PUBLIC double GetSlotNumber(VM* vm, int index);
 // the string will be written.
 PUBLIC const char* GetSlotString(VM* vm, int index, uint32_t* length);
 
-// Capture the variable at the [index] slot and return its handle. As long as
-// the handle is not released with `releaseHandle()` the variable won't be
-// garbage collected.
+PUBLIC void* GetSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor);
+
+// Capture the variable at the [index] slot and return its handle. As long
+// as the handle is not released with `releaseHandle()` the variable
+// won't be garbage collected.
 PUBLIC Handle* GetSlotHandle(VM* vm, int index);
 
 // Returns the native instance at the [index] slot. If the value at the [index]
@@ -454,10 +444,14 @@ PUBLIC void setSlotNumber(VM* vm, int index, double value);
 // Create a new String copying the [value] and set it to [index] slot.
 PUBLIC void setSlotString(VM* vm, int index, const char* value);
 
-// Create a new String copying the [value] and set it to [index] slot. Unlike
-// the above function it'll copy only the spicified length.
-PUBLIC void setSlotStringLength(VM* vm, int index,
-                                     const char* value, uint32_t length);
+PUBLIC void setSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor);
+
+PUBLIC void setSlotClosure(VM* vm, int index, const char* name, nativeFn fptr,
+                           int arity, const char* docstring);
+
+// Create a new String copying the [value] and set it to [index] slot.
+// Unlike the above function it'll copy only the spicified length.
+PUBLIC void setSlotStringLength(VM* vm, int index, const char* value, uint32_t length);
 
 // Create a new string copying from the formated string and set it to [index]
 // slot.
@@ -502,6 +496,13 @@ PUBLIC void NewMap(VM* vm, int index);
 // Create a new String object and place it at [index] slot.
 PUBLIC void NewString(VM* vm, int index);
 
+// Function to create a new Pointer object for API interaction.
+PUBLIC void NewPointer(VM* vm, int index, void* native_ptr, Destructor destructor);
+
+// Function to create new Closure
+PUBLIC void NewClosure(VM* vm, int index, const char* name, nativeFn fptr,
+                       int arity, const char* docstring);
+
 // Insert [value] to the [list] at the [index], if the index is less than zero,
 // it'll count from backwards. ie. insert[-1] == insert[list.length].
 // Note that slot [list] must be a valid list otherwise it'll fail an
@@ -524,18 +525,15 @@ PUBLIC bool CallFunction(VM* vm, int fn, int argc, int argv, int ret);
 // Calls a [method] on the [instance] with [argc] argument where [argv] is the
 // slot of the first argument. [ret] is the slot index of the return value. if
 // [ret] < 0 the return value will be discarded.
-PUBLIC bool CallMethod(VM* vm, int instance, const char* method,
-                            int argc, int argv, int ret);
+PUBLIC bool CallMethod(VM* vm, int instance, const char* method, int argc, int argv, int ret);
 
 // Get the attribute with [name] of the instance at the [instance] slot and
 // place it at the [index] slot. Return true on success.
-PUBLIC bool GetAttribute(VM* vm, int instance, const char* name,
-                              int index);
+PUBLIC bool GetAttribute(VM* vm, int instance, const char* name, int index);
 
 // Set the attribute with [name] of the instance at the [instance] slot to
 // the value at the [value] index slot. Return true on success.
-PUBLIC bool setAttribute(VM* vm, int instance,
-                              const char* name, int value);
+PUBLIC bool setAttribute(VM* vm, int instance, const char* name, int value);
 
 // Import a module with the [path] and place it at [index] slot. The path
 // sepearation should be '/'. Example: to import module "foo.bar" the [path]
@@ -545,5 +543,3 @@ PUBLIC bool ImportModule(VM* vm, const char* path, int index);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif // SAYNAA_H

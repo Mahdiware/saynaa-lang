@@ -2,14 +2,11 @@
  *  Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
  *  Distributed Under The MIT License
  */
-
-#ifndef __SAYNAA_NATIVE__
-#define __SAYNAA_NATIVE__
-
-#include "../cli/saynaa.h"
-
 // !! THIS FILE IS GENERATED DO NOT EDIT !!
 
+#pragma once
+
+#include "../cli/saynaa.h"
 typedef Configuration (*NewConfiguration_t)();
 typedef VM* (*NewVM_t)(Configuration*);
 typedef void (*FreeVM_t)(VM*);
@@ -24,9 +21,12 @@ typedef void (*registerModule_t)(VM*, Handle*);
 typedef void (*ModuleAddFunction_t)(VM*, Handle*, const char*, nativeFn, int, const char*);
 typedef Handle* (*NewClass_t)(VM*, const char*, Handle*, Handle*, NewInstanceFn, DeleteInstanceFn, const char*);
 typedef void (*ClassAddMethod_t)(VM*, Handle*, const char*, nativeFn, int, const char*);
+typedef Class* (*NewNativeClass_t)(VM*, const char*, NewInstanceFn, DeleteInstanceFn, const char*);
+typedef void (*NativeClassAddMethod_t)(VM*, Class*, const char*, nativeFn, int, const char*);
 typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
 typedef Result (*RunFile_t)(VM*, const char*);
+typedef double (*vm_time_t)(VM*);
 typedef Result (*RunREPL_t)(VM*);
 typedef void (*SetRuntimeError_t)(VM*, const char*);
 typedef void* (*GetThis_t)(const VM*);
@@ -45,12 +45,15 @@ typedef VarType (*GetSlotType_t)(VM*, int);
 typedef bool (*GetSlotBool_t)(VM*, int);
 typedef double (*GetSlotNumber_t)(VM*, int);
 typedef const char* (*GetSlotString_t)(VM*, int, uint32_t*);
+typedef void* (*GetSlotPointer_t)(VM*, int, void*, Destructor);
 typedef Handle* (*GetSlotHandle_t)(VM*, int);
 typedef void* (*GetSlotNativeInstance_t)(VM*, int);
 typedef void (*setSlotNull_t)(VM*, int);
 typedef void (*setSlotBool_t)(VM*, int, bool);
 typedef void (*setSlotNumber_t)(VM*, int, double);
 typedef void (*setSlotString_t)(VM*, int, const char*);
+typedef void (*setSlotPointer_t)(VM*, int, void*, Destructor);
+typedef void (*setSlotClosure_t)(VM*, int, const char*, nativeFn, int, const char*);
 typedef void (*setSlotStringLength_t)(VM*, int, const char*, uint32_t);
 typedef void (*setSlotHandle_t)(VM*, int, Handle*);
 typedef uint32_t (*GetSlotHash_t)(VM*, int);
@@ -60,6 +63,9 @@ typedef bool (*NewInstance_t)(VM*, int, int, int, int);
 typedef void (*NewRange_t)(VM*, int, double, double);
 typedef void (*NewList_t)(VM*, int);
 typedef void (*NewMap_t)(VM*, int);
+typedef void (*NewString_t)(VM*, int);
+typedef void (*NewPointer_t)(VM*, int, void*, Destructor);
+typedef void (*NewClosure_t)(VM*, int, const char*, nativeFn, int, const char*);
 typedef bool (*ListInsert_t)(VM*, int, int32_t, int);
 typedef bool (*ListPop_t)(VM*, int, int32_t, int);
 typedef uint32_t (*ListLength_t)(VM*, int);
@@ -84,9 +90,12 @@ typedef struct {
   ModuleAddFunction_t ModuleAddFunction_ptr;
   NewClass_t NewClass_ptr;
   ClassAddMethod_t ClassAddMethod_ptr;
+  NewNativeClass_t NewNativeClass_ptr;
+  NativeClassAddMethod_t NativeClassAddMethod_ptr;
   ModuleAddSource_t ModuleAddSource_ptr;
   RunString_t RunString_ptr;
   RunFile_t RunFile_ptr;
+  vm_time_t vm_time_ptr;
   RunREPL_t RunREPL_ptr;
   SetRuntimeError_t SetRuntimeError_ptr;
   GetThis_t GetThis_ptr;
@@ -105,12 +114,15 @@ typedef struct {
   GetSlotBool_t GetSlotBool_ptr;
   GetSlotNumber_t GetSlotNumber_ptr;
   GetSlotString_t GetSlotString_ptr;
+  GetSlotPointer_t GetSlotPointer_ptr;
   GetSlotHandle_t GetSlotHandle_ptr;
   GetSlotNativeInstance_t GetSlotNativeInstance_ptr;
   setSlotNull_t setSlotNull_ptr;
   setSlotBool_t setSlotBool_ptr;
   setSlotNumber_t setSlotNumber_ptr;
   setSlotString_t setSlotString_ptr;
+  setSlotPointer_t setSlotPointer_ptr;
+  setSlotClosure_t setSlotClosure_ptr;
   setSlotStringLength_t setSlotStringLength_ptr;
   setSlotHandle_t setSlotHandle_ptr;
   GetSlotHash_t GetSlotHash_ptr;
@@ -120,6 +132,9 @@ typedef struct {
   NewRange_t NewRange_ptr;
   NewList_t NewList_ptr;
   NewMap_t NewMap_ptr;
+  NewString_t NewString_ptr;
+  NewPointer_t NewPointer_ptr;
+  NewClosure_t NewClosure_ptr;
   ListInsert_t ListInsert_ptr;
   ListPop_t ListPop_ptr;
   ListLength_t ListLength_ptr;
@@ -130,10 +145,9 @@ typedef struct {
   ImportModule_t ImportModule_ptr;
 } NativeApi;
 
-#define API_INIT_FN_NAME "InitApi"
-#define EXPORT_FN_NAME "ExportModule"
-
-#define CLEANUP_FN_NAME "CleanupModule"
+#define API_INIT_FN_NAME "InitApi" 
+#define EXPORT_FN_NAME "ExportModule" 
+#define CLEANUP_FN_NAME "CleanupModule" 
 
 typedef void (*InitApiFn)(NativeApi*);
 typedef Handle* (*ExportModuleFn)(VM*);
@@ -158,9 +172,12 @@ NativeApi MakeNativeAPI() {
   api.ModuleAddFunction_ptr = ModuleAddFunction;
   api.NewClass_ptr = NewClass;
   api.ClassAddMethod_ptr = ClassAddMethod;
+  api.NewNativeClass_ptr = NewNativeClass;
+  api.NativeClassAddMethod_ptr = NativeClassAddMethod;
   api.ModuleAddSource_ptr = ModuleAddSource;
   api.RunString_ptr = RunString;
   api.RunFile_ptr = RunFile;
+  api.vm_time_ptr = vm_time;
   api.RunREPL_ptr = RunREPL;
   api.SetRuntimeError_ptr = SetRuntimeError;
   api.GetThis_ptr = GetThis;
@@ -179,12 +196,15 @@ NativeApi MakeNativeAPI() {
   api.GetSlotBool_ptr = GetSlotBool;
   api.GetSlotNumber_ptr = GetSlotNumber;
   api.GetSlotString_ptr = GetSlotString;
+  api.GetSlotPointer_ptr = GetSlotPointer;
   api.GetSlotHandle_ptr = GetSlotHandle;
   api.GetSlotNativeInstance_ptr = GetSlotNativeInstance;
   api.setSlotNull_ptr = setSlotNull;
   api.setSlotBool_ptr = setSlotBool;
   api.setSlotNumber_ptr = setSlotNumber;
   api.setSlotString_ptr = setSlotString;
+  api.setSlotPointer_ptr = setSlotPointer;
+  api.setSlotClosure_ptr = setSlotClosure;
   api.setSlotStringLength_ptr = setSlotStringLength;
   api.setSlotHandle_ptr = setSlotHandle;
   api.GetSlotHash_ptr = GetSlotHash;
@@ -194,6 +214,9 @@ NativeApi MakeNativeAPI() {
   api.NewRange_ptr = NewRange;
   api.NewList_ptr = NewList;
   api.NewMap_ptr = NewMap;
+  api.NewString_ptr = NewString;
+  api.NewPointer_ptr = NewPointer;
+  api.NewClosure_ptr = NewClosure;
   api.ListInsert_ptr = ListInsert;
   api.ListPop_ptr = ListPop;
   api.ListLength_ptr = ListLength;
@@ -207,4 +230,3 @@ NativeApi MakeNativeAPI() {
 }
 
 #endif // DL_IMPLEMENT
-#endif // __SAYNAA_NATIVE__

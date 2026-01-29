@@ -4,14 +4,14 @@
  */
 
 // Opcodes X macro (http://en.wikipedia.org/wiki/X_Macro) should be included
-// in the source where it'll be used. Required to define the following...
+// in the source where it'll be used. Required to define the following macros:
 //
 // #define OPCODE(name, params, stack)
 // #include "saynaa_opcodes.h"
 //
-// first parameter is the opcode name, 2nd will be the size of the parameter
-// in bytes 3 one is how many stack slots it'll take after executing the
-// instruction.
+// The first parameter is the opcode name, the second specifies the size of the
+// parameters in bytes, and the third indicates how many stack slots will be
+// affected after executing the instruction.
 
 // Load the constant at index [arg] from the script's literals.
 // params: 2 byte (uint16_t) index value.

@@ -5,7 +5,7 @@
 .vscode/
 obj/
 build/
-temp/
+tmp/
 
 ### C ###
 # Prerequisites
@@ -77,7 +77,7 @@ Sessionx.vim
 # Temporary
 .netrwhist
 *~
-/*.sa
+/*.sw?
 # Auto-generated tag files
 tags
 # Persistent undo

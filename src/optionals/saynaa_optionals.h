@@ -3,8 +3,7 @@
  * Distributed Under The MIT License
  */
 
-#ifndef __SAYNAA_OPTIONALS__
-#define __SAYNAA_OPTIONALS__
+#pragma once
 
 #include <errno.h>
 #include <stdio.h>
@@ -19,10 +18,11 @@
 //
 
 #include "../cli/saynaa.h"
-#include "../runtime/saynaa_vm.h"
 #include "../runtime/saynaa_core.h"
+#include "../runtime/saynaa_vm.h"
 #include "../shared/saynaa_common.h"
 #include "../shared/saynaa_value.h"
+#include "../utils/saynaa_utils.h"
 
 #define REPORT_ERRNO(fn) \
   SetRuntimeErrorFmt(vm, "C." #fn " errno:%i - %s.", errno, strerror(errno))
@@ -53,10 +53,8 @@ void cleanupLibs(VM* vm);
 // The import statement path resolving function. This
 // implementation is required by saynaa from it's hosting application
 // inorder to use the import statements.
-char* pathResolveImport(VM * vm, const char* from, const char* path);
+char* pathResolveImport(VM* vm, const char* from, const char* path);
 
 // Write the executable's path to the buffer and return true, if it failed
 // it'll return false.
 bool osGetExeFilePath(char* buff, int size);
-
-#endif // __SAYNAA_OPTIONALS__

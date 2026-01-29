@@ -3,15 +3,14 @@
  * Distributed Under The MIT License
  */
 
-#ifndef COMPILER_H
-#define COMPILER_H
+#pragma once
 
 #include "../shared/saynaa_value.h"
 
 typedef enum {
-  #define OPCODE(name, _, __) OP_##name,
-  #include "../shared/saynaa_opcodes.h"
-  #undef OPCODE
+#define OPCODE(name, _, __) OP_##name,
+#include "../shared/saynaa_opcodes.h"
+#undef OPCODE
 } Opcode;
 
 // compiler is a one pass/single pass compiler, which means it
@@ -27,7 +26,6 @@ typedef struct Compiler Compiler;
 // struct is not publicily visible to the host for the sake of simplicity
 // (like lua does) it needs to be a somehow addressed (TODO:).
 typedef struct {
-
   // Compile debug version of the source. In release mode all the assertions
   // and debug informations will be stripped (TODO:) and wll be optimized.
   bool debug;
@@ -49,11 +47,8 @@ CompileOptions newCompilerOptions();
 // compilation it'll return RESULT_SUCCESS, otherwise it'll return
 // RESULT_COMPILE_ERROR but if repl_mode set in the [options],  and we've
 // reached and unexpected EOF it'll return RESULT_UNEXPECTED_EOF.
-Result compile(VM* vm, Module* module, const char* source,
-                 const CompileOptions* options);
+Result compile(VM* vm, Module* module, const char* source, const CompileOptions* options);
 
 // Mark the heap allocated objects of the compiler at the garbage collection
 // called at the marking phase of vmCollectGarbage().
 void compilerMarkObjects(VM* vm, Compiler* compiler);
-
-#endif // COMPILER_H

@@ -1,7 +1,7 @@
-[![build](https://github.com/saynaa-lang/saynaa/actions/workflows/build.yml/badge.svg)](https://github.com/saynaa-lang/saynaa/actions/workflows/build.yml)
+[![build](https://github.com/mahdiware/saynaa-lang/actions/workflows/build.yml/badge.svg)](https://github.com/mahdiware/saynaa-lang/actions/workflows/build.yml)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/mahdiware)
 [![Telegram](https://img.shields.io/badge/-telegram-red?color=white&logo=telegram&logoColor=black)](https://telegram.me/SaynaaOfficial)
-[![License](https://img.shields.io/packagist/l/longman/telegram-bot.svg)](https://github.com/saynaa-lang/saynaa/blob/main/LICENSE)
+[![License](https://img.shields.io/packagist/l/longman/telegram-bot.svg)](https://github.com/mahdiware/saynaa-lang/blob/main/LICENSE)
 
 
 <p align="center"> <img src="docs/assets/icon.png" alt="Saynaa-Language" title="Saynaa Programming Language" align="center"> </p>
@@ -72,8 +72,8 @@ Saynaa was supported by a couple of open-source projects.
 To install, simply execute the commands given below.
 
 ```bash
-  git clone https://github.com/saynaa-lang/saynaa.git
-  cd saynaa
+  git clone https://github.com/mahdiware/saynaa-lang.git
+  cd saynaa-lang
 ```
 
 ### Makefile
@@ -115,12 +115,12 @@ To view all possible flags you can run the command below:
 ## Contributing
 Contributions to Saynaa are welcomed and encouraged!<br>
 More information is available in the official [CONTRIBUTING](CONTRIBUTING.md) file.
-* <a href="https://github.com/saynaa-lang/saynaa/issues/new">Open an issue</a>:
+* <a href="https://github.com/mahdiware/saynaa-lang/issues/new">Open an issue</a>:
   * if you need help
   * if you find a bug
   * if you have a feature request
   * to ask a general question
-* <a href="https://github.com/saynaa-lang/saynaa/pulls">Submit a pull request</a>:
+* <a href="https://github.com/mahdiware/saynaa-lang/pulls">Submit a pull request</a>:
   * if you want to contribute
 
 ## Donate
