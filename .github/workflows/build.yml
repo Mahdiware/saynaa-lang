@@ -9,59 +9,66 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run static checks.
-        run: |
-          python3 util/check.py
+        run: python3 util/check.py
 
   ## Compile and run test on linux.
   linux-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install PCRE2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre2-dev
       - name: Run the Makefile.
-        run: |
-          make all
+        run: make all
       - name: Run tests.
-        run: |
-          python3 util/test.py
-        working-directory: ./
+        run: python3 util/test.py
       - uses: actions/upload-artifact@v4
         with:
           name: saynaa-linux
-          path: |
-            saynaa
+          path: saynaa
 
   ## Compile and run tests on windows.
   windows-build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup MSBuild (Visual Studio Build Tools)
-        uses: microsoft/setup-msbuild@v2
-      - name: Run build batch script.
+
+      - name: Install PCRE2 via vcpkg
+        run: |
+          vcpkg install pcre2:x64-windows-static
+          # Create the folder structure build.bat expects
+          mkdir -p deps/pcre2/include
+          mkdir -p deps/pcre2/lib
+          # Copy headers and static lib into the project deps folder
+          cp $VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/include/pcre2* deps/pcre2/include/
+          cp $VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/lib/pcre2-8-static.lib deps/pcre2/lib/
+        shell: bash
+
+      - name: Run build batch script
         run: cmd /c build.bat
-      - name: Run tests.
+
+      - name: Run tests
         run: python3 util/test.py
-        working-directory: ./
+        
       - uses: actions/upload-artifact@v4
         with:
           name: saynaa-windows
-          path: |
-            saynaa.exe
+          path: saynaa.exe
 
   ## Compile and run tests on macos.
   macos-build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install PCRE2
+        run: brew install pcre2
       - name: Run the Makefile.
-        run: |
-          make all
+        run: make all
       - name: Run tests.
-        run: |
-          python3 util/test.py
-        working-directory: ./
+        run: python3 util/test.py
       - uses: actions/upload-artifact@v4
         with:
           name: saynaa-mac
-          path: |
-            saynaa
+          path: saynaa
