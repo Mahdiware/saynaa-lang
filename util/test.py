@@ -14,9 +14,9 @@ from os.path import abspath, dirname, isdir, isfile, join, realpath, relpath, sp
 DIR = dirname(dirname(realpath(__file__)))
 APP = join(DIR, 'saynaa')
 
-APP_WITH_EXT = APP + ".exe" if platform.system() == "Windows" else APP
+APP = APP + ".exe" if platform.system() == "Windows" else APP
 
-if not isfile(APP_WITH_EXT):
+if not isfile(APP):
   print(f"The binary file 'saynaa' was not found, expected it to be at {APP}")
   print("In order to run the tests, you need to build saynaa first!")
   sys.exit(1)
