@@ -76,16 +76,18 @@ if not exist "!target_dir!lib\" mkdir "!target_dir!lib\"
 
 :: 1. Compile Core
 cd /d "!target_dir!saynaa"
-cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! ^
-    "!project_root!src\compiler\*.c" ^
-    "!project_root!src\optionals\*.c" ^
-    "!project_root!src\optionals\json\*.c" ^
-    "!project_root!src\optionals\dirent\*.c" ^
-    "!project_root!src\optionals\path\*.c" ^
-    "!project_root!src\optionals\term\*.c" ^
-    "!project_root!src\runtime\*.c" ^
-    "!project_root!src\shared\*.c" ^
-    "!project_root!src\utils\*.c"
+
+set "sources="
+for /r "!project_root!src" %%d in (.) do (
+    if exist "%%d\*.c" (
+        set "dir_path=%%~fd"
+        if /i not "!dir_path!"=="!project_root!src\cli" (
+            set "sources=!sources! "!dir_path!\*.c""
+        )
+    )
+)
+
+cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! !sources!
 if errorlevel 1 goto :FAIL
 
 :: 2. Create Library
