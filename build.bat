@@ -78,13 +78,18 @@ if not exist "!target_dir!lib\" mkdir "!target_dir!lib\"
 cd /d "!target_dir!saynaa"
 
 set "sources="
-for /r "!project_root!src" %%d in (.) do (
-    if exist "%%d\*.c" (
-        set "dir_path=%%~fd"
-        if /i not "!dir_path!"=="!project_root!src\cli" (
+for /r "%project_root%src" %%d in (.) do (
+    set "dir_path=%%~fd"
+    if exist "!dir_path!\*.c" (
+        if /i not "!dir_path!"=="%project_root%src\cli" (
             set "sources=!sources! "!dir_path!\*.c""
         )
     )
+)
+
+if "!sources!"=="" (
+    echo Error: No source files found in src.
+    goto :FAIL
 )
 
 cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! !sources!
