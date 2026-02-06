@@ -24,6 +24,14 @@ else
 	CFLAGS += $(CCFLAGS) -g -O3
 endif
 
+# Check for Mac (Darwin) and add include paths for Homebrew
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    # Add typical Homebrew include paths
+    CFLAGS += -I/opt/homebrew/include -I/usr/local/include
+    LDFLAGS += -L/opt/homebrew/lib -L/usr/local/lib
+endif
+
 ifeq ($(READLINE),enable)
     CFLAGS += -DREADLINE
 	LDFLAGS += -lreadline
