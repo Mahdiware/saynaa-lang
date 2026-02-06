@@ -1,27 +1,34 @@
 import re
 
-# Test match
+# Test match (anchored)
 assert(re.match("h.*o", "hello"))
 assert(re.match("^h.*o\$", "hello"))
-assert(re.match("z", "hello") == false)
-assert(re.match("[0-9]+", "foo 123 bar"))
+assert(re.match("z", "hello") == null)
+# "foo" at start prevents match of [0-9]+
+assert(re.match("[0-9]+", "foo 123 bar") == null) 
+assert(re.match("[0-9]+", "123 bar"))
 
-# Test search
+# Test fullmatch (whole string)
+assert(re.fullmatch("hello", "hello"))
+assert(re.fullmatch("h.*o", "hello"))
+assert(re.fullmatch("hello", "hello world") == null)
+
+# Test search (anywhere)
 assert(re.search("lo", "hello") == "lo")
 assert(re.search("[0-9]+", "year 2023") == "2023")
 assert(re.search("z", "hello") == null)
 
-# Test extract
+# Test extract (custom function: search + groups)
 groups = re.extract("([0-9]+)-([0-9]+)", "date 2023-10")
 # groups[0] is full match. groups[1] is capture 1 ...
-assert(groups, ["2023-10", "2023", "10"])
+assert(groups == ["2023-10", "2023", "10"])
 
 groups = re.extract("([a-z]+) ([0-9]+)", "foo 123")
 assert(groups[0] == "foo 123")
 assert(groups[1] == "foo")
 assert(groups[2] == "123")
 
-print("Regex tests passed!")
+print("Basic tests passed!")
 
 # Test findall
 assert(re.findall("foo", "foo bar foo baz") == ["foo", "foo"])
@@ -30,3 +37,28 @@ assert(re.findall("([a-z]+)=([0-9]+)", "a=1 b=2 c=3") == [["a", "1"], ["b", "2"]
 assert(re.findall("xyz", "abc def") == [])
 
 print("Findall tests passed!")
+
+# Test split
+parts = re.split(",", "a,b,c")
+assert(parts == ["a", "b", "c"])
+parts = re.split(",", "a,b,c", 1)
+assert(parts == ["a", "b,c"])
+
+print("Split tests passed!")
+
+# Test sub
+assert(re.sub("a", "b", "banana") == "bbnbnb")
+assert(re.sub("[0-9]+", "#", "id 123 and 456") == "id # and #")
+
+# Test subn
+res = re.subn("a", "b", "banana") # [string, count]
+assert(res[0] == "bbnbnb")
+assert(res[1] == 3)
+
+print("Sub/Subn tests passed!")
+
+# Test escape
+assert(re.escape("a.b") == "a\\.b")
+assert(re.escape("123") == "123")
+
+print("Escape tests passed!")

@@ -1,228 +1,9 @@
-/*****************************************************************************/
-/* PUBLIC API                                                                */
-/*****************************************************************************/
-
 /*
- * Note that at this point *nix stdout are buffered and windows aren't.
- *
- * *nix systems doesn't support double click at this point, but it's in my
- * TODO. Contributions are wellcome.
- *
- * Window resize events can be enabled by setting NO_WINDOW_RESIZE_EVENT
- * macro value to 1 and recompile, however you have to provide a event
- * callback for resize events in *nix systems.
- *
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
+ * Distributed Under The MIT License
  */
 
-#include <stdbool.h>
-
-/*
- * A generic Vector type to pass size, position data around.
- */
-typedef struct {
-  int x;
-  int y;
-} term_Vec;
-
-/* A macro function to create a vector. */
-#define term_vec(x, y) \
-  (term_Vec) { \
-    (x), (y) \
-  }
-
-/*
- * List of keycodes. Note that not all possible keys are listed
- * here however they can be retrieved by from the key event's
- * ascii value.
- */
-typedef enum {
-
-  TERM_KEY_UNKNOWN = 0,
-
-  TERM_KEY_0 = '0',
-  TERM_KEY_1 = '1',
-  TERM_KEY_2 = '2',
-  TERM_KEY_3 = '3',
-  TERM_KEY_4 = '4',
-  TERM_KEY_5 = '5',
-  TERM_KEY_6 = '6',
-  TERM_KEY_7 = '7',
-  TERM_KEY_8 = '8',
-  TERM_KEY_9 = '9',
-
-  TERM_KEY_A = 'A',
-  TERM_KEY_B = 'B',
-  TERM_KEY_C = 'C',
-  TERM_KEY_D = 'D',
-  TERM_KEY_E = 'E',
-  TERM_KEY_F = 'F',
-  TERM_KEY_G = 'G',
-  TERM_KEY_H = 'H',
-  TERM_KEY_I = 'I',
-  TERM_KEY_J = 'J',
-  TERM_KEY_K = 'K',
-  TERM_KEY_L = 'L',
-  TERM_KEY_M = 'M',
-  TERM_KEY_N = 'N',
-  TERM_KEY_O = 'O',
-  TERM_KEY_P = 'P',
-  TERM_KEY_Q = 'Q',
-  TERM_KEY_R = 'R',
-  TERM_KEY_S = 'S',
-  TERM_KEY_T = 'T',
-  TERM_KEY_U = 'U',
-  TERM_KEY_V = 'V',
-  TERM_KEY_W = 'W',
-  TERM_KEY_X = 'X',
-  TERM_KEY_Y = 'Y',
-  TERM_KEY_Z = 'Z',
-
-  TERM_KEY_ESC,
-  TERM_KEY_ENTER,
-  TERM_KEY_SPACE,
-  TERM_KEY_HOME,
-  TERM_KEY_END,
-  TERM_KEY_PAGEUP,
-  TERM_KEY_PAGEDOWN,
-  TERM_KEY_LEFT,
-  TERM_KEY_UP,
-  TERM_KEY_RIGHT,
-  TERM_KEY_DOWN,
-  TERM_KEY_INSERT,
-  TERM_KEY_DELETE,
-  TERM_KEY_BACKSPACE,
-  TERM_KEY_TAB,
-
-  TERM_KEY_F1,
-  TERM_KEY_F2,
-  TERM_KEY_F3,
-  TERM_KEY_F4,
-  TERM_KEY_F5,
-  TERM_KEY_F6,
-  TERM_KEY_F7,
-  TERM_KEY_F8,
-  TERM_KEY_F9,
-  TERM_KEY_F10,
-  TERM_KEY_F11,
-  TERM_KEY_F12,
-
-} term_KeyCode;
-
-/*
- * Event type.
- */
-typedef enum {
-  TERM_ET_UNKNOWN = 0,
-  TERM_ET_KEY_DOWN,
-  TERM_ET_DOUBLE_CLICK,
-  TERM_ET_MOUSE_DOWN,
-  TERM_ET_MOUSE_UP,
-  TERM_ET_MOUSE_MOVE,
-  TERM_ET_MOUSE_DRAG,
-  TERM_ET_MOUSE_SCROLL,
-  TERM_ET_RESIZE,
-} term_EventType;
-
-/*
- * Key event modifier flags, that contain the ctrl, alt, shift key state.
- */
-typedef enum {
-  TERM_MD_NONE = 0x0,
-  TERM_MD_CTRL = (1 << 1),
-  TERM_MD_ALT = (1 << 2),
-  TERM_MD_SHIFT = (1 << 3),
-} term_Modifiers;
-
-/*
- * Mouse button event's button index.
- */
-typedef enum {
-  TERM_MB_UNKNOWN = 0,
-  TERM_MB_LEFT = 1,
-  TERM_MB_MIDDLE = 2,
-  TERM_MB_RIGHT = 3,
-} term_MouseBtn;
-
-/*
- * Key event.
- */
-typedef struct {
-  term_KeyCode code;
-  char ascii;
-  term_Modifiers modifiers;
-} term_EventKey;
-
-/*
- * Mouse event.
- */
-typedef struct {
-  term_MouseBtn button;
-  term_Vec pos;
-  bool scroll; /* If true down otherwise up. */
-  term_Modifiers modifiers;
-} term_EventMouse;
-
-/*
- * Event.
- */
-typedef struct {
-  term_EventType type;
-  union {
-    term_EventKey key;
-    term_EventMouse mouse;
-    term_Vec resize;
-  };
-} term_Event;
-
-/* Returns true if both stdin and stdout are tty like device. */
-bool term_isatty();
-
-/*
- * Initialize the terminal. On windows it'll enable the virtual terminal
- * processing, *nix it'll enter non-canonical mode, and won't echo the
- * characters that are inputted.
- *
- * @param capture_events: If true it'll enable input events processing.
- */
-void term_init(bool capture_events);
-
-/* Cleans up all the internals. */
-void term_cleanup(void);
-
-/*
- * Reads an event. You should initialize terminal with capture_events
- * to enable reading events.
- *
- * @param event: an event pointer that'll updated after reading an event.
- *
- * @return If an event has been read it'll return true.
- */
-bool term_read_event(term_Event* event);
-
-/* Create an alternative screen buffer. */
-void term_new_screen_buffer();
-
-/*
- * Restore the screen buffer after switching to an alternative buffer with
- * term_new_screen_buffer(). This will also clean entier screen and place
- * the cursor at (0, 0).
- */
-void term_restore_screen_buffer();
-
-/* Returns the screen size. */
-term_Vec term_getsize();
-
-/* Returns the cursor position in a zero based index coordinate. */
-term_Vec term_getposition();
-
-/* Sets the cursor position in a zero based index coordinate. */
-void term_setposition(term_Vec pos);
-
-/*****************************************************************************/
-/* INTERNAL HEADERS AND MACROS                                               */
-/*****************************************************************************/
-
-#ifdef TERM_IMPLEMENT
+#include "saynaa_term.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -241,9 +22,11 @@ void term_setposition(term_Vec pos);
 #if defined(TERM_SYS_WIN)
 #include <windows.h>
 #elif defined(TERM_SYS_NIX)
+#include <errno.h>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <unistd.h>
 #endif
 
 #if defined(_MSC_VER) || (defined(TERM_SYS_WIN) && defined(__TINYC__))
@@ -251,16 +34,10 @@ void term_setposition(term_Vec pos);
 #define read _read
 #define fileno _fileno
 #define isatty _isatty
-#else
-#include <unistd.h>
 #endif
 
 /*
  * In older version of windows some terminal attributes are not defined
- * So I'm defining everyting here if they're not already.
- *
- * Note that I have no idea which macros are not defined and not, I'm just
- * re-defining every this looks suspicious.
  */
 #ifdef TERM_SYS_WIN
 
@@ -417,17 +194,6 @@ static void _init() {
 
   struct termios raw = _ctx.tios;
 
-  /*
-   * ECHO   : It won't print character as we type.
-   * ICANON : Disable canonical mode, inputs will
-   *          be byte by byte instead of line by line.
-   * ISIG   : Disable Ctrl+C, Ctrl+Z
-   * IXON   : Disable Ctrl+S, Ctrl+Q
-   * IEXTEN : Disable Ctrl+V
-   * ICRNL  : Fix Ctrl+M. It won't convert '\r' into '\n' anymore.
-   * OPOST  : It won't convert '\n' into '\r\n' anymore.
-   * BRKINT : Disable break condition that'll send a SIGINT.
-   */
   raw.c_lflag &= ~(ECHO | ICANON);
   if (_ctx.capture_events) {
     /*raw.c_oflag &= ~(OPOST);*/
@@ -435,14 +201,6 @@ static void _init() {
     raw.c_lflag &= ~(ISIG | IEXTEN);
   }
 
-  /*
-   * VMIN  : Minimum number of bytes should be read before return from read().
-   * VTIME : Maximum amount of time to be wait before read() returns.
-   *         1 unit is 100 of a second (ie. vtime = n => 1/100 s)
-   *
-   * However on windows running WSL, VTIME won't work, it'll wait till an
-   * input is read.
-   */
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
@@ -473,16 +231,6 @@ void _handle_resize(int sig) {
     return;
   }
   _ctx.screensize = newsize;
-
-#if 0 /* TODO: This event should be dispatch or sent to some kind of an event queue. */
-  term_Event event;
-  memset(&event, 0, sizeof(term_Event));
-  event.type = TERM_ET_RESIZE;
-  event.resize = _ctx.screensize;
-
-#error "Dispatch the event with a callback or something."
-  your_callback(&event);
-#endif
 }
 
 #endif /* TERM_SYS_NIX */
@@ -561,26 +309,54 @@ void term_setposition(term_Vec pos) {
 }
 
 static term_Vec _getsize() {
-  term_Vec size;
+  term_Vec size = {0, 0};
 
 #if defined(TERM_SYS_WIN)
   CONSOLE_SCREEN_BUFFER_INFO binfo;
-  GetConsoleScreenBufferInfo(_ctx.h_stdout, &binfo);
-  size.x = binfo.srWindow.Right - binfo.srWindow.Left + 1;
-  size.y = binfo.srWindow.Bottom - binfo.srWindow.Top + 1;
+  HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+  if (GetConsoleScreenBufferInfo(h, &binfo)) {
+    size.x = binfo.srWindow.Right - binfo.srWindow.Left + 1;
+    size.y = binfo.srWindow.Bottom - binfo.srWindow.Top + 1;
+  }
 
 #elif defined(TERM_SYS_NIX)
   struct winsize wsize;
-  ioctl(fileno(stdout), TIOCGWINSZ, &wsize);
-  size.x = wsize.ws_col;
-  size.y = wsize.ws_row;
+  int res = -1;
+
+  // Try STDOUT
+  res = ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsize);
+  if (res != 0) {
+    // Try STDERR
+    res = ioctl(STDERR_FILENO, TIOCGWINSZ, &wsize);
+  }
+  if (res != 0) {
+    // Try STDIN
+    res = ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize);
+  }
+
+  if (res == 0) {
+    size.x = wsize.ws_col;
+    size.y = wsize.ws_row;
+  } else {
+    // Fallback: try opening /dev/tty directly
+    FILE* fp = fopen("/dev/tty", "r");
+    if (fp) {
+      if (ioctl(fileno(fp), TIOCGWINSZ, &wsize) == 0) {
+        size.x = wsize.ws_col;
+        size.y = wsize.ws_row;
+      }
+      fclose(fp);
+    }
+  }
+#else
+#error "Unsupported platform."
 #endif
 
   return size;
 }
 
 term_Vec term_getsize() {
-  return _ctx.screensize;
+  return _getsize();
 }
 
 /*****************************************************************************/
@@ -589,10 +365,6 @@ term_Vec term_getsize() {
 
 #if defined(TERM_SYS_WIN)
 
-/*
- * Convert windows virtual keys to term_KeyCodes. Returns false if the key
- * should be ignored as an event (ex: shift, ctrl, ...).
- */
 static bool _toTermKeyCode(WORD vk, term_KeyCode* kc) {
   if (0x30 <= vk && vk <= 0x39) {
     *kc = (term_KeyCode) TERM_KEY_0 + (vk - 0x30);
@@ -611,63 +383,59 @@ static bool _toTermKeyCode(WORD vk, term_KeyCode* kc) {
     return true;
   }
 
-  /*
-   * Note that shift, ctrl, alt keys are returned as TERM_KEY_UNKNOWN
-   *since *nix systems don't support them.
-   */
   switch (vk) {
-  case VK_BACK:
-    *kc = TERM_KEY_BACKSPACE;
-    break;
-  case VK_TAB:
-    *kc = TERM_KEY_TAB;
-    break;
-  case VK_RETURN:
-    *kc = TERM_KEY_ENTER;
-    break;
-  case VK_ESCAPE:
-    *kc = TERM_KEY_ESC;
-    break;
-  case VK_SPACE:
-    *kc = TERM_KEY_SPACE;
-    break;
-  case VK_PRIOR:
-    *kc = TERM_KEY_PAGEUP;
-    break;
-  case VK_NEXT:
-    *kc = TERM_KEY_PAGEDOWN;
-    break;
-  case VK_END:
-    *kc = TERM_KEY_END;
-    break;
-  case VK_HOME:
-    *kc = TERM_KEY_HOME;
-    break;
-  case VK_LEFT:
-    *kc = TERM_KEY_LEFT;
-    break;
-  case VK_RIGHT:
-    *kc = TERM_KEY_RIGHT;
-    break;
-  case VK_UP:
-    *kc = TERM_KEY_UP;
-    break;
-  case VK_DOWN:
-    *kc = TERM_KEY_DOWN;
-    break;
-  case VK_INSERT:
-    *kc = TERM_KEY_INSERT;
-    break;
-  case VK_DELETE:
-    *kc = TERM_KEY_DELETE;
-    break;
+    case VK_BACK:
+      *kc = TERM_KEY_BACKSPACE;
+      break;
+    case VK_TAB:
+      *kc = TERM_KEY_TAB;
+      break;
+    case VK_RETURN:
+      *kc = TERM_KEY_ENTER;
+      break;
+    case VK_ESCAPE:
+      *kc = TERM_KEY_ESC;
+      break;
+    case VK_SPACE:
+      *kc = TERM_KEY_SPACE;
+      break;
+    case VK_PRIOR:
+      *kc = TERM_KEY_PAGEUP;
+      break;
+    case VK_NEXT:
+      *kc = TERM_KEY_PAGEDOWN;
+      break;
+    case VK_END:
+      *kc = TERM_KEY_END;
+      break;
+    case VK_HOME:
+      *kc = TERM_KEY_HOME;
+      break;
+    case VK_LEFT:
+      *kc = TERM_KEY_LEFT;
+      break;
+    case VK_RIGHT:
+      *kc = TERM_KEY_RIGHT;
+      break;
+    case VK_UP:
+      *kc = TERM_KEY_UP;
+      break;
+    case VK_DOWN:
+      *kc = TERM_KEY_DOWN;
+      break;
+    case VK_INSERT:
+      *kc = TERM_KEY_INSERT;
+      break;
+    case VK_DELETE:
+      *kc = TERM_KEY_DELETE;
+      break;
 
-  case VK_SHIFT:
-  case VK_CONTROL:
-  case VK_MENU:
-  case VK_PAUSE:
-  case VK_CAPITAL: /* Capslock. */
-    return false;
+    case VK_SHIFT:
+    case VK_CONTROL:
+    case VK_MENU:
+    case VK_PAUSE:
+    case VK_CAPITAL: /* Capslock. */
+      return false;
   }
 
   return true;
@@ -679,7 +447,6 @@ static bool _read_event(term_Event* event) {
 
   DWORD count;
   if (!GetNumberOfConsoleInputEvents(_ctx.h_stdin, &count)) {
-    /* TODO: error handle api ("GetNumberOfConsoleInputEvents() failed."). */
     return false;
   }
 
@@ -688,110 +455,106 @@ static bool _read_event(term_Event* event) {
 
   INPUT_RECORD ir;
   if (!ReadConsoleInput(_ctx.h_stdin, &ir, 1, &count)) {
-    /* TODO: error handle api ("ReadConsoleInput() failed."). */
     return false;
   }
 
   switch (ir.EventType) {
-  case KEY_EVENT: {
-    KEY_EVENT_RECORD* ker = &ir.Event.KeyEvent;
+    case KEY_EVENT:
+      {
+        KEY_EVENT_RECORD* ker = &ir.Event.KeyEvent;
+        if (!ker->bKeyDown)
+          return false;
 
-    /* Key up event not available in *nix systems. So we're ignoring here as well. */
-    if (!ker->bKeyDown)
-      return false;
+        if (!_toTermKeyCode(ker->wVirtualKeyCode, &event->key.code))
+          return false;
 
-    if (!_toTermKeyCode(ker->wVirtualKeyCode, &event->key.code))
-      return false;
+        event->type = TERM_ET_KEY_DOWN;
+        event->key.ascii = ker->uChar.AsciiChar;
 
-    event->type = TERM_ET_KEY_DOWN;
-    event->key.ascii = ker->uChar.AsciiChar;
-
-    if ((ker->dwControlKeyState & LEFT_ALT_PRESSED) || (ker->dwControlKeyState & RIGHT_ALT_PRESSED))
-      event->key.modifiers |= TERM_MD_ALT;
-    if ((ker->dwControlKeyState & LEFT_CTRL_PRESSED)
-        || (ker->dwControlKeyState & RIGHT_CTRL_PRESSED))
-      event->key.modifiers |= TERM_MD_CTRL;
-    if (ker->dwControlKeyState & SHIFT_PRESSED)
-      event->key.modifiers |= TERM_MD_SHIFT;
-
-  } break;
-
-  case MOUSE_EVENT: {
-    MOUSE_EVENT_RECORD* mer = &ir.Event.MouseEvent;
-
-    static DWORD last_state = 0; /* Last state to compare if a new button pressed. */
-    bool pressed = mer->dwButtonState; /* If any state is on pressed will be true. */
-
-    /* Xor will give != 0 if any button changed. */
-    DWORD change = last_state ^ mer->dwButtonState;
-
-    if (change != 0) {
-      /*
-       * What if the mouse doesn't have the middle button and right
-       * button is the second button?.
-       */
-      if (change & FROM_LEFT_1ST_BUTTON_PRESSED) {
-        pressed = mer->dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED;
-        event->mouse.button = TERM_MB_LEFT;
-
-      } else if (change & RIGHTMOST_BUTTON_PRESSED) {
-        pressed = mer->dwButtonState & RIGHTMOST_BUTTON_PRESSED;
-        event->mouse.button = TERM_MB_RIGHT;
-
-      } else if (change & FROM_LEFT_2ND_BUTTON_PRESSED) {
-        pressed = mer->dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED;
-        event->mouse.button = TERM_MB_MIDDLE;
+        if ((ker->dwControlKeyState & LEFT_ALT_PRESSED)
+            || (ker->dwControlKeyState & RIGHT_ALT_PRESSED))
+          event->key.modifiers |= TERM_MD_ALT;
+        if ((ker->dwControlKeyState & LEFT_CTRL_PRESSED)
+            || (ker->dwControlKeyState & RIGHT_CTRL_PRESSED))
+          event->key.modifiers |= TERM_MD_CTRL;
+        if (ker->dwControlKeyState & SHIFT_PRESSED)
+          event->key.modifiers |= TERM_MD_SHIFT;
       }
-    }
-    last_state = mer->dwButtonState;
+      break;
 
-    event->mouse.pos.x = mer->dwMousePosition.X;
-    event->mouse.pos.y = mer->dwMousePosition.Y;
+    case MOUSE_EVENT:
+      {
+        MOUSE_EVENT_RECORD* mer = &ir.Event.MouseEvent;
 
-    if (mer->dwEventFlags == 0) {
-      event->type = (pressed) ? TERM_ET_MOUSE_DOWN : TERM_ET_MOUSE_UP;
+        static DWORD last_state = 0;
+        bool pressed = mer->dwButtonState;
+        DWORD change = last_state ^ mer->dwButtonState;
 
-    } else if (mer->dwEventFlags & MOUSE_MOVED) {
-      if (_veceq(_ctx.mousepos, event->mouse.pos)) {
-        return false;
+        if (change != 0) {
+          if (change & FROM_LEFT_1ST_BUTTON_PRESSED) {
+            pressed = mer->dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED;
+            event->mouse.button = TERM_MB_LEFT;
+
+          } else if (change & RIGHTMOST_BUTTON_PRESSED) {
+            pressed = mer->dwButtonState & RIGHTMOST_BUTTON_PRESSED;
+            event->mouse.button = TERM_MB_RIGHT;
+
+          } else if (change & FROM_LEFT_2ND_BUTTON_PRESSED) {
+            pressed = mer->dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED;
+            event->mouse.button = TERM_MB_MIDDLE;
+          }
+        }
+        last_state = mer->dwButtonState;
+
+        event->mouse.pos.x = mer->dwMousePosition.X;
+        event->mouse.pos.y = mer->dwMousePosition.Y;
+
+        if (mer->dwEventFlags == 0) {
+          event->type = (pressed) ? TERM_ET_MOUSE_DOWN : TERM_ET_MOUSE_UP;
+
+        } else if (mer->dwEventFlags & MOUSE_MOVED) {
+          if (_veceq(_ctx.mousepos, event->mouse.pos)) {
+            return false;
+          }
+          event->type = (pressed) ? TERM_ET_MOUSE_DRAG : TERM_ET_MOUSE_MOVE;
+
+        } else if (mer->dwEventFlags & MOUSE_WHEELED) {
+          event->type = TERM_ET_MOUSE_SCROLL;
+          event->mouse.scroll = (mer->dwButtonState & 0xFF000000) ? true : false;
+
+        } else if (mer->dwEventFlags & DOUBLE_CLICK) {
+          event->type = TERM_ET_DOUBLE_CLICK;
+        }
+
+        _ctx.mousepos.x = event->mouse.pos.x;
+        _ctx.mousepos.y = event->mouse.pos.y;
+
+        if ((mer->dwControlKeyState & LEFT_ALT_PRESSED)
+            || (mer->dwControlKeyState & RIGHT_ALT_PRESSED))
+          event->mouse.modifiers |= TERM_MD_ALT;
+        if ((mer->dwControlKeyState & LEFT_CTRL_PRESSED)
+            || (mer->dwControlKeyState & RIGHT_CTRL_PRESSED))
+          event->mouse.modifiers |= TERM_MD_CTRL;
+        if (mer->dwControlKeyState & SHIFT_PRESSED)
+          event->mouse.modifiers |= TERM_MD_SHIFT;
       }
-      event->type = (pressed) ? TERM_ET_MOUSE_DRAG : TERM_ET_MOUSE_MOVE;
+      break;
 
-    } else if (mer->dwEventFlags & MOUSE_WHEELED) {
-      event->type = TERM_ET_MOUSE_SCROLL;
-      event->mouse.scroll = (mer->dwButtonState & 0xFF000000) ? true : false;
+    case WINDOW_BUFFER_SIZE_EVENT:
+      {
+        WINDOW_BUFFER_SIZE_RECORD* wbs = &ir.Event.WindowBufferSizeEvent;
+        event->type = TERM_ET_RESIZE;
+        term_Vec newsize = term_vec(wbs->dwSize.X, wbs->dwSize.Y);
+        if (_ctx.screensize.x == newsize.x && _ctx.screensize.y == newsize.y)
+          return false;
+        _ctx.screensize = newsize;
+        event->resize = _ctx.screensize;
+      }
+      break;
 
-    } else if (mer->dwEventFlags & DOUBLE_CLICK) {
-      event->type = TERM_ET_DOUBLE_CLICK;
-    }
-
-    _ctx.mousepos.x = event->mouse.pos.x;
-    _ctx.mousepos.y = event->mouse.pos.y;
-
-    if ((mer->dwControlKeyState & LEFT_ALT_PRESSED) || (mer->dwControlKeyState & RIGHT_ALT_PRESSED))
-      event->mouse.modifiers |= TERM_MD_ALT;
-    if ((mer->dwControlKeyState & LEFT_CTRL_PRESSED)
-        || (mer->dwControlKeyState & RIGHT_CTRL_PRESSED))
-      event->mouse.modifiers |= TERM_MD_CTRL;
-    if (mer->dwControlKeyState & SHIFT_PRESSED)
-      event->mouse.modifiers |= TERM_MD_SHIFT;
-
-  } break;
-
-  case WINDOW_BUFFER_SIZE_EVENT: {
-    WINDOW_BUFFER_SIZE_RECORD* wbs = &ir.Event.WindowBufferSizeEvent;
-    event->type = TERM_ET_RESIZE;
-    term_Vec newsize = term_vec(wbs->dwSize.X, wbs->dwSize.Y);
-    if (_ctx.screensize.x == newsize.x && _ctx.screensize.y == newsize.y)
+    case MENU_EVENT:
+    case FOCUS_EVENT:
       return false;
-    _ctx.screensize = newsize;
-    event->resize = _ctx.screensize;
-  } break;
-
-  /* Not handling as it's not available in *nix. */
-  case MENU_EVENT:
-  case FOCUS_EVENT:
-    return false;
   }
 
   return event->type != TERM_ET_UNKNOWN;
@@ -799,7 +562,6 @@ static bool _read_event(term_Event* event) {
 
 #elif defined(TERM_SYS_NIX)
 
-/* Returns the length of an escape sequence. */
 static int _escape_length(const char* buff, uint32_t size) {
   int length = 0;
 
@@ -828,7 +590,6 @@ static void _key_event(char c, term_Event* event) {
   event->type = TERM_ET_KEY_DOWN;
   event->key.ascii = c;
 
-  /* Note: Ctrl+M and <enter> both reads as '\r'. */
   if (c == '\r') {
     event->key.code = TERM_KEY_ENTER;
     return;
@@ -848,7 +609,6 @@ static void _key_event(char c, term_Event* event) {
 
   event->key.code = (term_KeyCode) c;
 
-  /* Ctrl + key */
   if (1 <= c && c <= 26) {
     event->key.modifiers |= TERM_MD_CTRL;
     event->key.code = (term_KeyCode) ('A' + (c - 1));
@@ -860,7 +620,6 @@ static void _key_event(char c, term_Event* event) {
   }
 }
 
-/* Reference: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking */
 static void _mouse_event(const char* buff, uint32_t count, term_Event* event) {
   /* buff = cb ; cx ; cy m|M */
 
@@ -886,16 +645,10 @@ static void _mouse_event(const char* buff, uint32_t count, term_Event* event) {
   if (m != 'm' && m != 'M')
     return;
 
-  /*
-   * low two bits = button information.
-   * next three bits = modifiers.
-   * next bits = event type.
-   */
   int low = cb & 0b11;
   int high = (cb & 0b11100) >> 2;
   int type = cb >> 5;
 
-  /* Note that the modifiers won't work/incorrect in WSL. */
   if (high & 0b001)
     event->mouse.modifiers |= TERM_MD_SHIFT;
   if (high & 0b010)
@@ -907,30 +660,35 @@ static void _mouse_event(const char* buff, uint32_t count, term_Event* event) {
   event->mouse.pos.y = cy - 1;
 
   switch (type) {
-  case 0: {
-    event->type = (m == 'M') ? TERM_ET_MOUSE_DOWN : TERM_ET_MOUSE_UP;
-    event->mouse.button = (term_MouseBtn) (low + 1);
-  } break;
+    case 0:
+      {
+        event->type = (m == 'M') ? TERM_ET_MOUSE_DOWN : TERM_ET_MOUSE_UP;
+        event->mouse.button = (term_MouseBtn) (low + 1);
+      }
+      break;
 
-  case 1: {
-    if (low == 0b11) { /* Mouse move. */
-      event->type = TERM_ET_MOUSE_MOVE;
+    case 1:
+      {
+        if (low == 0b11) { /* Mouse move. */
+          event->type = TERM_ET_MOUSE_MOVE;
 
-    } else { /* Drag. */
-      event->type = TERM_ET_MOUSE_DRAG;
-      event->mouse.button = (term_MouseBtn) (low + 1);
-    }
-  } break;
+        } else { /* Drag. */
+          event->type = TERM_ET_MOUSE_DRAG;
+          event->mouse.button = (term_MouseBtn) (low + 1);
+        }
+      }
+      break;
 
-  case 2: { /* Scroll. */
-    event->type = TERM_ET_MOUSE_SCROLL;
+    case 2:
+      { /* Scroll. */
+        event->type = TERM_ET_MOUSE_SCROLL;
 
-    if (low == 0)
-      event->mouse.scroll = false;
-    else if (low == 1)
-      event->mouse.scroll = true;
-
-  } break;
+        if (low == 0)
+          event->mouse.scroll = false;
+        else if (low == 1)
+          event->mouse.scroll = true;
+      }
+      break;
   }
 }
 
@@ -1035,7 +793,7 @@ static bool _read_event(term_Event* event) {
 
   _ctx.buffc += count;
 
-  int event_length = 1; /* Num of character for the event in the buffer. */
+  int event_length = 1;
 
   if (*_ctx.buff == '\x1b') {
     event_length = _escape_length(_ctx.buff + 1, _ctx.buffc - 1) + 1;
@@ -1058,5 +816,3 @@ static bool _read_event(term_Event* event) {
 }
 
 #endif /* TERM_SYS_NIX */
-
-#endif /* TERM_IMPLEMENT */

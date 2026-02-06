@@ -5,18 +5,17 @@
 
 #pragma once
 
+#include "../optionals/dirent/saynaa_dirent.h"
+
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #if defined(_WIN32)
 #include <windows.h>
 typedef unsigned __int64 nanotime_t;
-#define DIRREF HANDLE
 #else
-#include <dirent.h>
 typedef uint64_t nanotime_t;
-#define DIRREF DIR*
 #endif
 
 nanotime_t nanotime(void);

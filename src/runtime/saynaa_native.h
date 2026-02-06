@@ -228,5 +228,4 @@ NativeApi MakeNativeAPI() {
 
   return api;
 }
-
 #endif // DL_IMPLEMENT

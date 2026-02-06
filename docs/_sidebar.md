@@ -5,22 +5,31 @@
 
 * LANGUAGE GUIDE
 
-  * [Syntax](syntax.md)
+  * [Syntax & Basics](syntax.md)
   * [Operators](operators.md)
   * [Control Flow](controlflow.md)
-  * [Bool](bool.md)
-  * [List](list.md)
-  * [Map](map.md)
-  * [Range](range.md)
-  * [Closure](closure.md)
-  * [Function](function.md)
-  * [Class](class.md)
   * [Loops](loop.md)
+  * [Functions](function.md)
+  * [Closures](closure.md)
+  * [Classes](class.md)
+  * [Data Types](datatypes.md)
+    * [Bool](bool.md)
+    * [List](list.md)
+    * [Map](map.md)
+    * [Range](range.md)
 
-* MODULE
+* STANDARD LIBRARY
+
   * [Io](io.md)
   * [Json](json.md)
   * [Lang](lang.md)
   * [Math](math.md)
   * [Os](os.md)
+  * [Path](path.md)
+  * [Regex](re.md)
+  * [Term](term.md)
   * [Time](time.md)
+
+* EXTENDING SAYNAA
+
+  * [Creating Modules](creating_modules.md)

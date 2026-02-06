@@ -1,0 +1,16 @@
+import term
+
+# Basic availability check
+if term.isatty()
+  term.start_color(1) # Red
+  term.write("This is red text\n")
+  term.end_color(0)
+  
+  term.start_bold()
+  term.write("This is bold text\n")
+  term.end_bold()
+else
+  print("Not a TTY, skipping color tests")
+end
+
+print("Term module tests passed")

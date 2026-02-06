@@ -11,11 +11,6 @@
 #include "../utils/saynaa_debug.h"
 #include "../utils/saynaa_utils.h"
 
-#include <string.h>
-#ifndef _WIN32
-#include <dirent.h>
-#endif
-
 /*****************************************************************************/
 /* TOKENS                                                                    */
 /*****************************************************************************/
@@ -85,7 +80,6 @@ typedef enum {
   TK_IMPORT,   // import
   TK_AS,       // as
   TK_FUNCTION, // function
-  TK_FN,       // function (literal function)
   TK_END,      // end
 
   TK_NULL,  // null
@@ -151,7 +145,6 @@ static _Keyword _keywords[] = {
     {"import", 6, TK_IMPORT},
     {"as", 2, TK_AS},
     {"function", 8, TK_FUNCTION},
-    {"fn", 2, TK_FN},
     {"end", 3, TK_END},
     {"null", 4, TK_NULL},
     {"in", 2, TK_IN},
@@ -334,6 +327,7 @@ typedef struct sParser {
   const char* source;            //< Currently compiled source.
   const char* file_path;         //< Path of the module (for reporting errors).
   const char* token_start;       //< Start of the currently parsed token.
+  int token_line;                //< Line number of the start of the token.
   const char* current_char;      //< Current char position in the source.
   int current_line;              //< Line number of the current char.
   Token previous, current, next; //< Currently parsed tokens.
@@ -486,6 +480,7 @@ static void parserInit(Parser* parser, VM* vm, Compiler* compiler,
   parser->source = source;
   parser->file_path = path;
   parser->token_start = parser->source;
+  parser->token_line = 1;
   parser->current_char = parser->source;
   parser->current_line = 1;
 
@@ -1026,7 +1021,7 @@ static Token makeErrToken(Parser* parser) {
   tk.type = TK_ERROR;
   tk.start = parser->token_start;
   tk.length = (int) (parser->current_char - parser->token_start);
-  tk.line = parser->current_line;
+  tk.line = parser->token_line;
   return tk;
 }
 
@@ -1036,7 +1031,7 @@ static void setNextToken(Parser* parser, _TokenType type) {
   next->type = type;
   next->start = parser->token_start;
   next->length = (int) (parser->current_char - parser->token_start);
-  next->line = parser->current_line - ((type == TK_LINE) ? 1 : 0);
+  next->line = parser->token_line;
 }
 
 // Initialize the next token as the type and assign the value.
@@ -1057,6 +1052,7 @@ static void lexToken(Compiler* compiler) {
 
   while (peekChar(parser) != '\0') {
     parser->token_start = parser->current_char;
+    parser->token_line = parser->current_line;
 
     // If we're parsing a name interpolation and the current character is
     // where the name end, continue parsing the string.
@@ -1277,6 +1273,7 @@ static void lexToken(Compiler* compiler) {
   }
 
   parser->token_start = parser->current_char;
+  parser->token_line = parser->current_line;
   setNextToken(parser, TK_EOF);
 }
 
@@ -1708,7 +1705,6 @@ GrammarRule rules[] = {
     /* TK_IMPORT      */ NO_RULE,
     /* TK_AS          */ NO_RULE,
     /* TK_FUNCTION    */ {exprFunction, NULL, NO_INFIX},
-    /* TK_FN          */ {exprFunction, NULL, NO_INFIX},
     /* TK_END         */ NO_RULE,
     /* TK_NULL        */ {exprValue, NULL, NO_INFIX},
     /* TK_IN          */ {NULL, exprBinaryOp, PREC_TEST},
@@ -1873,7 +1869,6 @@ static void _compileCall(Compiler* compiler, Opcode call_type, int method) {
 // compile a method call otherwise a regular call.
 static bool _compileOptionalParanCall(Compiler* compiler, int method) {
   static _TokenType tk[] = {
-      TK_FN,
       TK_FUNCTION,
       // TK_STRING,
       // TK_STRING_INTERP,
@@ -3264,7 +3259,6 @@ static void compileWildcardImport(Compiler* compiler, int path_idx) {
     }
   }
 
-#ifndef _WIN32
   DIR* dir = opendir(search_path);
   if (dir) {
     struct dirent* ent;
@@ -3303,9 +3297,6 @@ static void compileWildcardImport(Compiler* compiler, int path_idx) {
     }
     closedir(dir);
   }
-#else
-  // Windows implementation omitted
-#endif
 }
 
 // import module1 [as alias1 [, module2 [as alias2 ...]]
@@ -3369,6 +3360,36 @@ static void compileFromImport(Compiler* compiler) {
   consume(compiler, TK_IMPORT, "Expected keyword 'import'.");
   if (compiler->parser.has_syntax_error)
     return;
+
+  if (match(compiler, TK_STAR)) {
+    VM* vm = compiler->parser.vm;
+    Var path_var = compiler->module->constants.data[path_idx];
+    String* name_str = AS_STRING(path_var);
+
+    Var mod_var = vmImportModule(vm, compiler->module->path, name_str);
+    if (IS_OBJ_TYPE(mod_var, OBJ_MODULE)) {
+      Module* mod = (Module*) AS_OBJ(mod_var);
+      for (int i = 0; i < mod->global_names.count; i++) {
+        int name_idx_in_mod = mod->global_names.data[i];
+        Var name_val = mod->constants.data[name_idx_in_mod];
+        String* name = AS_STRING(name_val);
+
+        int current_name_idx = 0;
+        moduleAddString(compiler->module, vm, name->data, name->length, &current_name_idx);
+
+        emitOpcode(compiler, OP_GET_ATTRIB_KEEP);
+        emitShort(compiler, current_name_idx);
+
+        int global_idx = compilerAddVariable(compiler, name->data, name->length,
+                                             compiler->parser.previous.line);
+        emitStoreGlobal(compiler, global_idx);
+        emitOpcode(compiler, OP_POP);
+      }
+    }
+    emitOpcode(compiler, OP_POP);
+    consumeEndStatement(compiler);
+    return;
+  }
 
   do {
     // Consume the symbol name to import from the module.

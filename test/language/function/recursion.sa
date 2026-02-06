@@ -1,0 +1,19 @@
+
+function fib(n)
+  if n < 2 then return n end
+  return fib(n - 1) + fib(n - 2)
+end
+
+assert(fib(0) == 0)
+assert(fib(1) == 1)
+assert(fib(5) == 5)
+assert(fib(10) == 55)
+
+function factorial(n)
+  if n == 0 then return 1 end
+  return n * factorial(n - 1)
+end
+
+assert(factorial(5) == 120)
+
+print("Recursion tests passed")

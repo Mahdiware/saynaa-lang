@@ -56,16 +56,3 @@ A List instance can be expanded by setting an index that is greater than the cur
   list[30] = 22; # list contains now 31 elements (index 0 to 30)
 ```
 
-### List Sort
-The List class implements the sort method as a convenient way to sort its items. By default, the sort() method sorts the values as strings (or numbers) in alphabetical (for strings) and ascending order:
-      
-```ruby
-  fruits = ["Banana", "Orange", "Apple", "Mango"];
-  fruits.sort();
-  # fruits is now [Apple,Banana,Mango,Orange]
-
-  numbers = [10, 3.14, 82, 1, 7];
-  numbers.sort();
-  # numbers is now [1,3.14,7,10,82]
-
-```

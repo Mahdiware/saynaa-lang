@@ -6,12 +6,9 @@
 #include "saynaa.h"
 
 #include "../utils/saynaa_utils.h"
+#include "argparse.h"
 
 #include <stdio.h>
-
-#define _ARGPARSE_IMPL
-#include "argparse.h"
-#undef _ARGPARSE_IMPL
 
 // FIXME: Refactor `isatty` logic to a portable utility module.
 // Verify portability of `<unistd.h>` and `<io.h>` across target platforms.
@@ -34,8 +31,6 @@ void signalHandler(int signum) {
     typeAgain++;
     return;
   }
-  // Perform necessary cleanup here if needed.
-  // Terminate the process.
   exit(0);
 }
 #endif
@@ -47,7 +42,6 @@ static VM* initializeVM(int argc, const char** argv) {
   config.argument.argv = argv;
 
   // FIXME: Implement a portable `is_tty()` wrapper.
-  // Note: Windows deprecates `isatty` in favor of `_isatty`.
   if (!!isatty(fileno(stderr))) {
 #ifdef _WIN32
     DWORD outmode = 0;
@@ -63,78 +57,82 @@ static VM* initializeVM(int argc, const char** argv) {
 }
 
 int main(int argc, const char** argv) {
-  // Register signal handlers for graceful termination.
+  // Register signal handlers
 #if defined(__linux__)
   signal(SIGINT, signalHandler);
   signal(SIGTSTP, signalHandler);
-  signal(SIGSEGV, signalHandler);
 #endif
-  // Parse command line arguments.
 
-  const char* usage[] = {
-      "saynaa ... [-c cmd | file] ...",
-      NULL,
-  };
-
-  nanotime_t tstart, tend;
+  // Argument variables
   const char* cmd = NULL;
-  int debug = false, help = false, quiet = false, version = false, millisecond = false;
-  struct argparse_option cli_opts[] = {
-      OPT_STRING('c', "cmd", (void*) &cmd, "Evaluate and run the passed string.", NULL, 0, 0),
+  bool debug = false;
+  bool help = false;
+  bool quiet = false;
+  bool version = false;
+  bool millisecond = false;
 
-      OPT_BOOLEAN('d', "debug", (void*) &debug,
-                  "Compile and run the debug version.", NULL, 0, 0),
+  // Setup parser
+  ArgParser* parser = ap_new("saynaa", "The Saynaa Programming Language");
+  ap_add_str(parser, "cmd", 'c', &cmd, "Evaluate and run the passed string.");
+  ap_add_bool(parser, "debug", 'd', &debug, "Compile and run the debug version.");
+  ap_add_bool(parser, "help", 'h', &help, "Prints this help message and exit.");
+  ap_add_bool(parser, "quiet", 'q', &quiet,
+              "Don't print version and copyright statement on REPL startup.");
+  ap_add_bool(parser, "version", 'v', &version, "Print version and exit.");
+  ap_add_bool(parser, "ms", 'm', &millisecond, "Prints runtime millisecond.");
 
-      OPT_BOOLEAN('h', "help", (void*) &help,
-                  "Prints this help message and exit.", NULL, 0, 0),
+  // Parse arguments
+  int script_idx = ap_parse(parser, argc, argv);
 
-      OPT_BOOLEAN('q', "quiet", (void*) &quiet,
-                  "Don't print version and copyright "
-                  "statement on REPL startup.",
-                  NULL, 0, 0),
-
-      OPT_BOOLEAN('v', "version", &version, "Print version and exit.", NULL, 0, 0),
-
-      OPT_BOOLEAN('m', "ms", &millisecond, "Prints runtime millisecond.", NULL, 0, 0),
-
-      OPT_END(),
-  };
-
-  // Parse the options.
-  struct argparse argparse;
-  argparse_init(&argparse, cli_opts, usage, 0);
-  int arg_parse = argparse_parse(&argparse, argc, argv);
-
-  if (help) { // --help.
-    argparse_usage(&argparse);
+  if (help) {
+    // Manually print usage since ap_print_help assumes we want to show it.
+    // The user asked for "before test.sa its language args", handling help specially if needed.
+    // But if help is set, we just print help and exit, ignoring everything else usually.
+    // However, if the user ran `saynaa test.sa --help`, `script_idx` would be `test.sa`.
+    // If the parser stops at `test.sa`, then `--help` after it is NOT parsed into `help`.
+    // So `help` only becomes true if `-h` or `--help` is successfuly parsed BEFORE the script.
+    ap_print_help(parser);
+    ap_free(parser);
     return 0;
   }
 
-  if (version) { // --version
+  if (version) {
     fprintf(stdout, "%s %s\n", LANGUAGE, VERSION_STRING);
+    ap_free(parser);
     return 0;
   }
 
-  int exitcode = 0;
+  // Construct VM args
+  int vm_argc = 0;
+  const char** vm_argv = NULL;
+
+  if (script_idx < argc) {
+    // We have a script file or positional args
+    vm_argc = argc - script_idx;
+    vm_argv = (const char**) (argv + script_idx);
+  } else {
+    // REPL mode or -c mode
+    vm_argc = 0;
+    vm_argv = NULL;
+  }
 
   // Create and initialize the VM.
-  VM* vm = initializeVM(argc, argv);
+  VM* vm = initializeVM(vm_argc, vm_argv);
+
+  int exitcode = 0;
 
   if (cmd != NULL) { // -c "print('foo')"
     Result result = RunString(vm, cmd);
     exitcode = (int) result;
 
-  } else if (arg_parse == 0) { // Run on REPL mode.
-
-    // Print the copyright and license notice, if --quiet not set.
+  } else if (script_idx >= argc) { // Run on REPL mode.
     if (!quiet) {
       printf("%s\n", COPYRIGHT);
     }
     exitcode = RunREPL(vm);
 
-  } else { // file. ...
-
-    const char* file_path = argv[0];
+  } else { // file ...
+    const char* file_path = argv[script_idx];
     Result result = RunFile(vm, file_path);
     exitcode = (int) result;
   }
@@ -142,7 +140,8 @@ int main(int argc, const char** argv) {
   if (millisecond)
     printf("runtime: %.4f ms\n", vm_time(vm));
 
-  // Cleanup the VM and exit.
+  // Cleanup
   FreeVM(vm);
+  ap_free(parser);
   return exitcode;
 }

@@ -1,73 +1,81 @@
 #!/usr/local/bin/saynaa
 
-import term, math
+import term, math, io, os
 from types import Vector
 
-## x, y velocity of snake.
-vx = 0; vy = 0
+class Game
+  function _init()
+    this.vx = 0; this.vy = 0
+    this.px = 0; this.py = 0
+    this.tx = 0; this.ty = 0
+    this.ax = 15; this.ay = 15
+    this.trail = []
+    this.tail = 15
+    this.score = 0
+  end
+end
 
-## position (at the middle).
-px = 0; py = 0
-
-## tile size.
-tx = 0; ty = 0
-
-## apple position.
-ax = 15; ay = 15
-
-## tail, trail
-trail = []
-tail = 15
-
-## score
-score = 0
+game = Game()
 
 function init()
   size = term.getsize()
-  tx = size.x
-  ty = size.y
+  game.tx = size.x
+  game.ty = size.y
+
+  if game.tx <= 0  
+    col = os.getenv("COLUMNS")
+    if col != null then game.tx = Number(col) end
+  end
+  if game.tx <= 0 then game.tx = 80 end
+
+  if game.ty <= 0  
+    row = os.getenv("LINES")
+    if row != null then game.ty = Number(row) end
+  end
+  if game.ty <= 0 then game.ty = 24 end
   
-  px = tx / 2; py = ty / 2
+  game.px = math.floor(game.tx / 2); game.py = math.floor(game.ty / 2)
 end
 
 function frame()
-  px += vx
-  py += vy
-  if px < 0 then px = tx - 1 end
-  if px > tx - 1 then px = 0 end
-  if py < 0 then py = ty - 1 end
-  if py > ty - 1 then py = 0 end
+  game.px += game.vx
+  game.py += game.vy
+  
+  if game.px < 0 then game.px = game.tx - 1 end
+  if game.px > game.tx - 1 then game.px = 0 end
+  if game.py < 0 then game.py = game.ty - 1 end
+  if game.py > game.ty - 1 then game.py = 0 end
 
   term.clear()
-  term.write('press Q to quit | score = $score')
+  term.write("press Q to quit | score = ${game.score}")
   term.set_title('Play with funny!')
 
-  for i in trail
+  for i in game.trail
     term.setposition(i.x, i.y)
     term.start_bg(0, 0xff, 0)
     term.write(' ')
     term.end_bg()
     
-    if i.x == px and i.y == py
-      tail = 5
+    if i.x == game.px and i.y == game.py
+      game.tail = 5
     end
   end
 
-  term.setposition(ax, ay)
+  term.setposition(game.ax, game.ay)
   term.start_bg(0xff, 10, 70)
   term.write(' ')
   term.end_bg()
 
-  trail.append(Vector(px, py))
-  while trail.length > tail
-    trail.pop(0)
+  game.trail.append(Vector(game.px, game.py))
+  while game.trail.length > game.tail
+    game.trail.pop(0)
   end
 
-  if px == ax and py == ay
-    tail += 1
-    score += 1
-    ax = math.rand() % tx
-    ay = math.rand() % ty
+  if game.px == game.ax and game.py == game.ay
+    game.tail += 1
+    game.score += 1
+    game.ax = math.rand() % game.tx
+    game.ay = math.rand() % game.ty
   end
   term.flush()
 end
@@ -76,31 +84,15 @@ function handle(event)
   if event.type == term.EVENT_KEY_DOWN
     if event.keycode == term.KEY_Q
       term.stop()
+    elif event.keycode == term.KEY_LEFT
+      game.vx = -1; game.vy = 0
+    elif event.keycode == term.KEY_UP
+      game.vx = 0; game.vy = -1
+    elif event.keycode == term.KEY_DOWN
+      game.vx = 0; game.vy = 1
+    elif event.keycode == term.KEY_RIGHT
+      game.vx = 1; game.vy = 0
     end
-
-    ## The "Switch Statement" alternative.
-    {
-      term.KEY_LEFT: fn
-        vx = -1; vy = 0
-      end,
-
-      term.KEY_UP: fn
-        vx = 0; vy = -1
-      end,
-
-      term.KEY_DOWN: fn
-        vx = 0; vy = 1
-      end,
-
-      term.KEY_RIGHT: fn
-        vx = 1; vy = 0
-      end,
-
-      term.KEY_T: fn
-        math.sin(12)
-      end,
-
-    }.get(event.keycode, fn end)()
   end
 end
 
@@ -109,7 +101,7 @@ function main()
   config.capture_events = true
   config.hide_cursor = true
   config.new_buffer = true
-  config.fps = 60
+  config.fps = 120
   config.init_fn = init
   config.event_fn = handle
   config.frame_fn = frame

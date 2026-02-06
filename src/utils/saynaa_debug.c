@@ -108,7 +108,9 @@ void reportCompileTimeError(VM* vm, const char* path, int line, const char* sour
 
         // Print line till error.
         buff.count = 0;
-        ByteBufferAddString(&buff, vm, line_start, (uint32_t) (at - line_start));
+        if (at >= line_start) {
+          ByteBufferAddString(&buff, vm, line_start, (uint32_t) (at - line_start));
+        }
         ByteBufferWrite(&buff, vm, '\0');
         writefn(vm, (char*) buff.data);
 

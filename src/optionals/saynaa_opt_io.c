@@ -518,6 +518,7 @@ void registerModuleIO(VM* vm) {
   Handle* io = NewModule(vm, "io");
 
   RegisterBuiltinFn(vm, "open", _open, -1, DOCSTRING(_open));
+  REGISTER_FN(io, "open", _open, -1);
 
   reserveSlots(vm, 2);
   setSlotHandle(vm, 0, io);         // slot[0]         =  io

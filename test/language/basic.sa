@@ -43,7 +43,7 @@ assert(h1 == h2 and h1 == "0xeb5f499b")
 
 ## Logical statement test
 val = 0; a = false; b = true
-get_true = fn return true end
+get_true = function return true end
 if a and b then assert(false) end
 if a or b then val = 42 else assert(false) end assert(val == 42)
 if get_true() or false then val = 12 end assert(val == 12)
