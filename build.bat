@@ -79,6 +79,10 @@ cd /d "!target_dir!saynaa"
 cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! ^
     "!project_root!src\compiler\*.c" ^
     "!project_root!src\optionals\*.c" ^
+    "!project_root!src\optionals\json\*.c" ^
+    "!project_root!src\optionals\dirent\*.c" ^
+    "!project_root!src\optionals\path\*.c" ^
+    "!project_root!src\optionals\term\*.c" ^
     "!project_root!src\runtime\*.c" ^
     "!project_root!src\shared\*.c" ^
     "!project_root!src\utils\*.c"
