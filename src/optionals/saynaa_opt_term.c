@@ -674,9 +674,15 @@ saynaa_function(_termRun, "term.run(config:Config) -> Null", "Run the main loop.
     double ft = 1.0 / fps;
 
     if (ft > et) {
+#if defined(_WIN32)
+      DWORD sleep_ms = (DWORD) ((ft - et) * 1e3);
+      if (sleep_ms > 0)
+        Sleep(sleep_ms);
+#else
       useconds_t sleep_us = (useconds_t) ((ft - et) * 1e6);
       if (sleep_us > 0)
         usleep(sleep_us);
+#endif
     }
   }
 
