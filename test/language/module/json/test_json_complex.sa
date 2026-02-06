@@ -1,0 +1,28 @@
+import json
+
+# Regression test for empty structures
+val = json.parse("{\"a\": []}")
+assert(val["a"] != null)
+# We can't easily check for type List vs Null without `type()` function or behavior check
+# But we can check behavior
+val["a"].append(1) # Should not crash if it is a list
+assert(val["a"][0] == 1)
+
+val2 = json.parse("[]")
+val2.append(2)
+assert(val2[0] == 2)
+
+val3 = json.parse("{}")
+# val3["key"] = 1 # Map setting check
+# assert(val3["key"] == 1)
+
+# Nested complex
+s = "{\"users\": [{\"id\": 1, \"name\": \"mahdi\"}]}"
+obj = json.parse(s)
+assert(obj["users"][0]["name"] == "mahdi")
+
+# Stringify (if available, assuming stringify exists)
+# s2 = json.stringify(obj)
+# print(s2)
+
+print("Complex JSON tests passed")

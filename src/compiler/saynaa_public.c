@@ -408,9 +408,9 @@ Result RunString(VM* vm, const char* source) {
 }
 
 Result RunFile(VM* vm, const char* path) {
-  // Note: Even if the file is already in the VM's script cache (e.g., via import),
-  // we explicitly recompile it here to ensure the cache reflects the latest content
-  // on disk.
+  // Note: Even if the file is already in the VM's script cache (e.g., via
+  // import), we explicitly recompile it here to ensure the cache reflects the
+  // latest content on disk.
 
   ASSERT(vm->config.load_script_fn != NULL,
          "No script loading functions defined.");
@@ -548,7 +548,7 @@ Result RunREPL(VM* vm) {
 
     // Read a line from stdin.
 #if defined(__linux) && defined(READLINE)
-    line = saynaa_readline(listening);
+    line = saynaa_readline(vm, listening);
 
 #else
     printfn(vm, listening);

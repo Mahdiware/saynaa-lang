@@ -39,21 +39,28 @@ While Saynaa uses C-Style comments, Saynaa still supports the common "#!" sheban
 
 ## Code blocks
 
-All the blocks are closed with the `end` keyword,
-all blocks are stards with either a new line and an optional "block entering keyword". For a single line
-block these keywords are must. `if` blocks starts with the `then`, for `while` and `for` loops they starts
-with the `do` keyword.
+All blocks are closed with the `end` keyword.
+Blocks start with either a new line or a "block entering keyword" (`do` or `then`). 
+
+For single-line blocks, these keywords are required:
+*   `if` blocks use `then`.
+*   `while` and `for` loops use `do`.
+
+For multi-line blocks (where a newline follows the condition), these keywords are optional but recommended for clarity.
 
 ```ruby
-  # The `do` keyword is a must here.
+  # Single line: `do` is required.
   while cond do something() end
 
-  # The `do` keyword is a optional here.
+  # Multi-line: `do` is optional.
   for i in 0..10
     print('$i')
   end
 
-  # `then` is optional if new line is present.
+  # Single line: `then` is required.
+  if cond then statement() end
+
+  # Multi-line: `then` is optional.
   if cond1 then
     foo()
   else if cond2
@@ -63,10 +70,11 @@ with the `do` keyword.
   end
 ```
 
+
 ### Reserved Keywords
 Like many other programming languages Saynaa has some reserved keywords that assume a very specific meaning in the context of the source code:
 ```ruby
-  if elif else class import fn function do end
+  if elif else class import function do end
   from as null in is and or not true false this
   super break while for continue return then
 ```

@@ -1,144 +1,289 @@
-#!python
+#!/usr/bin/env python3
 
-## Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
-## Distributed Under The MIT License
-
-"""
-This script runs static checks on source files for line length, use of tabs, trailing whitespace, etc.
-"""
-
-import os
 import sys
+import os
 import re
-from typing import List, Iterable
+import argparse
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
-ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-HASH_CHECK_LIST = [
-  "src/runtime/saynaa_core.c",
-  "src/shared/saynaa_value.c",
-]
-
-CHECK_EXTENSIONS = ('.c', '.h', '.sa', '.py', '.js')
-
-ALLOW_LONG_LINES = ('http://', 'https://', '<script ', '<link ', '<svg ')
-
-IGNORE_FILES = (
-  "src/runtime/saynaa_native.h",
-  "src/optionals/saynaa_opt_term.c",
-)
+# -----------------------------------------------------------------------------
+# Configuration
+# -----------------------------------------------------------------------------
 
 SOURCE_DIRS = [
-  "src/cli/",
-  "src/compiler/",
-  "src/optionals/",
-  "src/runtime/",
-  "src/shared/",
-  "src/utils/",
+    "src/cli",
+    "src/compiler",
+    "src/optionals",
+    "src/runtime",
+    "src/shared",
+    "src/utils",
 ]
 
-checks_failed = False
+HASH_CHECK_FILES = [
+    "src/runtime/saynaa_core.c",
+    "src/shared/saynaa_value.c",
+]
 
-def to_abs_paths(sources: Iterable[str]) -> List[str]:
-  """Converts relative paths to absolute paths."""
-  return [os.path.join(ROOT_PATH, source) for source in sources]
+CHECK_EXTENSIONS = {'.c', '.h', '.sa', '.py', '.js'}
 
+IGNORE_FILES = {
+    "src/runtime/saynaa_native.h",
+    "src/optionals/saynaa_opt_term.c",
+}
 
-def to_rel_path(path: str) -> str:
-  """Converts an absolute path to a relative path from the project root."""
-  return os.path.relpath(path, ROOT_PATH)
+IGNORE_FOLDERS = {
+    "src/optionals/thirdparty/",
+}
 
+ALLOW_LONG_LINES_PREFIXES = ('http://', 'https://', '<script ', '<link ', '<svg ')
 
-def main() -> None:
-  """Main function to run all checks."""
-  check_fnv1_hash(to_abs_paths(HASH_CHECK_LIST))
-  check_static(to_abs_paths(SOURCE_DIRS))
-  if checks_failed:
-    sys.exit(1)
-  print("Static checks passed.")
+MAX_LINE_LENGTH = 100
 
+# -----------------------------------------------------------------------------
+# Utilities
+# -----------------------------------------------------------------------------
 
-def check_fnv1_hash(sources: Iterable[str]) -> None:
-  """Checks if FNV-1a hash values match their corresponding strings."""
-  pattern = r'CHECK_HASH\(\s*"([A-Za-z0-9_]+)"\s*,\s*(0x[0-9abcdef]+)\)'
-  for file in sources:
-    with open(file, 'r') as fp:
-      for line_no, line in enumerate(fp, start=1):
-        matches = re.findall(pattern, line)
-        if not matches:
-          continue
-        name, expected_hash = matches[0]
-        computed_hash = hex(fnv1a_hash(name))
-        if expected_hash != computed_hash:
-          file_path = to_rel_path(file)
-          report_error(
-            f"{location(file_path, line_no)} - hash mismatch. "
-            f"hash('{name}') = {computed_hash} not {expected_hash}"
-          )
+class Colors:
+    HEADER = '\033[95m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    
+    if not sys.stdout.isatty() or os.environ.get('NO_COLOR'):
+        HEADER = OKGREEN = WARNING = FAIL = ENDC = BOLD = ''
 
+def get_root_dir():
+    return Path(__file__).parent.parent.resolve()
 
-def check_static(dirs: Iterable[str]) -> None:
-  """Performs static checks on source files."""
-  for dir in dirs:
-    for file in os.listdir(dir):
-      if not file.endswith(CHECK_EXTENSIONS):
-        continue
-      if os.path.isdir(os.path.join(dir, file)):
-        continue
+def resolve_paths(root, relative_paths):
+    return [root / p for p in relative_paths]
 
-      curr_file = os.path.normpath(os.path.join(dir, file))
-      if any(curr_file == os.path.normpath(os.path.join(ROOT_PATH, ignore)) for ignore in IGNORE_FILES):
-        continue
+# -----------------------------------------------------------------------------
+# Logic
+# -----------------------------------------------------------------------------
 
-      with open(curr_file, 'r') as fp:
-        file_path = to_rel_path(curr_file)
-        lines = fp.readlines()
+class Issue:
+    def __init__(self, file, line_no, message, is_error=True):
+        self.file = file
+        self.line_no = line_no
+        self.message = message
+        self.is_error = is_error
 
-      is_last_empty = False
-      for line_no, line in enumerate(lines, start=1):
-        line = line.rstrip('\n')
+    def __str__(self):
+        ctx = f"{self.file.relative_to(get_root_dir())}:{self.line_no}"
+        color = Colors.FAIL if self.is_error else Colors.WARNING
+        return f"{Colors.BOLD}{ctx:<25}{Colors.ENDC} {color}{self.message}{Colors.ENDC}"
 
-        if '\t' in line:
-          report_error(f"{location(file_path, line_no)} - contains tab(s) ({repr(line)}).")
+class CheckResult:
+    def __init__(self, file):
+        self.file = file
+        self.issues = []
+        self.fixed = False
 
-        if len(line) >= 100 and not any(ignore in line for ignore in ALLOW_LONG_LINES):
-          report_error(f"{location(file_path, line_no)} - contains {len(line)} (> 100) characters.")
+    def add_error(self, line, msg):
+        self.issues.append(Issue(self.file, line, msg, True))
 
-        if line.endswith(' '):
-          report_error(f"{location(file_path, line_no)} - contains trailing whitespace.")
+    def has_errors(self):
+        return any(i.is_error for i in self.issues)
 
-        if line == '':
-          if is_last_empty:
-            report_error(f"{location(file_path, line_no)} - consecutive empty lines.")
-          is_last_empty = True
-        else:
-          is_last_empty = False
+# --- FNV-1a Hash Checker ---
 
+def fnv1a_hash(string):
+    """Computes the FNV-1a hash of a string."""
+    FNV_prime_32_bit = 16777619
+    FNV_offset_basis_32_bit = 2166136261
+    
+    hash_value = FNV_offset_basis_32_bit
+    for char in string:
+        hash_value ^= ord(char)
+        hash_value *= FNV_prime_32_bit
+        hash_value &= 0xffffffff
+    return hash_value
 
-def location(file: str, line: int) -> str:
-  """Returns a formatted string of the error location."""
-  return f"{file:<17} : {line:4}"
+def check_hashes(file_path):
+    result = CheckResult(file_path)
+    if not file_path.exists():
+        result.add_error(0, f"File not found for hash check")
+        return result
 
+    # Pattern: CHECK_HASH("name", 0x123...)
+    pattern = re.compile(r'CHECK_HASH\(\s*"([A-Za-z0-9_]+)"\s*,\s*(0x[0-9abcdef]+)\)', re.IGNORECASE)
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line_no, line in enumerate(f, start=1):
+                matches = pattern.findall(line)
+                for name, expected_hash_str in matches:
+                    expected_hash = int(expected_hash_str, 16)
+                    computed_hash = fnv1a_hash(name)
+                    
+                    if expected_hash != computed_hash:
+                        result.add_error(line_no, 
+                            f"Hash mismatch for '{name}'. Expected {hex(expected_hash)}, Got {hex(computed_hash)}")
+    except Exception as e:
+        result.add_error(0, f"Error reading file: {e}")
+        
+    return result
 
-def fnv1a_hash(string: str) -> int:
-  """Computes the FNV-1a hash of a string."""
-  FNV_prime_32_bit = 16777619
-  FNV_offset_basis_32_bit = 2166136261
+# --- Style Checker ---
 
-  hash_value = FNV_offset_basis_32_bit
-  for char in string:
-    hash_value ^= ord(char)
-    hash_value *= FNV_prime_32_bit
-    hash_value &= 0xffffffff  # Intentional 32-bit overflow
-  return hash_value
+def check_style(file_path, fix=False):
+    result = CheckResult(file_path)
+    
+    # Check if ignored
+    rel_path = file_path.relative_to(get_root_dir()).as_posix()
+    if rel_path in IGNORE_FILES or any(rel_path.startswith(folder) for folder in IGNORE_FOLDERS):
+        return result
 
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            
+        new_lines = []
+        is_last_empty = False
+        file_changed = False
+        
+        for line_no, line in enumerate(lines, start=1):
+            original_line = line
+            stripped_content = line.rstrip('\n')
+            
+            # 1. Check Tabs
+            if '\t' in line:
+                result.add_error(line_no, "Contains tab character (\t)")
+                if fix:
+                    line = line.replace('\t', '  ')
+                    file_changed = True
 
-def report_error(msg: str) -> None:
-  """Reports an error and sets the global flag."""
-  global checks_failed
-  checks_failed = True
-  print(msg, file=sys.stderr)
+            # 2. Check Line Length
+            # Don't check length if it contains long string literals like URLs
+            if len(stripped_content) > MAX_LINE_LENGTH:
+                if not any(prefix in line for prefix in ALLOW_LONG_LINES_PREFIXES):
+                    result.add_error(line_no, f"Line too long ({len(stripped_content)} > {MAX_LINE_LENGTH})")
 
+            # 3. Trailing Whitespace
+            if stripped_content.endswith(' '):
+                result.add_error(line_no, "Trailing whitespace")
+                if fix:
+                    line = line.rstrip() + '\n'
+                    file_changed = True
+
+            # 4. Consecutive Empty Lines
+            if stripped_content == '':
+                if is_last_empty:
+                    result.add_error(line_no, "Consecutive empty lines")
+                    if fix:
+                        # Skip adding this line to new_lines
+                        file_changed = True
+                        continue 
+                is_last_empty = True
+            else:
+                is_last_empty = False
+
+            new_lines.append(line)
+            
+        if fix and file_changed:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            result.fixed = True
+            
+    except UnicodeDecodeError:
+        result.add_error(0, "Binary or non-UTF-8 file detected")
+    except Exception as e:
+        result.add_error(0, f"Error processing file: {e}")
+
+    return result
+
+# -----------------------------------------------------------------------------
+# Main Runner
+# -----------------------------------------------------------------------------
+
+def collect_files(root_dir, explicit_paths=None):
+    files = set()
+    
+    if explicit_paths:
+        for p in explicit_paths:
+            path = Path(p).resolve()
+            if path.is_file():
+                files.add(path)
+            elif path.is_dir():
+                for ext in CHECK_EXTENSIONS:
+                    files.update(path.rglob(f"*{ext}"))
+    else:
+        # Default source dirs
+        for d in SOURCE_DIRS:
+            path = root_dir / d
+            if path.exists():
+                for ext in CHECK_EXTENSIONS:
+                    files.update(path.rglob(f"*{ext}"))
+                    
+    # Filter out hidden or build files if needed
+    return sorted(list(files))
+
+def main():
+    parser = argparse.ArgumentParser(description="Saynaa Static Code Analyzer")
+    parser.add_argument('paths', nargs='*', help="Files or directories to check")
+    parser.add_argument('--fix', action='store_true', help="Automatically fix simple style issues (whitespace)")
+    parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
+    args = parser.parse_args()
+
+    root_dir = get_root_dir()
+    print(f"{Colors.HEADER}Saynaa Code Style Checker{Colors.ENDC}")
+    print(f"Root: {root_dir}")
+    
+    # 1. Run Hash Checks
+    print(f"\n{Colors.BOLD}>> Verifying Hashes...{Colors.ENDC}")
+    hash_files = resolve_paths(root_dir, HASH_CHECK_FILES)
+    hash_failed = False
+    
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(check_hashes, hash_files))
+        
+    for res in results:
+        for issue in res.issues:
+            print(issue)
+            hash_failed = True
+            
+    if not hash_failed:
+        print(f"{Colors.OKGREEN}Hashes OK{Colors.ENDC}")
+
+    # 2. Run Style Checks
+    print(f"\n{Colors.BOLD}>> Checking Code Style...{Colors.ENDC}")
+    if args.fix:
+        print(f"{Colors.WARNING}(Fix mode enabled){Colors.ENDC}")
+
+    check_files = collect_files(root_dir, args.paths)
+    print(f"Scanning {len(check_files)} files...")
+    
+    style_failed = False
+    fixed_count = 0
+    
+    with ThreadPoolExecutor() as executor:
+        # Pass 'fix' arg using lambda or partial, but map works easiest with helper
+        futures = [executor.submit(check_style, f, args.fix) for f in check_files]
+        
+        for future in futures:
+            res = future.result()
+            if res.fixed:
+                fixed_count += 1
+                print(f"{Colors.OKGREEN}Fixed: {res.file.relative_to(root_dir)}{Colors.ENDC}")
+                
+            if res.has_errors():
+                style_failed = True
+                for issue in res.issues:
+                    print(issue)
+
+    print("-" * 60)
+    if hash_failed or style_failed:
+        print(f"{Colors.FAIL}Checks Failed!{Colors.ENDC}")
+        sys.exit(1)
+    else:
+        print(f"{Colors.OKGREEN}All Checks Passed.{Colors.ENDC}")
+        if fixed_count > 0:
+            print(f"Fixed {fixed_count} files.")
+        sys.exit(0)
 
 if __name__ == '__main__':
-  main()
+    main()

@@ -1,0 +1,24 @@
+import time
+
+## Time Tests
+
+t1 = time.epoch()
+assert(t1 > 0)
+
+print("Sleeping for 1000 milliseconds...")
+time.sleep(1000)
+
+t2 = time.epoch()
+assert(t2 > 0)
+
+assert(t2 > t1)
+
+diff = t2 - t1
+# Allow some tolerance
+assert(diff >= 0.1)
+
+## Clock check
+c = time.clock()
+assert(c >= 0)
+
+print("Time tests passed!")

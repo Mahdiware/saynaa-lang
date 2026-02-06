@@ -6,29 +6,27 @@
 NAME = saynaa
 
 ## MODE can be DEBUG or RELEASE
-MODE = DEBUG
+MODE 	 = DEBUG
+READLINE = disable
 
 CC        = gcc
 CCFLAGS   = -fPIC -MMD -MP
-LDFLAGS   = -lm -ldl
+LDFLAGS   = -lm -ldl -lpcre2-8
 OBJ_DIR   = obj/
 
-SRC  = src/cli/        \
-       src/compiler/   \
-       src/optionals/  \
-       src/runtime/    \
-       src/shared/     \
-       src/utils/      \
-
-SRCS  := $(foreach DIR,$(SRC),$(wildcard $(DIR)*.c))
+# Recursively find all C files in src
+SRCS := $(shell find src -name "*.c")
 OBJS  := $(addprefix $(OBJ_DIR), $(SRCS:.c=.o))
 
-ifeq ($(MODE),DEBUG)
-	CFLAGS = $(CCFLAGS) -DDEBUG -g3 -Og
-else ifeq ($(MODE),RELEASE)
-	CFLAGS = $(CCFLAGS) -g -O3
+ifneq ($(MODE),RELEASE)
+	CFLAGS += $(CCFLAGS) -DDEBUG -g3 -Og
 else
-	CFLAGS = $(CCFLAGS)
+	CFLAGS += $(CCFLAGS) -g -O3
+endif
+
+ifeq ($(READLINE),enable)
+    CFLAGS += -DREADLINE
+	LDFLAGS += -lreadline
 endif
 
 .PHONY: all clean

@@ -1,51 +1,67 @@
-## Getting started
+# Getting Started
 
-### Install
-To install, simply execute the commands given below.
+Welcome to Saynaa! This guide will help you install the language and run your first code.
 
+## Installation
+
+Saynaa is written in C and is designed to be easy to compile.
+
+### 1. Clone the Repository
 ```bash
-  git clone https://github.com/mahdiware/saynaa-lang.git
-  cd saynaa-lang
+git clone https://github.com/mahdiware/saynaa-lang.git
+cd saynaa-lang
 ```
 
-### Makefile
+### 2. Build
+You can build Saynaa using Make or GCC directly.
+
+**Using Makefile:**
 ```bash
-  make
+make
 ```
 
-### GCC / MinGw / Clang (alias with gcc)
-```
+**Using GCC/Clang directly:**
+```bash
 gcc -o saynaa src/cli/*.c src/compiler/*.c src/optionals/*.c src/runtime/*.c src/shared/*.c src/utils/*.c -lm -ldl
 ```
 
-### MSVC
-```
-cl /Fesaynaa src/cli/*.c src/compiler/*.c src/optionals/*.c src/runtime/*.c src/shared/*.c src/utils/*.c && rm *.obj
-```
-
-### Windows batch script
-```
-build.bat
-```
-
-### Command line
-To view all possible flags you can run the command below:
+**On Windows (MSVC):**
 ```bash
-  ./saynaa --help
+cl /Fesaynaa.exe src/cli/*.c src/compiler/*.c src/optionals/*.c src/runtime/*.c src/shared/*.c src/utils/*.c
+del *.obj
 ```
 
-### REPL mode
+## Running Code
+
+### Interactive REPL
+To explore the language interactively, simply run the executable without arguments:
+
 ```bash
-  ./saynaa
+./saynaa
 ```
 
-### To directly execute a file
-```bash
-  ./saynaa myfile.sa
-```
-
-### Hello World
-A simple <strong>Hello World</strong> code in Saynaa looks like:
+You'll see the Saynaa prompt `>`. Type code and press Enter.
 ```ruby
-  print("Hello World!")
+> print("Hello from REPL!")
+Hello from REPL!
+```
+
+### Running a Script
+Save your code in a file with the `.sa` extension (e.g., `hello.sa`).
+
+```ruby
+# hello.sa
+print("Hello, World!")
+```
+
+Run it using the interpreter:
+```bash
+./saynaa hello.sa
+```
+
+## Next Steps
+
+*   Check out the [Language Guide](syntax.md) to learn the syntax.
+*   Learn about [Standard Library](io.md) modules.
+*   See how to [Create Modules](creating_modules.md).
 ```

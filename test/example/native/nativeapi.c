@@ -215,7 +215,6 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.setAttribute_ptr = api->setAttribute_ptr;
   native_api.ImportModule_ptr = api->ImportModule_ptr;
 }
-
 Configuration NewConfiguration() {
   return native_api.NewConfiguration_ptr();
 }
@@ -483,4 +482,3 @@ bool setAttribute(VM* vm, int instance, const char* name, int value) {
 bool ImportModule(VM* vm, const char* path, int index) {
   return native_api.ImportModule_ptr(vm, path, index);
 }
-

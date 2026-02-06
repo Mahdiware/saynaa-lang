@@ -1,0 +1,17 @@
+import os
+
+print("OS Name: " + os.name)
+print("Platform: " + os.platform)
+
+cwd = os.getcwd()
+print("CWD: " + cwd)
+
+# List files
+# files = os.listdir(".") # assuming listdir exists or similar
+# print(files)
+
+# Environment variables
+# os.setenv("TEST_ENV", "123")
+# assert(os.getenv("TEST_ENV") == "123")
+
+print("OS module tests passed")

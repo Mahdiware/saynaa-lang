@@ -1,0 +1,56 @@
+import json
+
+print("Testing JSON...")
+
+## 1. Primitive types
+n = json.parse("123")
+assert(n == 123, "Number parse")
+
+val_f = json.parse("12.34")
+assert(val_f == 12.34, "Float parse")
+
+t = json.parse("true")
+assert(t == true, "True parse")
+
+fa = json.parse("false")
+assert(fa == false, "False parse")
+
+nul = json.parse("null")
+assert(nul == null, "Null parse")
+
+s = json.parse("\"hello\"")
+assert(s == "hello", "String parse")
+
+## 2. Arrays
+arr = json.parse("[1, 2, 3]")
+assert(arr.length == 3, "Array length")
+assert(arr[0] == 1, "Array[0]")
+assert(arr[1] == 2, "Array[1]")
+assert(arr[2] == 3, "Array[2]")
+
+## 3. Objects
+obj = json.parse("{\"key\": \"value\", \"num\": 100}")
+assert(obj["key"] == "value", "Object key")
+assert(obj["num"] == 100, "Object num")
+
+## 4. Nested
+nested = json.parse("{\"list\": [{\"id\": 1}]}")
+assert(nested["list"][0]["id"] == 1, "Nested access")
+
+## 5. Printing
+p = json.print(arr)
+## My implementation internal print: [1,2,3]
+assert(p == "[1,2,3]", "Print array simple")
+
+p2 = json.print(obj)
+## Roundtrip check
+obj2 = json.parse(p2)
+assert(obj2["key"] == "value", "Roundtrip key")
+assert(obj2["num"] == 100, "Roundtrip num")
+
+## 6. Pretty Print
+pretty = json.print(arr, true)
+## Check if different from unformatted
+assert(pretty != p, "Pretty print differs")
+
+print("JSON Tests Passed!")

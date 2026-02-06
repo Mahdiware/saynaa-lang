@@ -3,15 +3,8 @@
  * Distributed Under The MIT License
  */
 
+#include "path/saynaa_path.h"
 #include "saynaa_optionals.h"
-
-// FIXME:
-// In windows MinGw support most of the posix libraries. So we only need to
-// check if it's MSVC (and tcc in windows) or not for posix headers and
-// Refactor the bellow macro includes.
-
-#include "thirdparty/cwalk/cwalk.c"
-#include "thirdparty/cwalk/cwalk.h"
 
 #include <sys/stat.h>
 
@@ -19,15 +12,13 @@
 #include <windows.h>
 #endif
 
-#if defined(_MSC_VER) || (defined(_WIN32) && defined(__TINYC__))
-#include "thirdparty/dirent/dirent.h" //<< AMALG_INLINE >>
+#include "dirent/saynaa_dirent.h"
 
+#if defined(_MSC_VER) || (defined(_WIN32) && defined(__TINYC__))
 #include <direct.h>
 #include <io.h>
 
 // access() function flag defines for windows.
-// Reference
-// :https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/access-waccess?view=msvc-170#remarks
 #define F_OK 0
 #define W_OK 2
 #define R_OK 4
@@ -36,7 +27,6 @@
 #define getcwd _getcwd
 
 #else
-#include <dirent.h>
 #include <unistd.h>
 #endif
 
@@ -137,9 +127,9 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
 
   // If the path is absolute, Just normalize and return it. Resolve path will
   // only be absolute when the path is provided from the command line.
-  if (cwk_path_is_absolute(path)) {
+  if (saynaa_path_is_absolute(path)) {
     // buff1 = normalized path. +1 for null terminator.
-    cwk_path_normalize(path, buff1, sizeof(buff1));
+    saynaa_path_normalize(path, buff1, sizeof(buff1));
 
     return tryImportPaths(vm, buff1, buff2);
   }
@@ -150,7 +140,7 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
     pathAbs(path, buff1, sizeof(buff1));
 
     // buff2 = normalized path. +1 for null terminator.
-    cwk_path_normalize(buff1, buff2, sizeof(buff2));
+    saynaa_path_normalize(buff1, buff2, sizeof(buff2));
 
     return tryImportPaths(vm, buff2, buff1);
   }
@@ -166,17 +156,17 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
   // script.
   if (last != '/' && last != '\\') {
     size_t from_dir_length = 0;
-    cwk_path_get_dirname(buff1, &from_dir_length);
+    saynaa_path_dirname(buff1, &from_dir_length);
     if (from_dir_length == 0)
       return NULL;
     buff1[from_dir_length] = '\0';
   }
 
   // buff2 = absolute joined path.
-  cwk_path_join(buff1, path, buff2, sizeof(buff2));
+  saynaa_path_join(buff1, path, buff2, sizeof(buff2));
 
   // buff1 = normalized absolute path. +1 for null terminator
-  cwk_path_normalize(buff2, buff1, sizeof(buff1));
+  saynaa_path_normalize(buff2, buff1, sizeof(buff1));
 
   return tryImportPaths(vm, buff1, buff2);
 }
@@ -217,7 +207,7 @@ static inline size_t pathAbs(const char* path, char* buff, size_t buffsz) {
     // TODO: handle error.
   }
 
-  return cwk_path_get_absolute(cwd, path, buff, buffsz);
+  return saynaa_path_get_absolute(cwd, path, buff, buffsz);
 }
 
 /*****************************************************************************/
@@ -260,8 +250,8 @@ saynaa_function(
   pathAbs(from, abs_from, sizeof(abs_from));
 
   char result[MAX_PATH_LEN];
-  uint32_t len = (uint32_t) cwk_path_get_relative(abs_from, abs_path, result,
-                                                  sizeof(result));
+  uint32_t len = (uint32_t) saynaa_path_get_relative(abs_from, abs_path, result,
+                                                     sizeof(result));
   setSlotStringLength(vm, 0, result, len);
 }
 
@@ -284,8 +274,16 @@ saynaa_function(
   paths[argc] = NULL;
 
   char result[MAX_PATH_LEN];
-  uint32_t len = (uint32_t) cwk_path_join_multiple(paths, result, sizeof(result));
-  setSlotStringLength(vm, 0, result, len);
+  result[0] = '\0';
+
+  if (argc > 0) {
+    strcpy(result, paths[0]);
+    saynaa_path_normalize(result, result, sizeof(result));
+    for (int i = 1; i < argc; i++) {
+      saynaa_path_join(result, paths[i], result, sizeof(result));
+    }
+  }
+  setSlotStringLength(vm, 0, result, (uint32_t) strlen(result));
 }
 
 saynaa_function(_pathNormpath, "path.normpath(path:String) -> String",
@@ -295,7 +293,7 @@ saynaa_function(_pathNormpath, "path.normpath(path:String) -> String",
     return;
 
   char result[MAX_PATH_LEN];
-  uint32_t len = (uint32_t) cwk_path_normalize(path, result, sizeof(result));
+  uint32_t len = (uint32_t) saynaa_path_normalize(path, result, sizeof(result));
   setSlotStringLength(vm, 0, result, len);
 }
 
@@ -307,7 +305,7 @@ saynaa_function(_pathBaseName, "path.basename(path:String) -> String",
 
   const char* base_name;
   size_t length;
-  cwk_path_get_basename(path, &base_name, &length);
+  saynaa_path_basename(path, &base_name, &length);
   setSlotStringLength(vm, 0, base_name, (uint32_t) length);
 }
 
@@ -318,7 +316,7 @@ saynaa_function(_pathDirName, "path.dirname(path:String) -> String",
     return;
 
   size_t length;
-  cwk_path_get_dirname(path, &length);
+  saynaa_path_dirname(path, &length);
   setSlotStringLength(vm, 0, path, (uint32_t) length);
 }
 
@@ -328,7 +326,7 @@ saynaa_function(_pathIsPathAbs, "path.isabspath(path:String) -> Bool",
   if (!ValidateSlotString(vm, 1, &path, NULL))
     return;
 
-  setSlotBool(vm, 0, cwk_path_is_absolute(path));
+  setSlotBool(vm, 0, saynaa_path_is_absolute(path));
 }
 
 saynaa_function(_pathGetExtension, "path.getext(path:String) -> String",
@@ -339,7 +337,7 @@ saynaa_function(_pathGetExtension, "path.getext(path:String) -> String",
 
   const char* ext;
   size_t length;
-  if (cwk_path_get_extension(path, &ext, &length)) {
+  if (saynaa_path_extension(path, &ext, &length)) {
     setSlotStringLength(vm, 0, ext, (uint32_t) length);
   } else {
     setSlotStringLength(vm, 0, NULL, 0);
@@ -414,13 +412,13 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 // Add the executables path and exe_path + 'libs/' as a search path for
 // the VM.
 void _registerSearchPaths(VM* vm) {
-  enum cwk_path_style ps = cwk_path_get_style();
+  char sep = saynaa_path_separator();
 
   char cwd[MAX_PATH_LEN];
   if (getcwd(cwd, sizeof(cwd)) != NULL) {
     size_t len = strlen(cwd);
     if (len < MAX_PATH_LEN - 1) {
-      cwd[len] = (ps == CWK_STYLE_WINDOWS) ? '\\' : '/';
+      cwd[len] = sep;
       cwd[++len] = '\0';
       AddSearchPath(vm, cwd);
     }
@@ -430,20 +428,19 @@ void _registerSearchPaths(VM* vm) {
   if (!osGetExeFilePath(buff, MAX_PATH_LEN))
     return;
   size_t length;
-  cwk_path_get_dirname(buff, &length);
+  saynaa_path_dirname(buff, &length);
   if (length == 0)
     return;
 
   // Add path separator. Otherwise AddSearchPath will fail an assertion.
   char last = buff[length - 1];
   if (last != '/' && last != '\\') {
-    last = (ps == CWK_STYLE_WINDOWS) ? '\\' : '/';
-    buff[length++] = last;
+    buff[length++] = sep;
   }
 
   // FIXME: the bellow code is hard coded.
   ASSERT(length + strlen("libs/") < MAX_PATH_LEN, OOPS);
-  strcpy(buff + length, (ps == CWK_STYLE_WINDOWS) ? "libs\\" : "libs/");
+  strcpy(buff + length, (sep == '\\') ? "libs\\" : "libs/");
 
   AddSearchPath(vm, buff);
 }

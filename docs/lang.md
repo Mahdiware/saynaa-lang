@@ -13,10 +13,10 @@ lang.gc() -> Number
 ```
 
 ### disas
-Returns the disassembled opcode of the function [fn].
+Returns the disassembled opcode of the function [function].
 
 ```ruby
-lang.disas(fn:Closure) -> String
+lang.disas(function:Closure) -> String
 ```
 
 ### backtrace

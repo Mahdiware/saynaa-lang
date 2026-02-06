@@ -1,0 +1,31 @@
+import io
+import os
+import path
+
+# Test file writing
+f = io.open("test_io.tmp", "w")
+f.write("Hello IO")
+f.close()
+
+# Test file reading
+f = io.open("test_io.tmp", "r")
+content = f.read()
+f.close()
+assert(content == "Hello IO")
+
+# Test append
+f = io.open("test_io.tmp", "a")
+f.write("\nAppended")
+f.close()
+
+f = io.open("test_io.tmp", "r")
+content = f.read()
+f.close()
+assert(content == "Hello IO\nAppended")
+
+# Cleanup
+os.unlink("test_io.tmp")
+
+print("IO module tests passed")
+
+
