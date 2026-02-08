@@ -12,9 +12,11 @@
 #include <string.h>
 
 // Third-party Library Includes
+#define Function RL_Function
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <readline/tilde.h>
+#undef Function
 
 // Local Includes
 #include "../runtime/saynaa_vm.h"
