@@ -90,7 +90,7 @@ class Circle is Shape
     this.r = r
   end
   function area()
-    return math.PI * r ** 2
+    return math.pi * r ** 2
   end
 end
 ```

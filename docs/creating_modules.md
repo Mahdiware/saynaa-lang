@@ -28,7 +28,7 @@ You can use it in another script:
 import math_utils
 
 print(math_utils.square(5)) # Output: 25
-print(math_utils.PI)        # Output: 3.14159
+print(math_utils.pi)        # Output: 3.14159
 ```
 
 ### Package Module (Directory)

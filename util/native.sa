@@ -154,7 +154,7 @@ function gen_make_api()
 end
 
 # Headers
-HEADER = "/*\n *  Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.\n *  Distributed Under The MIT License\n */\n// !! THIS FILE IS GENERATED DO NOT EDIT !!\n\n"
+HEADER = "/*\n *  Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.\n *  Distributed Under The MIT License\n */\n// !! THIS FILE IS GENERATED DO NOT EDIT !!\n\n"
 
 # Execution
 print("Generating " + TARGET_EXT + "...")

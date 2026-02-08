@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -83,23 +83,27 @@ static char* tryImportPaths(VM* vm, char* path, char* buff) {
   static const char* EXT[] = {
       // Path can already end with '.sa' or anything when running from
       // RunFile() so it's mandatory for the bellow empty string.
-      ".sa",        "",
+      SAYNAA_FILE_EXT,
+      "",
 
 #ifdef _WIN32
-      "\\_init.sa",
+      "\\_init" SAYNAA_FILE_EXT,
 #else
-      "/_init.sa",
+      "/_init" SAYNAA_FILE_EXT,
 #endif
 
 #ifndef NO_DL
 #if defined(_WIN32)
-      ".dll",       "\\_init.dll",
+      ".dll",
+      "\\_init.dll",
 
 #elif defined(__APPLE__)
-      ".dylib",     "/_init.dylib",
+      ".dylib",
+      "/_init.dylib",
 
 #elif defined(__linux__)
-      ".so",        "/_init.so",
+      ".so",
+      "/_init.so",
 #endif
 #endif
       NULL, // Sentinal to mark the array end.
@@ -154,7 +158,7 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
 
   // If the [from] path isn't a directory we use the dirname of the from
   // script.
-  if (last != '/' && last != '\\') {
+  if (last != '/' && last != '\\' && !pathIsDir(buff1)) {
     size_t from_dir_length = 0;
     saynaa_path_dirname(buff1, &from_dir_length);
     if (from_dir_length == 0)
@@ -438,11 +442,17 @@ void _registerSearchPaths(VM* vm) {
     buff[length++] = sep;
   }
 
-  // FIXME: the bellow code is hard coded.
-  ASSERT(length + strlen("libs/") < MAX_PATH_LEN, OOPS);
-  strcpy(buff + length, (sep == '\\') ? "libs\\" : "libs/");
+  // Append "libs" directory.
+  const char* libs_name = "libs";
+  size_t libs_len = strlen(libs_name);
+  if (length + libs_len + 1 < MAX_PATH_LEN) {
+    memcpy(buff + length, libs_name, libs_len);
+    length += libs_len;
+    buff[length++] = sep;
+    buff[length] = '\0';
 
-  AddSearchPath(vm, buff);
+    AddSearchPath(vm, buff);
+  }
 }
 
 void registerModulePath(VM* vm) {

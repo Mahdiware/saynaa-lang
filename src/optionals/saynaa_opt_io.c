@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -30,17 +30,17 @@ saynaa_function(
     return;
 
   switch ((int) stream) {
-  case 0:
-    SetRuntimeError(vm, "Cannot write to stdin.");
-    return;
+    case 0:
+      SetRuntimeError(vm, "Cannot write to stdin.");
+      return;
 
-  case 1:
-    fwrite(bytes, sizeof(char), length, stdout);
-    return;
+    case 1:
+      fwrite(bytes, sizeof(char), length, stdout);
+      return;
 
-  case 2:
-    fwrite(bytes, sizeof(char), length, stderr);
-    return;
+    case 2:
+      fwrite(bytes, sizeof(char), length, stderr);
+      return;
   }
 }
 
@@ -342,11 +342,7 @@ saynaa_function(
     return;
   }
 
-  // FIXME:
-  // I'm not sure this is an efficient method to read a line using fgetc
-  // and a dynamic buffer. Consider fgets() or maybe find '\n' in file
-  // and use Realloc() with size using ftell() or something.
-
+  // TODO: Optimize line reading (use fgets or buffered read).
   ByteBuffer buff;
   ByteBufferInit(&buff);
   char c;
@@ -528,6 +524,8 @@ void registerModuleIO(VM* vm) {
   setAttribute(vm, 0, "stdout", 1); // slot[0].stdout  =  slot[1]
   setSlotNumber(vm, 1, 2);          // slot[1]         =  2
   setAttribute(vm, 0, "stderr", 1); // slot[0].stderr  =  slot[1]
+
+  // moduleSetGlobal(vm, ((Module*) AS_OBJ(math->value)), "pi", 2, VAR_NUM(PI));
 
   REGISTER_FN(io, "write", _ioWrite, 2);
   REGISTER_FN(io, "flush", _ioFlush, 0);

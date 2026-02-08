@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -1080,6 +1080,26 @@ saynaa_function(stdLangDebugBreak, "lang.debug_break() -> Null",
 }
 #endif
 
+saynaa_function(stdModuleLoad, "module.load(name:String) -> Module",
+                "Load import the module with [name] and returns it. "
+                "It won't be imported to the current scope.") {
+  String* name;
+  if (!validateArgString(vm, 1, &name))
+    return;
+
+  String* from = NULL;
+  if (vm->fiber->frame_count > 0) {
+    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    from = frame->closure->fn->owner->path;
+  }
+
+  Var module = vmImportModule(vm, from, name);
+  if (VM_HAS_ERROR(vm))
+    return;
+
+  RET(module);
+}
+
 static void initializeCoreModules(VM* vm) {
 #define MODULE_ADD_FN(module, name, fn, argc) \
   moduleAddFunctionInternal(vm, module, name, fn, argc, DOCSTRING(fn))
@@ -1098,6 +1118,15 @@ static void initializeCoreModules(VM* vm) {
 #ifdef DEBUG
   MODULE_ADD_FN(lang, "debug_break", stdLangDebugBreak, 0);
 #endif
+
+  NEW_MODULE(module, "module");
+  MODULE_ADD_FN(module, "load", stdModuleLoad, 1);
+  moduleSetGlobal(vm, module, "path", 4, VAR_OBJ(vm->search_paths));
+
+  moduleSetGlobal(vm, module, "searchers", 9, VAR_OBJ(vm->searchers));
+  Closure* stdSearcher = newNativeClosure(vm, "standardSearcher", vmStandardSearcher,
+                                          1, "standard searcher");
+  listAppend(vm, vm->searchers, VAR_OBJ(stdSearcher));
 
 #undef MODULE_ADD_FN
 #undef NEW_MODULE

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -97,6 +97,7 @@ struct VM {
 
   // List of directories that used for search modules.
   List* search_paths;
+  List* searchers;
 
   // Array of all builtin functions.
   Closure* builtins_funcs[BUILTIN_FN_CAPACITY];
@@ -223,6 +224,7 @@ Result vmCallMethod(VM* vm, Var thiz, Closure* fn, int argc, Var* argv, Var* ret
 // be '/' example: to import module "a.b" the [path] should be "a/b".
 // If the [from] is not NULL, it'll be used for relative path search.
 // On failure, it'll set an error and return VAR_NULL.
+void vmStandardSearcher(VM* vm);
 Var vmImportModule(VM* vm, String* from, String* path);
 
 #ifndef NO_DL

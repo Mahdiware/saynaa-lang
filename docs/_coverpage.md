@@ -2,7 +2,7 @@
 <img src="assets/icon.png" height="90px" alt="Saynaa Programming Language" title="Saynaa Programming Language">
 </p>
 
-# Saynaa <small>1.0.1</small>
+# Saynaa <small>1.0.2</small>
 > An interpreter programming language.
 
 * Simple and lightweight

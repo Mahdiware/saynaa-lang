@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
 #include "saynaa_utils.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,8 @@
 #include <io.h>
 #include <tchar.h>
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <sys/time.h>
@@ -85,14 +88,17 @@ double millitime(nanotime_t tstart, nanotime_t tend) {
 }
 
 const void* utilMemMem(const void* l, size_t l_len, const void* s, size_t s_len) {
-  const char *cl = (const char *)l;
-  const char *cs = (const char *)s;
-  const char *cur;
-  const char *last;
+  const char* cl = (const char*) l;
+  const char* cs = (const char*) s;
+  const char* cur;
+  const char* last;
 
-  if (l_len == 0 || s_len == 0) return NULL;
-  if (l_len < s_len) return NULL;
-  if (s_len == 1) return memchr(l, (int)*cs, l_len);
+  if (l_len == 0 || s_len == 0)
+    return NULL;
+  if (l_len < s_len)
+    return NULL;
+  if (s_len == 1)
+    return memchr(l, (int) *cs, l_len);
 
   last = cl + l_len - s_len;
 
@@ -118,6 +124,15 @@ int utilPowerOf2Ceil(int n) {
 
 bool utilIsSpace(char c) {
   return (c == ' ' || c == '\t' || c == '\n' || c == '\v');
+}
+
+bool utilIsStringEmpty(const char* string) {
+  assert(string != NULL);
+  for (const char* c = string; *c != '\0'; c++) {
+    if (!utilIsSpace(*c))
+      return false;
+  }
+  return true;
 }
 
 // Function implementation, see utils.h for description.
@@ -316,11 +331,13 @@ const char* utilToNumber(const char* str, double* num) {
     }
 
     if (*c == '\0') {
-      if (!has_digits) return INVALID_NUMERIC_STRING;
+      if (!has_digits)
+        return INVALID_NUMERIC_STRING;
       break; // Done.
     }
 
-    if (!has_digits) return INVALID_NUMERIC_STRING;
+    if (!has_digits)
+      return INVALID_NUMERIC_STRING;
 
     if (*c == 'e' || *c == 'E') {
       c++;
@@ -470,4 +487,84 @@ int utf8_decodeBytes(uint8_t* bytes, int* value) {
 
   *value = _value;
   return byte_count;
+}
+bool utilIsAtTy(FILE* file) {
+#if defined(_WIN32)
+  int fd = _fileno(file);
+  if (_isatty(fd)) {
+    // Enable ANSI support on Windows 10+
+    HANDLE handle = (HANDLE) _get_osfhandle(fd);
+    if (handle != INVALID_HANDLE_VALUE) {
+      DWORD mode = 0;
+      if (GetConsoleMode(handle, &mode)) {
+        SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        return true;
+      }
+    }
+    // Even if we can't enable ANSI (e.g. older Windows), it is a TTY.
+    // However, Saynaa uses this to decide whether to output ANSI colors.
+    // If we can't enable VT processing, maybe we should return false for ANSI
+    // support purposes? But function is named IsAtTy. Let's assume IsAtTy means
+    // "can I interact". But the caller uses it for "use_ansi_escape".
+    return true;
+  }
+  return false;
+#else
+  return isatty(fileno(file));
+#endif
+}
+
+void utilResolvePath(char* buffer, size_t size, const char* base, const char* target) {
+  // Check for absolute path (generic check)
+#if defined(_WIN32)
+  if (target[0] == '/' || target[0] == '\\' || (isalpha(target[0]) && target[1] == ':')) {
+#else
+  if (target[0] == '/') {
+#endif
+    snprintf(buffer, size, "%s", target);
+    return;
+  }
+
+  const char* last_slash = strrchr(base, '/');
+  const char* last_backslash = strrchr(base, '\\');
+  const char* sep = (last_slash > last_backslash) ? last_slash : last_backslash;
+
+  int dir_len = (sep != NULL) ? (int) (sep - base) : 0;
+
+  if (dir_len > 0) {
+    snprintf(buffer, size, "%.*s/%s", dir_len, base, target);
+  } else {
+    snprintf(buffer, size, "%s", target);
+  }
+}
+
+bool utilWalkDirectory(const char* dir_path, const char* ext,
+                       WalkDirCallback func, void* user_data) {
+  DIR* dir = opendir(dir_path);
+  if (dir == NULL)
+    return false;
+
+  struct dirent* ent;
+  size_t ext_len = strlen(ext);
+
+  while ((ent = readdir(dir)) != NULL) {
+    if (ent->d_name[0] == '.')
+      continue;
+
+    size_t len = strlen(ent->d_name);
+    if (len > ext_len && strcmp(ent->d_name + len - ext_len, ext) == 0) {
+      // Extract name without extension
+      char name[256];
+      size_t name_len = len - ext_len;
+      if (name_len >= 256)
+        name_len = 255;
+
+      memcpy(name, ent->d_name, name_len);
+      name[name_len] = '\0';
+
+      func(name, user_data);
+    }
+  }
+  closedir(dir);
+  return true;
 }
