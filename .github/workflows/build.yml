@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install PCRE2
+      - name: Install PCRE2, readline-dev (Dependencies)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcre2-dev
+          sudo apt-get install -y libpcre2-dev libreadline-dev
       - name: Run the Makefile.
         run: make all
       - name: Run tests.
