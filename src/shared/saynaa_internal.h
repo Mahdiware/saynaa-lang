@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -39,6 +39,13 @@
 /*****************************************************************************/
 /* INTERNAL MACROS                                                           */
 /*****************************************************************************/
+
+// The file extension for the Saynaa script files.
+#define SAYNAA_FILE_EXT ".sa"
+
+// The maximum path length for a module to import.
+// This is an arbitrary value and can be changed if needed.
+#define MAX_PATH_LEN 4096
 
 // The maximum number of locals or global (if compiling top level module)
 // to lookup from the compiling context. Also it's limited by it's opcode

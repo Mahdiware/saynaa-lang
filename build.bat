@@ -1,4 +1,4 @@
-:: Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+:: Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
 :: Distributed Under The MIT License
 
 @echo off

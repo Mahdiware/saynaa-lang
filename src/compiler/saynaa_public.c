@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -145,6 +145,7 @@ VM* NewVM(Configuration* config) {
 
   vm->modules = newMap(vm);
   vm->search_paths = newList(vm, 8);
+  vm->searchers = newList(vm, 8);
 
   vm->builtins_count = 0;
   vm->time = 0;
@@ -425,9 +426,13 @@ Result RunFile(VM* vm, const char* path) {
   }
 
   if (resolved_ == NULL) {
-    // FIXME: Standardize error reporting (e.g., check for ANSI color code support).
     if (vm->config.stderr_write != NULL) {
-      vm->config.stderr_write(vm, "Error finding script at \"");
+      if (vm->config.use_ansi_escape) {
+        vm->config.stderr_write(vm,
+                                "\x1b[31mError\x1b[0m finding script at \"");
+      } else {
+        vm->config.stderr_write(vm, "Error finding script at \"");
+      }
       vm->config.stderr_write(vm, path);
       vm->config.stderr_write(vm, "\"\n");
     }
@@ -450,9 +455,13 @@ Result RunFile(VM* vm, const char* path) {
     char* source = vm->config.load_script_fn(vm, _path);
     if (source == NULL) {
       result = RESULT_COMPILE_ERROR;
-      // FIXME: Error print should be moved and check for ascii color codes.
       if (vm->config.stderr_write != NULL) {
-        vm->config.stderr_write(vm, "Error loading script at \"");
+        if (vm->config.use_ansi_escape) {
+          vm->config.stderr_write(vm,
+                                  "\x1b[31mError\x1b[0m loading script at \"");
+        } else {
+          vm->config.stderr_write(vm, "Error loading script at \"");
+        }
         vm->config.stderr_write(vm, _path);
         vm->config.stderr_write(vm, "\"\n");
       }
@@ -486,20 +495,7 @@ Result RunFile(VM* vm, const char* path) {
   return result;
 }
 
-// FIXME: Move to a shared utility location.
-// Checks if the string consists solely of whitespace.
-// Used to skip compilation of empty lines in REPL mode.
-static inline bool isStringEmpty(const char* line) {
-  ASSERT(line != NULL, OOPS);
-
-  for (const char* c = line; *c != '\0'; c++) {
-    if (!utilIsSpace(*c))
-      return false;
-  }
-  return true;
-}
-
-// FIXME: Move to a shared utility location (along with isStringEmpty).
+// TODO: Consider moving to a shared location.
 // Retrieves the implicit main function from a module for REPL execution.
 Closure* moduleGetMainFunction(VM* vm, Module* module) {
   int main_index = moduleGetGlobalIndex(module, IMPLICIT_MAIN_NAME,
@@ -571,7 +567,7 @@ Result RunREPL(VM* vm) {
     }
 
     // Skip compilation for empty lines.
-    if (isStringEmpty(line)) {
+    if (utilIsStringEmpty(line)) {
       if (need_more_lines)
         ASSERT(lines.count != 0, OOPS);
       Realloc(vm, line, 0);

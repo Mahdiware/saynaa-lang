@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -9,6 +9,49 @@
 #include "../utils/saynaa_utils.h"
 
 #include <math.h>
+
+typedef struct {
+  VM* vm;
+  String* base_ptr;
+  String* current_ptr;
+  VarBuffer* modules;
+  Module* target_module;
+} WildcardImportRuntimeData;
+
+static void wildcardRuntimeCallback(const char* name, void* user_data) {
+  WildcardImportRuntimeData* data = (WildcardImportRuntimeData*) user_data;
+  VM* vm = data->vm;
+
+  char full_name[MAX_PATH_LEN];
+  String* base = data->base_ptr;
+
+  if (base->length == 0) {
+    snprintf(full_name, MAX_PATH_LEN, "%s", name);
+  } else {
+    snprintf(full_name, MAX_PATH_LEN, "%s/%s", base->data, name);
+  }
+
+  String* mod_name = newString(vm, full_name);
+  vmPushTempRef(vm, &mod_name->_super);
+
+  // Import relative to current module path
+  Var imported = vmImportModule(vm, data->current_ptr, mod_name);
+  if (IS_OBJ_TYPE(imported, OBJ_MODULE)) {
+      VarBufferWrite(data->modules, vm, imported);
+
+      // Bind the module to a variable in the current module with the name of the
+      // file without extension.
+      // e.g. from test import * (where test contains debug.sa)
+      // debug = import("test/debug")
+      const char* ext = strrchr(name, '.');
+      size_t name_len = (ext != NULL) ? (size_t)(ext - name) : strlen(name);
+
+      if (name_len > 0) {
+        moduleSetGlobal(vm, data->target_module, name, (int)name_len, imported);
+      }
+    }
+  vmPopTempRef(vm);
+}
 
 Handle* vmNewHandle(VM* vm, Var value) {
   Handle* handle = (Handle*) ALLOCATE(vm, Handle);
@@ -190,15 +233,15 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
 
   if (fiber->state != FIBER_NEW) {
     switch (fiber->state) {
-    case FIBER_NEW:
-      UNREACHABLE();
-    case FIBER_RUNNING:
-      _ERR_FAIL(newString(vm, "The fiber has already been running."));
-    case FIBER_YIELDED:
-      _ERR_FAIL(newString(vm, "Cannot run a fiber which is yielded, use "
-                              "fiber_resume() instead."));
-    case FIBER_DONE:
-      _ERR_FAIL(newString(vm, "The fiber has done running."));
+      case FIBER_NEW:
+        UNREACHABLE();
+      case FIBER_RUNNING:
+        _ERR_FAIL(newString(vm, "The fiber has already been running."));
+      case FIBER_YIELDED:
+        _ERR_FAIL(newString(vm, "Cannot run a fiber which is yielded, use "
+                                "fiber_resume() instead."));
+      case FIBER_DONE:
+        _ERR_FAIL(newString(vm, "The fiber has done running."));
     }
     UNREACHABLE();
   }
@@ -242,15 +285,15 @@ bool vmPrepareFiber(VM* vm, Fiber* fiber, int argc, Var* argv) {
 bool vmSwitchFiber(VM* vm, Fiber* fiber, Var* value) {
   if (fiber->state != FIBER_YIELDED) {
     switch (fiber->state) {
-    case FIBER_NEW:
-      _ERR_FAIL(newString(vm, "The fiber hasn't started. call fiber_run() "
-                              "to start."));
-    case FIBER_RUNNING:
-      _ERR_FAIL(newString(vm, "The fiber has already been running."));
-    case FIBER_YIELDED:
-      UNREACHABLE();
-    case FIBER_DONE:
-      _ERR_FAIL(newString(vm, "The fiber has done running."));
+      case FIBER_NEW:
+        _ERR_FAIL(newString(vm, "The fiber hasn't started. call fiber_run() "
+                                "to start."));
+      case FIBER_RUNNING:
+        _ERR_FAIL(newString(vm, "The fiber has already been running."));
+      case FIBER_YIELDED:
+        UNREACHABLE();
+      case FIBER_DONE:
+        _ERR_FAIL(newString(vm, "The fiber has done running."));
     }
     UNREACHABLE();
   }
@@ -454,60 +497,12 @@ static Module* _importScript(VM* vm, String* resolved, String* name) {
   return module;
 }
 
-// Import and return the Module object with the [path] string. If the path
-// starts with with './' or '../' we'll only try relative imports, otherwise
-// we'll search native modules first and then at relative path.
-Var vmImportModule(VM* vm, String* from, String* path) {
-  ASSERT((path != NULL) && (path->length > 0), OOPS);
-
-  bool is_relative = path->data[0] == '.';
-
-  // If not relative check the [path] in the modules cache with the name
-  // (before resolving the path).
-  if (!is_relative) {
-    // If not relative path we first search in modules cache. It'll find the
-    // native module or the already imported cache of the script.
-    Var entry = mapGet(vm->modules, VAR_OBJ(path));
-    if (!IS_UNDEF(entry)) {
-      ASSERT(AS_OBJ(entry)->type == OBJ_MODULE, OOPS);
-      return entry; // We're done.
-    }
-  }
-  char* _resolved = NULL;
-
-  const char* from_path = (from) ? from->data : NULL;
-  uint32_t search_path_idx = 0;
-
-  do {
-    // If we reached here. It's not a native module (ie. module's absolute
-    // path is required to import and cache).
-    _resolved = vm->config.resolve_path_fn(vm, from_path, path->data);
-    if (_resolved)
-      break;
-
-    if (search_path_idx >= vm->search_paths->elements.count)
-      break;
-
-    Var sp = vm->search_paths->elements.data[search_path_idx++];
-    ASSERT(IS_OBJ_TYPE(sp, OBJ_STRING), OOPS);
-    from_path = ((String*) AS_OBJ(sp))->data;
-
-  } while (true);
-
-  if (_resolved == NULL) { // Can't resolve a relative module.
-    Realloc(vm, _resolved, 0);
-    VM_SET_ERROR(vm, stringFormat(vm, "Cannot import module '@'", path));
-    return VAR_NULL;
-  }
-
-  String* resolved = newString(vm, _resolved);
-  Realloc(vm, _resolved, 0);
-
+static Module* _importResolved(VM* vm, String* resolved, String* name) {
   // If the script already imported and cached, return it.
   Var entry = mapGet(vm->modules, VAR_OBJ(resolved));
   if (!IS_UNDEF(entry)) {
     ASSERT(AS_OBJ(entry)->type == OBJ_MODULE, OOPS);
-    return entry; // We're done.
+    return (Module*) AS_OBJ(entry); // We're done.
   }
 
   // The script not exists in the VM, make sure we have the script loading
@@ -523,7 +518,7 @@ Var vmImportModule(VM* vm, String* from, String* path) {
     VM_SET_ERROR(vm,
                  newString(vm, "Cannot import. The hosting application "
                                "haven't registered the module loading API"));
-    return VAR_NULL;
+    return NULL;
   }
 
   Module* module = NULL;
@@ -539,7 +534,17 @@ Var vmImportModule(VM* vm, String* from, String* path) {
     // The path of the module contain '/' which was replacement of '.' in
     // the import syntax, this is done so that path resolving can be done
     // easily. However it needs to be '.' for the name of the module.
-    String* _name = newStringLength(vm, path->data, path->length);
+    /*
+     * Note: String name is likely const or shared?
+     * No, _importResolved takes 'name'.
+     * In original code, _name was created inside vmImportModule.
+     * I should probably clone it if I modify it?
+     * Or pass already modified name.
+     * The original code created new string `_name` from `path->data`.
+     * Let's create `_name` here using `name->data`.
+     */
+
+    String* _name = newStringLength(vm, name->data, name->length);
     for (char* c = _name->data; c < _name->data + _name->length; c++) {
       if (*c == '/')
         *c = '.';
@@ -560,10 +565,136 @@ Var vmImportModule(VM* vm, String* from, String* path) {
 
   if (module == NULL) {
     ASSERT(VM_HAS_ERROR(vm), OOPS);
+    return NULL;
+  }
+  return module;
+}
+
+static Var _importPathSearch(VM* vm, String* path) {
+  char* _resolved = NULL;
+  const char* from_path = NULL;
+  uint32_t search_path_idx = 0;
+
+  do {
+    // If we reached here. It's not a native module (ie. module's absolute
+    // path is required to import and cache).
+    _resolved = vm->config.resolve_path_fn(vm, from_path, path->data);
+    if (_resolved)
+      break;
+
+    if (search_path_idx >= vm->search_paths->elements.count)
+      break;
+
+    Var sp = vm->search_paths->elements.data[search_path_idx++];
+    ASSERT(IS_OBJ_TYPE(sp, OBJ_STRING), OOPS);
+    from_path = ((String*) AS_OBJ(sp))->data;
+
+  } while (true);
+
+  if (_resolved == NULL) {
     return VAR_NULL;
   }
 
+  String* resolved = newString(vm, _resolved);
+  Realloc(vm, _resolved, 0);
+
+  Module* module = _importResolved(vm, resolved, path);
+  if (module == NULL)
+    return VAR_NULL;
   return VAR_OBJ(module);
+}
+
+void vmStandardSearcher(VM* vm) {
+  if (!IS_OBJ_TYPE(vm->fiber->ret[1], OBJ_STRING)) {
+    vm->fiber->ret[0] = VAR_NULL;
+    return;
+  }
+  String* name = AS_STRING(vm->fiber->ret[1]);
+  Var result = _importPathSearch(vm, name);
+  vm->fiber->ret[0] = result;
+}
+
+// Import and return the Module object with the [path] string. If the path
+// starts with with './' or '../' we'll only try relative imports, otherwise
+// we'll search native modules first and then at relative path.
+Var vmImportModule(VM* vm, String* from, String* path) {
+  ASSERT((path != NULL) && (path->length > 0), OOPS);
+
+  bool is_relative = path->data[0] == '.';
+
+  // If not relative check the [path] in the modules cache with the name
+  // (before resolving the path).
+  if (!is_relative) {
+    // If not relative path we first search in modules cache. It'll find the
+    // native module or the already imported cache of the script.
+    Var entry = mapGet(vm->modules, VAR_OBJ(path));
+    if (!IS_UNDEF(entry)) {
+      ASSERT(AS_OBJ(entry)->type == OBJ_MODULE, OOPS);
+      return entry; // We're done.
+    }
+  } else {
+    // Relative Import Logic
+    const char* from_path = (from) ? from->data : NULL;
+    char* _resolved = vm->config.resolve_path_fn(vm, from_path, path->data);
+    if (_resolved == NULL) {
+      Realloc(vm, _resolved, 0);
+      VM_SET_ERROR(vm, stringFormat(vm, "Cannot import module '@'", path));
+      return VAR_NULL;
+    }
+    String* resolved = newString(vm, _resolved);
+    Realloc(vm, _resolved, 0);
+
+    // We use _importResolved which handles cache check for resolved path
+    Module* mod = _importResolved(vm, resolved, path);
+    if (mod != NULL)
+      return VAR_OBJ(mod);
+    return VAR_NULL;
+  }
+
+  // Searchers Logic
+  for (int i = 0; i < vm->searchers->elements.count; i++) {
+    Var searcher = vm->searchers->elements.data[i];
+    if (!IS_OBJ(searcher))
+      continue; // TODO: Warning?
+
+    // Prepare call
+    Closure* closure = NULL;
+    Var thiz = VAR_UNDEFINED;
+
+    if (IS_OBJ_TYPE(searcher, OBJ_CLOSURE)) {
+      closure = (Closure*) AS_OBJ(searcher);
+    } // TODO: Handle MethodBind/Class? For now assume closure (native or script).
+
+    if (closure) {
+      Var args[1] = {VAR_OBJ(path)};
+      Var result;
+      // Call searcher(path)
+      if (vmCallMethod(vm, thiz, closure, 1, args, &result) != RESULT_SUCCESS) {
+        return VAR_NULL; // Error in searcher
+      }
+
+      if (IS_OBJ(result)) {
+        // If result is Module, we are done (Standard Searcher does this)
+        if (AS_OBJ(result)->type == OBJ_MODULE) {
+          return result;
+        }
+        // If result is Closure (Loader), call it.
+        if (AS_OBJ(result)->type == OBJ_CLOSURE) {
+          Closure* loader = (Closure*) AS_OBJ(result);
+          Var loaded_mod;
+          if (vmCallMethod(vm, VAR_UNDEFINED, loader, 0, NULL, &loaded_mod) != RESULT_SUCCESS) {
+            return VAR_NULL;
+          }
+          if (IS_OBJ_TYPE(loaded_mod, OBJ_MODULE)) {
+            return loaded_mod;
+          }
+        }
+      }
+    }
+  }
+
+  VM_SET_ERROR(vm, stringFormat(vm, "Cannot import module '@'", path));
+  return VAR_NULL;
 }
 
 void vmEnsureStackSize(VM* vm, Fiber* fiber, int size) {
@@ -1125,6 +1256,107 @@ L_vm_main_loop:
 
     OPCODE(POP) : DROP();
     DISPATCH();
+
+    OPCODE(IMPORT_WILDCARD) : {
+      uint16_t index = READ_SHORT();
+      String* import_path = moduleGetStringAt(module, (int) index);
+      ASSERT(import_path != NULL, OOPS);
+
+      String* current_path = module->path;
+      // In REPL or some contexts, current_path might be NULL.
+      // Default to "." if NULL.
+      const char* base_path = (current_path != NULL) ? current_path->data : ".";
+
+      char search_path[MAX_PATH_LEN];
+      utilResolvePath(search_path, MAX_PATH_LEN, base_path, import_path->data);
+
+      VarBuffer modules;
+      VarBufferInit(&modules);
+
+      WildcardImportRuntimeData data;
+      data.vm = vm;
+      data.base_ptr = import_path;
+      data.current_ptr = current_path; // Keep as is, vmImportModule handles NULL?
+      data.modules = &modules;
+      data.target_module = module;
+
+      // Update frame before external call to ensure IP is saved (for GC safety).
+      UPDATE_FRAME();
+
+      bool success = utilWalkDirectory(search_path, SAYNAA_FILE_EXT,
+                                       wildcardRuntimeCallback, &data);
+      if (!success) {
+        // Not a directory? Try single module import.
+        // Pass the ORIGINAL import path (e.g. "path.to.module"), NOT proper path.
+        Var imported = vmImportModule(vm, current_path, import_path);
+        if (IS_OBJ_TYPE(imported, OBJ_MODULE)) {
+          VarBufferWrite(&modules, vm, imported);
+        } else {
+          // If failed, an error is already set by vmImportModule.
+          // We should bail out to report it.
+          CHECK_ERROR();
+        }
+      }
+
+      // 1. Check for uninitialized modules and run them ONE BY ONE.
+      // This uses a "rewind and retry" strategy to handle recursion and stack safely.
+      for (int i = 0; i < modules.count; i++) {
+        Module* imported = (Module*) AS_OBJ(modules.data[i]);
+        if (!imported->initialized) {
+          imported->initialized = true;
+          ASSERT(imported->body != NULL, OOPS);
+
+          // Push the module to reserve a slot for the return value.
+          PUSH(VAR_OBJ(imported));
+          fiber->ret = fiber->sp - 1;
+
+          pushCallFrame(vm, imported->body);
+
+          // Rewind IP of the current frame so we execute this IMPORT_WILDCARD instruction
+          // again when the module returns.
+          // 3 bytes = 1 (OP_IMPORT_WILDCARD) + 2 (SHORT index)
+          frame->ip -= 3;
+
+          // Load the new frame and run it.
+          LOAD_FRAME();
+          CHECK_ERROR();
+
+          VarBufferClear(&modules, vm);
+          DISPATCH();
+          // The VM will now execute the imported module.
+          // When it returns, it will resume THIS frame at the rewound IP.
+        }
+      }
+
+      // 2. If we reach here, all modules are initialized. Now import their symbols.
+      for (int i = 0; i < modules.count; i++) {
+        Module* imported = (Module*) AS_OBJ(modules.data[i]);
+
+        // Copy public globals from imported module to current module
+        for (uint32_t j = 0; j < imported->global_names.count; j++) {
+          uint32_t name_idx = imported->global_names.data[j];
+          ASSERT(name_idx < imported->constants.count, OOPS);
+
+          String* name = AS_STRING(imported->constants.data[name_idx]);
+
+          // Skip internal/private names (starting with @ or _)
+          if (name->length > 0 && (name->data[0] == '@' || name->data[0] == '_')) {
+            continue;
+          }
+
+          // Re-fetch the global value from the module's globals buffer
+          // Note: The index in 'globals' matches the index in 'global_names' (j)
+          Var value = imported->globals.data[j];
+          moduleSetGlobal(vm, module, name->data, name->length, value);
+        }
+      }
+
+      // Reload frame (just in case)
+      LOAD_FRAME();
+
+      VarBufferClear(&modules, vm);
+      DISPATCH();
+    }
 
     OPCODE(IMPORT) : {
       uint16_t index = READ_SHORT();
@@ -1851,8 +2083,8 @@ L_vm_main_loop:
     OPCODE(END) : UNREACHABLE();
     break;
 
-  default:
-    UNREACHABLE();
+    default:
+      UNREACHABLE();
   }
 
   UNREACHABLE();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -34,6 +35,21 @@ int utilPowerOf2Ceil(int n);
 // Returns true if c in [ ' ', '\t', '\n', '\v' ]
 bool utilIsSpace(char c);
 
+// Returns true if the string consists solely of whitespace.
+bool utilIsStringEmpty(const char* string);
+
+// Resolves 'target' relative to 'base' (assumed to be a file path).
+// If 'target' is absolute, copy it.
+// Else, join dirname(base) and target.
+void utilResolvePath(char* buffer, size_t size, const char* base, const char* target);
+
+typedef void (*WalkDirCallback)(const char* name, void* user_data);
+
+// Walks the directory [dir_path] and calls [func] for each file that ends with
+// [ext].
+bool utilWalkDirectory(const char* dir_path, const char* ext,
+                       WalkDirCallback func, void* user_data);
+
 // Returns true if `c` is [A-Za-z_].
 bool utilIsName(char c);
 
@@ -47,6 +63,10 @@ bool utilIsCharHex(char c);
 // Returns the decimal value of the hex digit.
 // char should match [a-zA-Z0-9].
 uint8_t utilCharHexVal(char c);
+
+// Check if the file descriptor is a TTY and enable ANSI sequence support
+// on Windows if possible.
+bool utilIsAtTy(FILE* file);
 
 // Returns the values hex digit. The value must be 0x0 <= val < 0xf
 char utilHexDigit(uint8_t value, bool uppercase);

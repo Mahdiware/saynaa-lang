@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -134,6 +134,10 @@ OPCODE(POP, 0, -1)
 // already.
 // params: 2 byte name index.
 OPCODE(IMPORT, 2, 1)
+
+// Import all modules in the directory given by the path at the index (from
+// opcode). params: 2 byte name index.
+OPCODE(IMPORT_WILDCARD, 2, 0)
 
 // Call a super class's method on the variable at (stack_top - argc).
 // See opcode CALL for detail.

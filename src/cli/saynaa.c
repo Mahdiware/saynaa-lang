@@ -1,31 +1,22 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
 #include "saynaa.h"
 
+#include "../shared/saynaa_common.h"
 #include "../utils/saynaa_utils.h"
 #include "argparse.h"
 
 #include <stdio.h>
-
-// FIXME: Refactor `isatty` logic to a portable utility module.
-// Verify portability of `<unistd.h>` and `<io.h>` across target platforms.
-#ifdef _WIN32
-#include <Windows.h>
-#include <io.h>
-#define isatty _isatty
-#define fileno _fileno
-#else
-#include <unistd.h>
-#endif
 
 #if defined(__linux__)
 #include <signal.h>
 static bool typeAgain = 0;
 
 void signalHandler(int signum) {
+  ASSERT(signum == SIGINT || signum == SIGTSTP, "Unexpected signal");
   if (!typeAgain) {
     printf("\n\aTo exit, press ^C again or ^D or type exit();\n");
     typeAgain++;
@@ -41,14 +32,7 @@ static VM* initializeVM(int argc, const char** argv) {
   config.argument.argc = argc;
   config.argument.argv = argv;
 
-  // FIXME: Implement a portable `is_tty()` wrapper.
-  if (!!isatty(fileno(stderr))) {
-#ifdef _WIN32
-    DWORD outmode = 0;
-    HANDLE handle = GetStdHandle(STD_ERROR_HANDLE);
-    GetConsoleMode(handle, &outmode);
-    SetConsoleMode(handle, outmode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-#endif
+  if (utilIsAtTy(stderr)) {
     config.use_ansi_escape = true;
   }
 
@@ -133,6 +117,20 @@ int main(int argc, const char** argv) {
 
   } else { // file ...
     const char* file_path = argv[script_idx];
+
+    // Add script directory to search path
+    char script_dir[4096];
+    utilResolvePath(script_dir, sizeof(script_dir), file_path, ".");
+
+    size_t len = strlen(script_dir);
+    if (len > 0 && script_dir[len - 1] != '/' && script_dir[len - 1] != '\\') {
+      if (len + 1 < sizeof(script_dir)) {
+        script_dir[len] = '/';
+        script_dir[len + 1] = '\0';
+      }
+    }
+    AddSearchPath(vm, script_dir);
+
     Result result = RunFile(vm, file_path);
     exitcode = (int) result;
   }

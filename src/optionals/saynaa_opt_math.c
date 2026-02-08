@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -227,10 +227,7 @@ void registerModuleMath(VM* vm) {
   Handle* math = NewModule(vm, "math");
 
   // Set global value PI.
-  reserveSlots(vm, 2);
-  setSlotHandle(vm, 0, math);   // slot[0]    = math
-  setSlotNumber(vm, 1, PI);     // slot[1]    = 3.14
-  setAttribute(vm, 0, "PI", 1); // slot[0].PI = slot[1]
+  moduleSetGlobal(vm, ((Module*) AS_OBJ(math->value)), "pi", 2, VAR_NUM(PI));
 
   REGISTER_FN(math, "floor", stdMathFloor, 1);
   REGISTER_FN(math, "ceil", stdMathCeil, 1);

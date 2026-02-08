@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -69,10 +69,10 @@ typedef struct Var Var;
  *              '- if this (const) bit is set, it's a constant.
  *
  * On a 32-bit machine, a pointer size is 32 bits, and on a 64-bit machine,
- * 48 bits are effectively used for pointers. Ta-da! Now we have double precision
- * numbers, primitives, and pointers all inside a 64-bit sequence. For numbers,
- * it doesn't require any bit mask operations, which means math on the Var is
- * even faster.
+ * 48 bits are effectively used for pointers. Ta-da! Now we have double
+ * precision numbers, primitives, and pointers all inside a 64-bit sequence. For
+ * numbers, it doesn't require any bit mask operations, which means math on the
+ * Var is even faster.
  *
  * Our custom 2-bit type tagging:
  * c00        : NULL

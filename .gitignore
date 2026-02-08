@@ -7,6 +7,9 @@ obj/
 build/
 tmp/
 
+# saynaa packages
+saynaa-packages/
+
 ### C ###
 # Prerequisites
 *.d

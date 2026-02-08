@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -27,17 +27,17 @@ extern "C" {
 // Patch Version - Increment when bug fixed or minor changes between releases.
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 0
-#define VERSION_PATCH 1
+#define VERSION_PATCH 2
 
 // language name
 #define LANGUAGE "saynaa"
 
 // String representation of the version.
-#define VERSION_STRING "1.0.1"
-#define VERSION_NUMBER 101
+#define VERSION_STRING "1.0.2"
+#define VERSION_NUMBER 102
 
 #define VERSION LANGUAGE " " VERSION_STRING
-#define COPYRIGHT VERSION " Copyright (C) 2022-2023 mahdiware.me"
+#define COPYRIGHT VERSION " Copyright (C) 2022-2026 mahdiware.me"
 #define AUTHORS "Mohamed Abdifatah"
 
 //  visibility macros. define DLL for using

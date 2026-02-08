@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Mohamed Abdifatah. All rights reserved.
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
  * Distributed Under The MIT License
  */
 
@@ -388,6 +388,8 @@ typedef struct sParser {
   bool has_syntax_error;
   bool has_errors;
 
+  bool has_wildcard_import;
+
 } Parser;
 
 struct Compiler {
@@ -505,6 +507,7 @@ static void parserInit(Parser* parser, VM* vm, Compiler* compiler,
   parser->has_errors = false;
   parser->has_syntax_error = false;
   parser->need_more_lines = false;
+  parser->has_wildcard_import = false;
 }
 
 static void compilerInit(Compiler* compiler, VM* vm, const char* source,
@@ -585,7 +588,7 @@ static void reportError(Parser* parser, bool runtime, Token tk, const char* fmt,
 
 // Error caused when parsing. The associated token assumed to be last consumed
 // which is [parser->previous].
-static void syntaxError(Compiler* compiler, Token tk, const char* fmt, ...) {
+static void vErrorAt(Compiler* compiler, Token tk, const char* fmt, va_list args) {
   Parser* parser = &compiler->parser;
   bool runtime = compiler->options && compiler->options->runtime;
 
@@ -594,9 +597,27 @@ static void syntaxError(Compiler* compiler, Token tk, const char* fmt, ...) {
     return;
 
   parser->has_syntax_error = true;
+  reportError(parser, runtime, tk, fmt, args);
+}
+
+static void errorAt(Compiler* compiler, Token tk, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  reportError(parser, runtime, tk, fmt, args);
+  vErrorAt(compiler, tk, fmt, args);
+  va_end(args);
+}
+
+static void error(Compiler* compiler, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vErrorAt(compiler, compiler->parser.previous, fmt, args);
+  va_end(args);
+}
+
+static void errorAtCurrent(Compiler* compiler, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vErrorAt(compiler, compiler->parser.current, fmt, args);
   va_end(args);
 }
 
@@ -670,7 +691,7 @@ static void eatString(Compiler* compiler, bool single_quote) {
 
     if (c == '\0') {
       parser->current_char--; // Null byte is required by TK_EOF.
-      syntaxError(compiler, makeErrToken(parser), "Non terminated string.");
+      errorAt(compiler, makeErrToken(parser), "Non terminated string.");
       return;
     }
 
@@ -687,7 +708,7 @@ static void eatString(Compiler* compiler, bool single_quote) {
 
         } else { // Name Interpolation.
           if (!utilIsName(c2)) {
-            syntaxError(compiler, makeErrToken(parser), "Expected '{' or identifier after '$'.");
+            errorAt(compiler, makeErrToken(parser), "Expected '{' or identifier after '$'.");
             return;
 
           } else { // Name interpolation (ie. "Hello $name!").
@@ -851,7 +872,7 @@ static void eatNumber(Compiler* compiler) {
     uint64_t bin = 0;
     c = peekChar(parser);
     if (!IS_BIN_CHAR(c)) {
-      syntaxError(compiler, makeErrToken(parser), "Invalid binary literal.");
+      errorAt(compiler, makeErrToken(parser), "Invalid binary literal.");
       return;
 
     } else {
@@ -884,7 +905,7 @@ static void eatNumber(Compiler* compiler) {
 
     // The first digit should be hex digit.
     if (!utilIsCharHex(c)) {
-      syntaxError(compiler, makeErrToken(parser), "Invalid hex literal.");
+      errorAt(compiler, makeErrToken(parser), "Invalid hex literal.");
       return;
 
     } else {
@@ -932,7 +953,7 @@ static void eatNumber(Compiler* compiler) {
       }
 
       if (!utilIsDigit(peekChar(parser))) {
-        syntaxError(compiler, makeErrToken(parser), "Invalid number literal.");
+        errorAt(compiler, makeErrToken(parser), "Invalid number literal.");
         return;
 
       } else { // Eat the exponent.
@@ -973,7 +994,7 @@ static void skipBlockComment(Compiler* compiler) {
   int nesting = 1;
   while (nesting > 0) {
     if (peekChar(parser) == '\0') {
-      syntaxError(compiler, makeErrToken(parser), "Unterminated block comment.");
+      errorAt(compiler, makeErrToken(parser), "Unterminated block comment.");
       return;
     }
 
@@ -1262,9 +1283,9 @@ static void lexToken(Compiler* compiler) {
             setNextToken(parser, TK_ERROR);
 
             if (c >= 32 && c <= 126) {
-              syntaxError(compiler, parser->next, "Invalid character '%c'", c);
+              errorAt(compiler, parser->next, "Invalid character '%c'", c);
             } else {
-              syntaxError(compiler, parser->next, "Invalid byte 0x%x", (uint8_t) c);
+              errorAt(compiler, parser->next, "Invalid byte 0x%x", (uint8_t) c);
             }
           }
           return;
@@ -1308,7 +1329,7 @@ static void consume(Compiler* compiler, _TokenType expected, const char* err_msg
 
   Token* prev = &compiler->parser.previous;
   if (prev->type != expected) {
-    syntaxError(compiler, *prev, "%s", err_msg);
+    errorAt(compiler, *prev, "%s", err_msg);
     return;
   }
 }
@@ -1363,7 +1384,7 @@ static bool matchEndStatement(Compiler* compiler) {
 // Consume semi collon, multiple new lines or peek 'end' keyword.
 static void consumeEndStatement(Compiler* compiler) {
   if (!matchEndStatement(compiler)) {
-    syntaxError(compiler, compiler->parser.current, "Expected statement end with '\\n' or ';'.");
+    errorAtCurrent(compiler, "Expected statement end with '\\n' or ';'.");
     return;
   }
 }
@@ -1387,7 +1408,7 @@ static void consumeStartBlock(Compiler* compiler, _TokenType delimiter) {
       msg = "Expected enter block with newline or 'do'.";
     else
       msg = "Expected enter block with newline or 'then'.";
-    syntaxError(compiler, compiler->parser.previous, msg);
+    error(compiler, msg);
     return;
   }
 }
@@ -2050,7 +2071,24 @@ static void exprName(Compiler* compiler) {
     // expression is at a local depth.
     if (result.type == NAME_NOT_DEFINED) {
       if (compiler->scope_depth == DEPTH_GLOBAL) {
-        semanticError(compiler, tkname, "Name '%.*s' is not defined.", length, start);
+        if (compiler->parser.has_wildcard_import) {
+          int index = (int) moduleSetGlobal(compiler->parser.vm, compiler->module,
+                                            start, length, VAR_NULL);
+
+          // FIXME: we made hardcode the max global count to 255
+          // for now since we only have one byte to encode
+          // the global index in OP_PUSH_GLOBAL and OP_STORE_GLOBAL,
+          // we need to refactor the import system to support
+          // more globals and remove this hardcode.
+          if (index > 255) {
+            semanticError(compiler, tkname, "Too many globals for implicit wildcard import.");
+          } else {
+            emitOpcode(compiler, OP_PUSH_GLOBAL);
+            emitByte(compiler, index);
+          }
+        } else {
+          semanticError(compiler, tkname, "Name '%.*s' is not defined.", length, start);
+        }
       } else {
         emitOpcode(compiler, OP_PUSH_GLOBAL);
         int index = emitByte(compiler, 0xff);
@@ -2471,7 +2509,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence) {
   GrammarFn prefix = getRule(compiler->parser.previous.type)->prefix;
 
   if (prefix == NULL) {
-    syntaxError(compiler, compiler->parser.previous, "invalid syntax");
+    error(compiler, "invalid syntax");
     return;
   }
 
@@ -2829,7 +2867,7 @@ static int compileClass(Compiler* compiler) {
   skipNewLines(compiler);
   while (!compiler->parser.has_syntax_error && !match(compiler, TK_END)) {
     if (match(compiler, TK_EOF)) {
-      syntaxError(compiler, compiler->parser.previous, "Unexpected EOF while parsing class.");
+      error(compiler, "Unexpected EOF while parsing class.");
       break;
     }
 
@@ -2890,15 +2928,13 @@ static bool matchOperatorMethod(Compiler* compiler, const char** name,
   if (match(compiler, TK_TILD)) {
     if (match(compiler, TK_THIS))
       _RET("~this", 0);
-    syntaxError(compiler, compiler->parser.previous,
-                "Expected keyword this for unary operator definition.");
+    error(compiler, "Expected keyword this for unary operator definition.");
     return false;
   }
   if (match(compiler, TK_NOT)) {
     if (match(compiler, TK_THIS))
       _RET("!this", 0);
-    syntaxError(compiler, compiler->parser.previous,
-                "Expected keyword this for unary operator definition.");
+    error(compiler, "Expected keyword this for unary operator definition.");
     return false;
   }
   if (match(compiler, TK_LBRACKET)) {
@@ -2907,7 +2943,7 @@ static bool matchOperatorMethod(Compiler* compiler, const char** name,
         _RET("[]=", 2);
       _RET("[]", 1);
     }
-    syntaxError(compiler, compiler->parser.previous, "Invalid operator method symbol.");
+    error(compiler, "Invalid operator method symbol.");
     return false;
   }
 
@@ -2987,7 +3023,7 @@ static void compileFunction(Compiler* compiler, FuncType fn_type) {
                && matchOperatorMethod(compiler, &name, &name_length, &operator_argc)) {
       // Check if any error has been set by operator definition.
     } else if (!compiler->parser.has_syntax_error) {
-      syntaxError(compiler, compiler->parser.previous, "Expected a function name.");
+      error(compiler, "Expected a function name.");
     }
 
   } else {
@@ -3236,67 +3272,9 @@ static int compileImportPath(Compiler* compiler, Token* name_token, bool* is_wil
 }
 
 static void compileWildcardImport(Compiler* compiler, int path_idx) {
-  // Expand wildcard import
-  // Note: This relies on filesystem access during compilation.
-  VM* vm = compiler->parser.vm;
-  String* import_path = AS_STRING(compiler->module->constants.data[path_idx]);
-  String* current_path = compiler->module->path;
-
-  // Construct search path
-  char search_path[2048];
-  if (import_path->data[0] == '/') {
-    snprintf(search_path, 2048, "%s", import_path->data);
-  } else {
-    // Relative to current module directory
-    const char* last_slash = strrchr(current_path->data, '/');
-    int dir_len = (last_slash != NULL) ? (last_slash - current_path->data) : 0;
-
-    if (dir_len > 0) {
-      snprintf(search_path, 2048, "%.*s/%s", dir_len, current_path->data,
-               import_path->data);
-    } else {
-      snprintf(search_path, 2048, "%s", import_path->data);
-    }
-  }
-
-  DIR* dir = opendir(search_path);
-  if (dir) {
-    struct dirent* ent;
-    while ((ent = readdir(dir)) != NULL) {
-      if (ent->d_name[0] == '.')
-        continue;
-
-      size_t len = strlen(ent->d_name);
-      if (len > 3 && strcmp(ent->d_name + len - 3, ".sa") == 0) {
-        // Found module
-        char mod_name[256];
-        snprintf(mod_name, 256, "%.*s", (int) (len - 3), ent->d_name);
-
-        ByteBuffer buff;
-        ByteBufferInit(&buff);
-        ByteBufferAddString(&buff, vm, import_path->data, import_path->length);
-        ByteBufferWrite(&buff, vm, '/');
-        ByteBufferAddString(&buff, vm, mod_name, strlen(mod_name));
-        ByteBufferWrite(&buff, vm, '\0');
-
-        int idx = 0;
-        moduleAddString(compiler->module, vm, (const char*) buff.data,
-                        buff.count - 1, &idx);
-        ByteBufferClear(&buff, vm);
-
-        emitOpcode(compiler, OP_IMPORT);
-        emitShort(compiler, idx);
-
-        // Store global
-        // Use line number from previous? Or 0?
-        int global_idx = compilerAddVariable(compiler, mod_name, strlen(mod_name),
-                                             compiler->parser.previous.line);
-        emitStoreGlobal(compiler, global_idx);
-        emitOpcode(compiler, OP_POP);
-      }
-    }
-    closedir(dir);
-  }
+  compiler->parser.has_wildcard_import = true;
+  emitOpcode(compiler, OP_IMPORT_WILDCARD);
+  emitShort(compiler, path_idx);
 }
 
 // import module1 [as alias1 [, module2 [as alias2 ...]]
@@ -3312,7 +3290,7 @@ void compileRegularImport(Compiler* compiler) {
 
     if (wildcard) {
       if (match(compiler, TK_AS)) {
-        syntaxError(compiler, compiler->parser.current, "Cannot alias a wildcard import.");
+        errorAtCurrent(compiler, "Cannot alias a wildcard import.");
       }
       compileWildcardImport(compiler, path_idx);
     } else {
@@ -3347,8 +3325,17 @@ static void compileFromImport(Compiler* compiler) {
   if (path_idx == -1)
     return;
   if (wildcard) {
-    syntaxError(compiler, compiler->parser.current,
-                "Cannot use wildcard in path of 'from' import.");
+    errorAtCurrent(compiler, "Cannot use wildcard in path of 'from' import.");
+    return;
+  }
+
+  consume(compiler, TK_IMPORT, "Expected keyword 'import'.");
+  if (compiler->parser.has_syntax_error)
+    return;
+
+  if (match(compiler, TK_STAR)) {
+    compileWildcardImport(compiler, path_idx);
+    consumeEndStatement(compiler);
     return;
   }
 
@@ -3357,39 +3344,6 @@ static void compileFromImport(Compiler* compiler) {
 
   // At this point the module would be on the stack before executing the next
   // instruction.
-  consume(compiler, TK_IMPORT, "Expected keyword 'import'.");
-  if (compiler->parser.has_syntax_error)
-    return;
-
-  if (match(compiler, TK_STAR)) {
-    VM* vm = compiler->parser.vm;
-    Var path_var = compiler->module->constants.data[path_idx];
-    String* name_str = AS_STRING(path_var);
-
-    Var mod_var = vmImportModule(vm, compiler->module->path, name_str);
-    if (IS_OBJ_TYPE(mod_var, OBJ_MODULE)) {
-      Module* mod = (Module*) AS_OBJ(mod_var);
-      for (int i = 0; i < mod->global_names.count; i++) {
-        int name_idx_in_mod = mod->global_names.data[i];
-        Var name_val = mod->constants.data[name_idx_in_mod];
-        String* name = AS_STRING(name_val);
-
-        int current_name_idx = 0;
-        moduleAddString(compiler->module, vm, name->data, name->length, &current_name_idx);
-
-        emitOpcode(compiler, OP_GET_ATTRIB_KEEP);
-        emitShort(compiler, current_name_idx);
-
-        int global_idx = compilerAddVariable(compiler, name->data, name->length,
-                                             compiler->parser.previous.line);
-        emitStoreGlobal(compiler, global_idx);
-        emitOpcode(compiler, OP_POP);
-      }
-    }
-    emitOpcode(compiler, OP_POP);
-    consumeEndStatement(compiler);
-    return;
-  }
 
   do {
     // Consume the symbol name to import from the module.
@@ -3583,7 +3537,7 @@ static void compileStatement(Compiler* compiler) {
 
   if (match(compiler, TK_BREAK)) {
     if (compiler->loop == NULL) {
-      syntaxError(compiler, compiler->parser.previous, "Cannot use 'break' outside a loop.");
+      error(compiler, "Cannot use 'break' outside a loop.");
       return;
     }
 
@@ -3600,7 +3554,7 @@ static void compileStatement(Compiler* compiler) {
 
   } else if (match(compiler, TK_CONTINUE)) {
     if (compiler->loop == NULL) {
-      syntaxError(compiler, compiler->parser.previous, "Cannot use 'continue' outside a loop.");
+      error(compiler, "Cannot use 'continue' outside a loop.");
       return;
     }
 
@@ -3613,7 +3567,7 @@ static void compileStatement(Compiler* compiler) {
   } else if (match(compiler, TK_RETURN)) {
     if (compiler->scope_depth == DEPTH_GLOBAL
         && !(compiler->options && compiler->options->runtime)) {
-      syntaxError(compiler, compiler->parser.previous, "Invalid 'return' outside a function.");
+      error(compiler, "Invalid 'return' outside a function.");
       return;
     }
 
@@ -3629,8 +3583,7 @@ static void compileStatement(Compiler* compiler) {
 
     } else {
       if (compiler->func->type == FUNC_CONSTRUCTOR) {
-        syntaxError(compiler, compiler->parser.previous,
-                    "Cannor 'return' a value from constructor.");
+        error(compiler, "Cannor 'return' a value from constructor.");
       }
 
       compilePureExpression(compiler); //< Condition.
