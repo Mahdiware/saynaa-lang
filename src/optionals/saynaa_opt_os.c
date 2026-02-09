@@ -261,11 +261,7 @@ saynaa_function(_osExepath, "os.exepath() -> String",
   setSlotString(vm, 0, buff);
 }
 
-saynaa_function(_osArgc, "os.argc() -> Number", "return argc.") {
-  setSlotNumber(vm, 0, (double) vm->config.argument.argc);
-}
-
-saynaa_function(_osArgv, "os.argv() -> Number", "return argv.") {
+List* Arguments(VM* vm) {
   int argc = vm->config.argument.argc;
   const char** argv = vm->config.argument.argv;
 
@@ -277,7 +273,7 @@ saynaa_function(_osArgv, "os.argv() -> Number", "return argv.") {
   }
 
   vmPopTempRef(vm); // list.
-  RET(VAR_OBJ(list));
+  return list;
 }
 
 /*****************************************************************************/
@@ -291,6 +287,10 @@ void registerModuleOS(VM* vm) {
                   VAR_OBJ(newString(vm, OS_NAME)));
   moduleSetGlobal(vm, ((Module*) AS_OBJ(os->value)), "platform", 8,
                   VAR_OBJ(newString(vm, OS_NAME)));
+
+  moduleSetGlobal(vm, ((Module*) AS_OBJ(os->value)), "argv", 4, VAR_OBJ(Arguments(vm)));
+  moduleSetGlobal(vm, ((Module*) AS_OBJ(os->value)), "argc", 4,
+                  VAR_NUM((double) vm->config.argument.argc));
 
   REGISTER_FN(os, "getcwd", _osGetCWD, 0);
   REGISTER_FN(os, "chdir", _osChdir, 1);
@@ -306,8 +306,6 @@ void registerModuleOS(VM* vm) {
 #endif
   REGISTER_FN(os, "getenv", _osGetenv, 1);
   REGISTER_FN(os, "exepath", _osExepath, 0);
-  REGISTER_FN(os, "argc", _osArgc, 0);
-  REGISTER_FN(os, "argv", _osArgv, 0);
 
   registerModule(vm, os);
   releaseHandle(vm, os);

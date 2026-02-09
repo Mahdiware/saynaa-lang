@@ -1,7 +1,9 @@
 
-import package
-package.path.append("./")
-package.path.append("./test/example/native2/") /* In case running from root */
+import module
+module.path.append("./")
+
+# In case running from root
+module.path.append("./test/example/native2/")
 
 import mylib2
 

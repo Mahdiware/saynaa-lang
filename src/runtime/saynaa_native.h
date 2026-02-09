@@ -1,7 +1,8 @@
 /*
- *  Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
- *  Distributed Under The MIT License
+ * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
+ * Distributed Under The MIT License
  */
+
 // !! THIS FILE IS GENERATED DO NOT EDIT !!
 
 #pragma once
@@ -19,11 +20,9 @@ typedef void (*releaseHandle_t)(VM*, Handle*);
 typedef Handle* (*NewModule_t)(VM*, const char*);
 typedef void (*registerModule_t)(VM*, Handle*);
 typedef void (*ModuleAddFunction_t)(VM*, Handle*, const char*, nativeFn, int, const char*);
-typedef Handle* (*NewClass_t)(VM*, const char*, Handle*, Handle*, NewInstanceFn,
-                              DeleteInstanceFn, const char*);
+typedef Handle* (*NewClass_t)(VM*, const char*, Handle*, Handle*, NewInstanceFn, DeleteInstanceFn, const char*);
 typedef void (*ClassAddMethod_t)(VM*, Handle*, const char*, nativeFn, int, const char*);
-typedef Class* (*NewNativeClass_t)(VM*, const char*, NewInstanceFn,
-                                   DeleteInstanceFn, const char*);
+typedef Class* (*NewNativeClass_t)(VM*, const char*, NewInstanceFn, DeleteInstanceFn, const char*);
 typedef void (*NativeClassAddMethod_t)(VM*, Class*, const char*, nativeFn, int, const char*);
 typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
@@ -147,9 +146,9 @@ typedef struct {
   ImportModule_t ImportModule_ptr;
 } NativeApi;
 
-#define API_INIT_FN_NAME "InitApi"
-#define EXPORT_FN_NAME "ExportModule"
-#define CLEANUP_FN_NAME "CleanupModule"
+#define API_INIT_FN_NAME "InitApi" 
+#define EXPORT_FN_NAME "ExportModule" 
+#define CLEANUP_FN_NAME "CleanupModule" 
 
 typedef void (*InitApiFn)(NativeApi*);
 typedef Handle* (*ExportModuleFn)(VM*);
@@ -157,6 +156,7 @@ typedef Handle* (*ExportModuleFn)(VM*);
 #ifdef DL_IMPLEMENT
 
 NativeApi MakeNativeAPI() {
+
   NativeApi api;
 
   api.NewConfiguration_ptr = NewConfiguration;

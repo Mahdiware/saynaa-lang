@@ -2,7 +2,7 @@
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -fPIC -I../../../src/cli/ -I../../../src/runtime/
+CFLAGS = -fPIC
 LDFLAGS = -shared
 
 # Source files
