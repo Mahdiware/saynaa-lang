@@ -1,112 +1,204 @@
 import re
 import io
+import os
+import path
 
-# Configuration
-SAYNAA_HEADER = "src/cli/saynaa.h"
-TARGET_EXT = "test/example/native/nativeapi.c"
-TARGET_IMP = "src/runtime/saynaa_native.h"
+# ==========================================
+#    CONFIGURATION & CONSTANTS
+# ==========================================
 
-# Helper to read file content
-function read_file(path)
+# File Paths
+SAYNAA_HEADER_PATH = "src/cli/saynaa.h"
+TARGET_IMP_PATH    = "src/runtime/saynaa_native.h"
+
+# Default Output Paths (can be overridden by CLI args)
+target_c_path = "test/example/native/nativeapi.c"
+target_h_path = "test/example/native/nativeapi.h"
+
+# Names used in code generation
+API_STRUCT_TYPE = "NativeApi"
+API_INSTANCE    = "native_api"
+
+# Templates
+LICENSE_HEADER = "/*\n * Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.\n * Distributed Under The MIT License\n */\n\n// !! THIS FILE IS GENERATED DO NOT EDIT !!\n\n"
+
+# ==========================================
+#    UTILITY FUNCTIONS
+# ==========================================
+
+function read_file(filepath)
   f = io.File()
-  f.open(path, "r")
+  f.open(filepath, "r")
   content = f.read(-1)
   f.close()
   return content
 end
 
-# Helper to write file content
-function write_file(path, content)
+function write_file(filepath, content)
   f = io.File()
-  f.open(path, "w")
+  f.open(filepath, "w")
   f.write(content)
   f.close()
+  print("Generated: " + filepath)
 end
 
-print("Reading " + SAYNAA_HEADER + "...")
-source = read_file(SAYNAA_HEADER)
-start_marker = "SAYNAA PUBLIC API"
-idx = source.find(start_marker)
-if idx != -1 then
-  source = source[idx..-1] 
-end
-
-# Find all function definitions:
-matches = re.findall("PUBLIC\\s+([A-Za-z0-9_* ]+)\\s+([A-Za-z0-9_]+)\\(([^;]*)\\);", source)
-
-functions = []
-
-for m in matches
-  ret_type = m[0].strip()
-  fn_name = m[1].strip()
-  # Remove newlines/tabs from params for cleaner parsing
-  params_str = m[2].replace("\n", " ").replace("\t", " ").strip()
-
-  if params_str.find("...") != -1 then
-    continue
-  end
-
-  if fn_name == "SAYNAA" then
-     continue 
-  end
-
-  # Parse Parameters
-  params = []
-  if params_str != "" and params_str != "void" then
-    # Split by comma
-    parts = re.split(",", params_str)
-    for p in parts
-       p = p.strip()
-       # Extract Type and Name: (Type...) (Name)
-       # Group 1: Type (greedy match until last space)
-       # Group 2: Name (last word)
-       # Regex: (.*)\s+([A-Za-z0-9_]+)
-       p_match = re.extract("(.*)\\s+([A-Za-z0-9_]+)", p)
-       if p_match then
-          # p_match[0] is full match
-          # p_match[1] is Type
-          # p_match[2] is Name
-          params.append([p_match[2], p_match[1].strip()]) # [Name, Type]
-       end
-    end
-  end
-
-  functions.append([fn_name, ret_type, params])
-end
-
-# Generators
-API_TYPE = "NativeApi"
-API = "native_api"
-
-# Helper to join list of strings
-function join(list, sep)
+function list_join_str(list, sep)
   return list_join(list, sep)
 end
 
-function gen_typedefs()
+function get_platform_macros()
   lines = []
-  for f in functions
-    p_parts = []
-    for p in f[2]
-       p_parts.append(p[1]) # Type only
-    end
-    p_str = join(p_parts, ", ")
-    lines.append("typedef " + f[1] + " (*" + f[0] + "_t)(" + p_str + ");")
-  end
-  return join(lines, "\n") + "\n\n"
+  lines.append("#ifdef _MSC_VER")
+  lines.append("#define EXPORT __declspec(dllexport)")
+  lines.append("#define IMPORT __declspec(dllimport)")
+  lines.append("#elif defined(__GNUC__) || defined(__clang__)")
+  lines.append("#define EXPORT __attribute__((visibility(\"default\")))")
+  lines.append("#define IMPORT")
+  lines.append("#else")
+  lines.append("#define EXPORT")
+  lines.append("#define IMPORT")
+  lines.append("#endif")
+  lines.append("")
+  return list_join_str(lines, "\n")
 end
 
-function gen_struct()
+# ==========================================
+#    PARSERS (Analyzers)
+# ==========================================
+
+# Extracts struct and enum definitions from source
+function extract_types_and_structs(source_code)
+  lines = []
+  
+  #    Add Platform Macros
+  lines.append(get_platform_macros())
+
+  #    Simple Struct Forward Declarations
+  # Regex: typedef struct Name Name;
+  structs = re.findall("typedef\\s+struct\\s+([A-Za-z0-9_]+)\\s+\\1;", source_code)
+  for s in structs
+    lines.append("typedef struct " + s[0] + " " + s[0] + ";")
+  end
+  lines.append("")
+
+  #    Function Pointer Typedefs
+  src_lines = source_code.split("\n")
+  for l in src_lines
+    l = l.strip()
+    if l.startswith("typedef") and l.find("(*") != -1 and l.endswith(");") then
+      lines.append(l)
+    end
+  end
+  lines.append("")
+
+  #    Complex Structs/Enums (Multiline extraction)
+  in_typedef = false
+  
+  for l in src_lines
+    trimmed = l.strip()
+    is_start = trimmed.startswith("typedef enum") or (trimmed.startswith("typedef struct") and trimmed.find(";") == -1)
+    
+    if is_start then
+       in_typedef = true
+    end
+    
+    if in_typedef then
+      lines.append(l)
+      # Check for end of definition
+      if trimmed.endswith(";") and trimmed.find("}") != -1 then
+        in_typedef = false
+        lines.append("")
+      end
+    end
+  end
+
+  return list_join_str(lines, "\n") + "\n"
+end
+
+# Parses the C header to find API function signatures
+function parse_api_functions(source_code)
+  # Limit scope to Public API section
+  start_marker = "SAYNAA PUBLIC API"
+  idx = source_code.find(start_marker)
+  if idx != -1 then
+    source_code = source_code[idx..-1] 
+  end
+
+  # Regex: PUBLIC (ReturnType) (FunctionName)((Params));
+  matches = re.findall("PUBLIC\\s+([A-Za-z0-9_* ]+)\\s+([A-Za-z0-9_]+)\\(([^;]*)\\);", source_code)
+  
+  parsed_funcs = []
+
+  for m in matches
+    ret_type = m[0].strip()
+    fn_name  = m[1].strip()
+    raw_params = m[2].replace("\n", " ").replace("\t", " ").strip()
+
+    # Skip variadic functions or the main macro
+    if raw_params.find("...") != -1 or fn_name == "SAYNAA" then
+       continue 
+    end
+
+    # Parse individual parameters
+    params_list = []
+    if raw_params != "" and raw_params != "void" then
+      parts = re.split(",", raw_params)
+      for p in parts
+        p = p.strip()
+        # Regex: (Type...) (Name)
+        p_match = re.extract("(.*)\\s+([A-Za-z0-9_]+)", p)
+        if p_match then
+          # p_match[1] = Type, p_match[2] = Name
+          params_list.append([p_match[2], p_match[1].strip()])
+        end
+      end
+    end
+
+    parsed_funcs.append([fn_name, ret_type, params_list])
+  end
+
+  return parsed_funcs
+end
+
+# ==========================================
+#    CODE GENERATORS (Builders)
+# ==========================================
+
+function gen_typedefs(functions)
+  lines = []
+  for f in functions
+    p_types = []
+    for p in f[2]
+       p_types.append(p[1]) # Append Type
+    end
+    p_str = list_join_str(p_types, ", ")
+    lines.append("typedef " + f[1] + " (*" + f[0] + "_t)(" + p_str + ");")
+  end
+  return list_join_str(lines, "\n") + "\n\n"
+end
+
+function gen_api_struct(functions)
   lines = ["typedef struct {"]
   for f in functions
     lines.append("  " + f[0] + "_t " + f[0] + "_ptr;")
   end
-  lines.append("} " + API_TYPE + ";")
-  
-  return join(lines, "\n") + "\n\n"
+  lines.append("} " + API_STRUCT_TYPE + ";")
+  return list_join_str(lines, "\n") + "\n\n"
 end
 
-function gen_defines()
+function gen_declarations(functions)
+  lines = []
+  for f in functions
+    p_decls = []
+    for p in f[2]
+      p_decls.append(p[1] + " " + p[0])
+    end
+    lines.append(f[1] + " " + f[0] + "(" + list_join_str(p_decls, ", ") + ");")
+  end
+  return list_join_str(lines, "\n")
+end
+
+function gen_proxies(functions)
   lines = []
   for f in functions
     p_decls = []
@@ -117,55 +209,87 @@ function gen_defines()
       p_calls.append(p[0])
     end
     
-    p_decl = join(p_decls, ", ")
-    p_call = join(p_calls, ", ")
-    
-    ret_stmt = ""
+    ret_prefix = ""
     if f[1] != "void" then
-      ret_stmt = "return "
+      ret_prefix = "return "
     end
     
-    lines.append(f[1] + " " + f[0] + "(" + p_decl + ") {")
-    lines.append("  " + ret_stmt + API + "." + f[0] + "_ptr(" + p_call + ");")
+    lines.append(f[1] + " " + f[0] + "(" + list_join_str(p_decls, ", ") + ") {")
+    lines.append("  " + ret_prefix + API_INSTANCE + "." + f[0] + "_ptr(" + list_join_str(p_calls, ", ") + ");")
     lines.append("}")
-    lines.append("") # Empty line
+    lines.append("")
   end
-  return join(lines, "\n")
+  return list_join_str(lines, "\n")
 end
 
-function gen_init()
-  lines = ["static " + API_TYPE + " " + API + ";", "", "EXPORT void InitApi(" + API_TYPE + "* api) {"]
+function gen_init_func(functions)
+  lines = [
+    "static " + API_STRUCT_TYPE + " " + API_INSTANCE + ";", 
+    "", 
+    "EXPORT void InitApi(" + API_STRUCT_TYPE + "* api) {"
+  ]
   for f in functions
-    lines.append("  " + API + "." + f[0] + "_ptr = api->" + f[0] + "_ptr;")
+    lines.append("  " + API_INSTANCE + "." + f[0] + "_ptr = api->" + f[0] + "_ptr;")
   end
   lines.append("}")
-  return join(lines, "\n") + "\n"
+  return list_join_str(lines, "\n") + "\n"
 end
 
-function gen_make_api()
-  lines = [API_TYPE + " MakeNativeAPI() {", "", "  " + API_TYPE + " api;", ""]
+function gen_make_api_func(functions)
+  lines = [
+    API_STRUCT_TYPE + " MakeNativeAPI() {", 
+    "", 
+    "  " + API_STRUCT_TYPE + " api;", 
+    ""
+  ]
   for f in functions
     lines.append("  api." + f[0] + "_ptr = " + f[0] + ";")
   end
   lines.append("")
   lines.append("  return api;")
   lines.append("}")
-  return join(lines, "\n") + "\n"
+  return list_join_str(lines, "\n") + "\n"
 end
 
-# Headers
-HEADER = "/*\n *  Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.\n *  Distributed Under The MIT License\n */\n// !! THIS FILE IS GENERATED DO NOT EDIT !!\n\n"
+# ==========================================
+#    MAIN EXECUTION
+# ==========================================
 
-# Execution
-print("Generating " + TARGET_EXT + "...")
-c_code = HEADER + "#include <saynaa.h>\n\n" + gen_typedefs() + gen_struct() + gen_init() + gen_defines()
-write_file(TARGET_EXT, c_code)
+#    Parse Arguments
+if os.argc > 1 then
+  target_dir = os.argv[1]
+  target_c_path = path.join(target_dir, "nativeapi.c")
+  target_h_path = path.join(target_dir, "nativeapi.h")
+end
 
-print("Generating " + TARGET_IMP + "...")
-h_code = HEADER + "#pragma once\n\n#include \"../cli/saynaa.h\"\n" + gen_typedefs() + gen_struct()
-h_code = h_code + "#define API_INIT_FN_NAME \"InitApi\" \n#define EXPORT_FN_NAME \"ExportModule\" \n#define CLEANUP_FN_NAME \"CleanupModule\" \n\n"
-h_code = h_code + "typedef void (*InitApiFn)(" + API_TYPE + "*);\ntypedef Handle* (*ExportModuleFn)(VM*);\n\n"
-h_code = h_code + "#ifdef DL_IMPLEMENT\n\n" + gen_make_api() + "#endif // DL_IMPLEMENT\n"
-write_file(TARGET_IMP, h_code)
+print("Reading " + SAYNAA_HEADER_PATH + "...")
+source_content = read_file(SAYNAA_HEADER_PATH)
+
+#    Parse Data
+# We keep full source for type extraction, but cut it for function parsing
+api_functions = parse_api_functions(source_content)
+type_definitions = extract_types_and_structs(source_content)
+
+#    Generate Header File (nativeapi.h)
+header_includes = "#pragma once\n\n#include <stdbool.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n"
+h_content = LICENSE_HEADER + header_includes + type_definitions + gen_typedefs(api_functions) + gen_api_struct(api_functions) + gen_declarations(api_functions)
+
+write_file(target_h_path, h_content)
+
+#    Generate C File (nativeapi.c)
+c_includes = "#include \"nativeapi.h\"\n\n"
+c_content = LICENSE_HEADER + c_includes + gen_init_func(api_functions) + gen_proxies(api_functions)
+
+write_file(target_c_path, c_content)
+
+#    Generate Runtime Implementation (saynaa_native.h)
+imp_header = "#pragma once\n\n#include \"../cli/saynaa.h\"\n"
+imp_macros = "#define API_INIT_FN_NAME \"InitApi\" \n#define EXPORT_FN_NAME \"ExportModule\" \n#define CLEANUP_FN_NAME \"CleanupModule\" \n\n"
+imp_types  = "typedef void (*InitApiFn)(" + API_STRUCT_TYPE + "*);\ntypedef Handle* (*ExportModuleFn)(VM*);\n\n"
+imp_impl   = "#ifdef DL_IMPLEMENT\n\n" + gen_make_api_func(api_functions) + "#endif // DL_IMPLEMENT\n"
+
+imp_content = LICENSE_HEADER + imp_header + gen_typedefs(api_functions) + gen_api_struct(api_functions) + imp_macros + imp_types + imp_impl
+
+write_file(TARGET_IMP_PATH, imp_content)
 
 print("Done.")

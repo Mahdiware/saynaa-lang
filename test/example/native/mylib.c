@@ -1,7 +1,6 @@
 
-#include <saynaa.h>
-#include <stdio.h>
-#include <string.h>
+
+#include "nativeapi.h"
 
 Handle* variable2;
 Handle* mylib;
@@ -59,7 +58,7 @@ EXPORT void _Getter(VM* vm) {
   const char* name = GetSlotString(vm, 1, NULL);
   Variable* thiz = (Variable*) GetThis(vm);
   if (strcmp("value", name) == 0) {
-    setSlotNumber(vm, 0, (double)thiz->value);
+    setSlotNumber(vm, 0, (double) thiz->value);
     return;
   }
 }
@@ -82,38 +81,41 @@ EXPORT void _deleteVector(VM* vm, void* ptr) {
 }
 
 EXPORT void _initVector(VM* vm) {
-    double x, y;
-    if (!ValidateSlotNumber(vm, 1, &x)) return;
-    if (!ValidateSlotNumber(vm, 2, &y)) return;
-    
-    Vector* self = (Vector*) GetThis(vm);
-    self->x = x;
-    self->y = y;
+  double x, y;
+  if (!ValidateSlotNumber(vm, 1, &x))
+    return;
+  if (!ValidateSlotNumber(vm, 2, &y))
+    return;
+
+  Vector* self = (Vector*) GetThis(vm);
+  self->x = x;
+  self->y = y;
 }
 
 EXPORT void _vecAdd(VM* vm) {
-    Vector* self = (Vector*) GetThis(vm);
-    
-    // We expect the argument to be another Vector instance.
-    // In a production environment, you should check the type match using handles.
-    Vector* other = (Vector*) GetSlotNativeInstance(vm, 1);
-    if (other == NULL) return; // Error should have been set by GetSlotNativeInstance if invalid.
+  Vector* self = (Vector*) GetThis(vm);
 
-    // Perform vector addition in place
-    self->x += other->x;
-    self->y += other->y;
-    
-    // Return self (for chaining)
-    // We need to set return value (slot 0) to 'this'.
-    // 'this' is available in the fiber, or we can use PlaceThis(vm, 0).
-    PlaceThis(vm, 0);
+  // We expect the argument to be another Vector instance.
+  // In a production environment, you should check the type match using handles.
+  Vector* other = (Vector*) GetSlotNativeInstance(vm, 1);
+  if (other == NULL)
+    return; // Error should have been set by GetSlotNativeInstance if invalid.
+
+  // Perform vector addition in place
+  self->x += other->x;
+  self->y += other->y;
+
+  // Return self (for chaining)
+  // We need to set return value (slot 0) to 'this'.
+  // 'this' is available in the fiber, or we can use PlaceThis(vm, 0).
+  PlaceThis(vm, 0);
 }
 
 EXPORT void _vecToString(VM* vm) {
-    Vector* self = (Vector*) GetThis(vm);
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), "Vector(%.2f, %.2f)", self->x, self->y);
-    setSlotString(vm, 0, buffer);
+  Vector* self = (Vector*) GetThis(vm);
+  char buffer[128];
+  snprintf(buffer, sizeof(buffer), "Vector(%.2f, %.2f)", self->x, self->y);
+  setSlotString(vm, 0, buffer);
 }
 
 // --- Module Export ---

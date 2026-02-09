@@ -1,10 +1,9 @@
-#include <saynaa.h>
-#include <stdio.h>
-#include <string.h>
+#include "nativeapi.h"
 
 EXPORT void _greet(VM* vm) {
   const char* name;
-  if (!ValidateSlotString(vm, 1, &name, NULL)) return;
+  if (!ValidateSlotString(vm, 1, &name, NULL))
+    return;
   printf("Hello from native2, %s!\n", name);
 }
 
