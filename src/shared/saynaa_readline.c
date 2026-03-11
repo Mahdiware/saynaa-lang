@@ -10,9 +10,15 @@
 #include "../runtime/saynaa_vm.h"
 
 #include <ctype.h>
+
+// `Function` is a typedef in readline and a struct in saynaa.
+// We rename the readline function to avoid conflict.
+#define Function ReadlineFunction
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <readline/tilde.h>
+#undef Function
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
