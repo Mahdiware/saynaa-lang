@@ -241,7 +241,6 @@ typedef struct Closure Closure;
 typedef struct MethodBind MethodBind;
 typedef struct Upvalue Upvalue;
 typedef struct Fiber Fiber;
-typedef struct Class Class;
 typedef struct Instance Instance;
 
 // Declaration of buffer objects of different types.
