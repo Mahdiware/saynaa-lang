@@ -2306,7 +2306,17 @@ static void exprMap(Compiler* compiler) {
     if (peek(compiler) == TK_RBRACE)
       break;
 
-    compileExpression(compiler);
+    if (peek(compiler) == TK_NAME && compiler->parser.next.type == TK_COLLON) {
+      consume(compiler, TK_NAME, "Expected map identifier key.");
+      Token key = compiler->parser.previous;
+      int index;
+      moduleAddString(compiler->module, compiler->parser.vm, key.start, key.length, &index);
+      emitOpcode(compiler, OP_PUSH_CONSTANT);
+      emitShort(compiler, index);
+    } else {
+      compileExpression(compiler);
+    }
+
     consume(compiler, TK_COLLON, "Expected ':' after map's key.");
     compileExpression(compiler);
 

@@ -9,7 +9,6 @@
 #include "../utils/saynaa_utils.h"
 #include "saynaa_vm.h"
 
-#include <ctype.h>
 #include <limits.h>
 #include <math.h>
 
@@ -866,6 +865,24 @@ saynaa_function(coreEval, "eval(expression:String) -> Var",
   vmPopTempRef(vm); // code.
 }
 
+saynaa_function(coreDefine, "define(variable:String, value:Var) -> Null",
+                ""
+                "Define a global variable with the name [variable] and value "
+                "[value] in the current module.") {
+  String* variable;
+  if (!validateArgString(vm, 1, &variable))
+    return;
+
+  Var valua = ARG(2);
+
+  CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+  Module* current_module = frame->closure->fn->owner;
+
+  moduleSetGlobal(vm, current_module, variable->data, variable->length, valua);
+
+  RET(VAR_NULL);
+}
+
 // List functions.
 // ---------------
 
@@ -934,6 +951,7 @@ static void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("exit", coreExit, -1);
   INITIALIZE_BUILTIN_FN("compile", coreCompile, 1);
   INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
+  INITIALIZE_BUILTIN_FN("define", coreDefine, 2);
 
   // List functions.
   INITIALIZE_BUILTIN_FN("list_append", coreListAppend, 2);
@@ -2511,6 +2529,10 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
             }
 
         } // switch
+
+        Var value = mapGet(map, VAR_OBJ(attrib));
+        if (!IS_UNDEF(value))
+          return value;
       }
       break;
 
@@ -2723,6 +2745,13 @@ void varSetAttrib(VM* vm, Var on, String* attrib, Var value, bool skipSetter) {
       {
         Class* cls = (Class*) obj;
         mapSet(vm, cls->static_attribs, VAR_OBJ(attrib), value);
+        return;
+      }
+
+    case OBJ_MAP:
+      {
+        Map* map = (Map*) obj;
+        mapSet(vm, map, VAR_OBJ(attrib), value);
         return;
       }
 

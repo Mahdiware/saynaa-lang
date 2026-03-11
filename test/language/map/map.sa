@@ -1,6 +1,50 @@
 
+# Validating map keys other than strings
 m1 = {0: 10, true: false, null: function return null end }
 assert(m1[0] == 10)
 assert(m1[true] == false)
 assert(m1[null] is Closure)
 assert(m1[null].name == "@anonymous")
+
+# Validating unquoted string keys in map literals
+m1 = {name: "saynaa", version: 1.0}
+assert(m1["name"] == "saynaa")
+assert(m1["version"] == 1.0)
+assert(m1.name == "saynaa")
+assert(m1.version == 1.0)
+
+# Validating map attribute access (get)
+m2 = {"foo": "bar", "baz": 42}
+assert(m2.foo == "bar")
+assert(m2.baz == 42)
+
+# Validating map attribute access (set)
+m2.foo = "new_bar"
+assert(m2.foo == "new_bar")
+assert(m2["foo"] == "new_bar")
+
+# Validating map attribute access (new entry)
+m2.qux = true
+assert(m2.qux == true)
+assert(m2["qux"] == true)
+
+# Validating variable key still works with parens
+key_var = "dynamic_key"
+m3 = {(key_var): "value"}
+assert(m3["dynamic_key"] == "value")
+assert(m3.dynamic_key == "value")
+
+# Validating special properties priority
+m4 = {length: 100}
+assert(m4.length == 1)      # .length refers to map size
+assert(m4["length"] == 100) # ["length"] refers to the key
+
+# Validating map iteration with new syntax
+m5 = {a: 1, b: 2}
+count = 0
+for k in m5 do
+  if k == "a" then assert(m5.a == 1) end
+  if k == "b" then assert(m5.b == 2) end
+  count += 1
+end
+assert(count == 2)

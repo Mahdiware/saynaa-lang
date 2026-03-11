@@ -3,6 +3,7 @@
 # folder
 .vs/
 .vscode/
+.cache/
 obj/
 build/
 tmp/
@@ -79,6 +80,7 @@ Sessionx.vim
 
 # Temporary
 .netrwhist
+/compile_commands.json
 *~
 /*.sw?
 # Auto-generated tag files
