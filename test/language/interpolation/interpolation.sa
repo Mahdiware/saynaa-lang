@@ -16,10 +16,10 @@ function getLength(test)
   assert(test == "test")
   return 4
 end
-assert("${getLength('${"test"}')}" == "${2 + 2}")
+assert("${getLength("${"test"}")}" == "${2 + 2}")
 
 name = "World"
 assert("Hello $name!" == "Hello World!")
 b = 'vb'; d = 'vd'; f = 'vf'
-assert("a ${ b + ' c ${d + " e ${f}"}' }" == "a vb c vd e vf")
+assert("a ${ b + " c ${d + " e ${f}"}" }" == "a vb c vd e vf")
 assert("$b$d$f" == "vbvdvf")
