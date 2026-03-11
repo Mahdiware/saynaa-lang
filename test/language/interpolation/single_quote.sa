@@ -1,0 +1,9 @@
+# Single quoted strings should not support string interpolation
+name = "saynaa"
+s1 = 'name: $name'
+# "name: \$name" uses escaped dollar to prevent interpolation in comparison string
+assert(s1 == "name: \$name") 
+
+# Double quoted strings should support string interpolation
+s2 = "name: $name"
+assert(s2 == "name: saynaa")

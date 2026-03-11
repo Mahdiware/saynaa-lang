@@ -695,7 +695,7 @@ static void eatString(Compiler* compiler, bool single_quote) {
       return;
     }
 
-    if (c == '$') {
+    if (c == '$' && !single_quote) {
       if (parser->si_depth < MAX_STR_INTERP_DEPTH) {
         tk_type = TK_STRING_INTERP;
 
