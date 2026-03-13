@@ -898,7 +898,10 @@ saynaa_function(coreDefine, "define(variable:String, value:Var) -> Null",
   RET(VAR_NULL);
 }
 
-saynaa_function(corePcall, "pcall(fn:Closure, ...args) -> List", "Calls function in protected mode. Returns [success, result/error].") {
+saynaa_function(
+    corePcall, "pcall(fn:Closure, ...args) -> List",
+    ""
+    "Calls function in protected mode. Returns [success, result/error].") {
   int arg_count = ARGC;
   if (arg_count < 1) {
     RET_ERR(newString(vm, "Expected at least 1 argument (the function)."));
