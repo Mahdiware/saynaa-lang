@@ -586,6 +586,21 @@ saynaa_function(
   }
 }
 
+saynaa_function(coreError, "error(value:var) -> Null",
+                "Terminates the current fiber with the given error value.") {
+  String* msg;
+  if (!IS_OBJ_TYPE(ARG(1), OBJ_STRING)) {
+    msg = varToString(vm, ARG(1), false);
+    if (msg == NULL)
+      return; // Error from _to_string
+  } else {
+    msg = (String*) AS_OBJ(ARG(1));
+  }
+  vmPushTempRef(vm, &msg->_super); // msg.
+  VM_SET_ERROR(vm, msg);
+  vmPopTempRef(vm); // msg.
+}
+
 saynaa_function(coreBin, "bin(value:Number) -> String",
                 "Returns as a binary value string with '0b' prefix.") {
   int64_t value;
@@ -883,6 +898,87 @@ saynaa_function(coreDefine, "define(variable:String, value:Var) -> Null",
   RET(VAR_NULL);
 }
 
+saynaa_function(corePcall, "pcall(fn:Closure, ...args) -> List", "Calls function in protected mode. Returns [success, result/error].") {
+  int arg_count = ARGC;
+  if (arg_count < 1) {
+    RET_ERR(newString(vm, "Expected at least 1 argument (the function)."));
+  }
+
+  Closure* closure;
+  if (!validateArgClosure(vm, 1, &closure))
+    return;
+
+  // Prepare arguments
+  int call_argc = arg_count - 1;
+  Var* call_argv = NULL;
+  if (call_argc > 0) {
+    call_argv = &vm->fiber->ret[2];
+  }
+
+  // Create fiber
+  Fiber* fiber = newFiber(vm, closure);
+  fiber->native = vm->fiber;
+  vmPushTempRef(vm, &fiber->_super); // fiber.
+
+  bool success = vmPrepareFiber(vm, fiber, call_argc, call_argv);
+
+  List* ret_list = newList(vm, 2);
+  vmPushTempRef(vm, &ret_list->_super); // ret_list.
+
+  if (!success) {
+    String* err = vm->fiber->error;
+    vm->fiber->error = NULL; // clear error
+
+    listAppend(vm, ret_list, VAR_FALSE);
+    listAppend(vm, ret_list, VAR_OBJ(err));
+
+  } else {
+    // Suppress error reporting
+    WriteFn old_stderr = vm->config.stderr_write;
+    vm->config.stderr_write = NULL;
+
+    Result result;
+    Fiber* last = vm->fiber;
+
+    if (fiber->closure->fn->is_native) {
+      ASSERT(fiber->closure->fn->native != NULL, "Native function was NULL");
+      vm->fiber = fiber;
+      fiber->closure->fn->native(vm);
+      if (VM_HAS_ERROR(vm)) {
+        result = RESULT_RUNTIME_ERROR;
+      } else {
+        result = RESULT_SUCCESS;
+      }
+    } else {
+      result = vmRunFiber(vm, fiber);
+    }
+
+    // Restore stderr
+    vm->config.stderr_write = old_stderr;
+
+    // Restore fiber
+    vm->fiber = last;
+
+    if (result == RESULT_SUCCESS) {
+      listAppend(vm, ret_list, VAR_TRUE);
+      listAppend(vm, ret_list, *fiber->ret);
+    } else {
+      listAppend(vm, ret_list, VAR_FALSE);
+      if (fiber->error) {
+        listAppend(vm, ret_list, VAR_OBJ(fiber->error));
+      } else {
+        listAppend(vm, ret_list, VAR_OBJ(newString(vm, "Unknown Error")));
+      }
+      fiber->error = NULL;
+    }
+  }
+
+  vmPopTempRef(vm); // ret_list.
+  vmPopTempRef(vm); // fiber.
+
+  RET(VAR_OBJ(ret_list));
+}
+
 // List functions.
 // ---------------
 
@@ -952,6 +1048,8 @@ static void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("compile", coreCompile, 1);
   INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
   INITIALIZE_BUILTIN_FN("define", coreDefine, 2);
+  INITIALIZE_BUILTIN_FN("pcall", corePcall, -1);
+  INITIALIZE_BUILTIN_FN("error", coreError, 1);
 
   // List functions.
   INITIALIZE_BUILTIN_FN("list_append", coreListAppend, 2);
@@ -2199,6 +2297,10 @@ Var varModulo(VM* vm, Var v1, Var v2, bool inplace) {
   double n1, n2;
   if (isNumeric(v1, &n1)) {
     if (validateNumeric(vm, v2, &n2, RIGHT_OPERAND)) {
+      if (n2 == 0) {
+        VM_SET_ERROR(vm, newString(vm, "Division by zero."));
+        return VAR_NULL;
+      }
       return VAR_NUM(fmod(n1, n2));
     }
     return VAR_NULL;
@@ -2278,7 +2380,18 @@ Var varMultiply(VM* vm, Var v1, Var v2, bool inplace) {
 }
 
 Var varDivide(VM* vm, Var v1, Var v2, bool inplace) {
-  CHECK_NUMERIC_OP(/);
+  double n1, n2;
+  if (isNumeric(v1, &n1)) {
+    if (validateNumeric(vm, v2, &n2, RIGHT_OPERAND)) {
+      if (n2 == 0) {
+        VM_SET_ERROR(vm, newString(vm, "Division by zero."));
+        return VAR_NULL;
+      }
+      return VAR_NUM(n1 / n2);
+    }
+    return VAR_NULL;
+  }
+
   CHECK_INST_BINARY_OP("/");
   UNSUPPORTED_BINARY_OP("/");
   return VAR_NULL;

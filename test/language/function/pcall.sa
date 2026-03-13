@@ -1,0 +1,45 @@
+# Pcall tests.
+
+function fail()
+  print("About to fail...")
+  error("Custom error raised!")
+end
+
+function succeed()
+  print("Success function running")
+  return "All good"
+end
+
+function add(a, b)
+  return a + b
+end
+
+function fail_args(a)
+  # This should fail because 'null' cannot be added to a number
+  return a + null
+end
+
+print("Testing pcall success:")
+res1 = pcall(succeed)
+print(res1)
+assert(res1[0] == true)
+assert(res1[1] == "All good")
+
+print("\nTesting pcall failure:")
+res2 = pcall(fail)
+print(res2)
+assert(res2[0] == false)
+assert(res2[1] == "Custom error raised!")
+
+print("\nTesting pcall args success:")
+res3 = pcall(add, 10, 20)
+print(res3)
+assert(res3[0] == true)
+assert(res3[1] == 30)
+
+print("\nTesting pcall args failure:")
+res4 = pcall(fail_args, 10)
+print(res4)
+assert(res4[0] == false)
+assert(res4[1] == "Right operand must be a numeric value.")
+print("Error caught: " + res4[1])
