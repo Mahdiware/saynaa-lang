@@ -6,6 +6,17 @@
 #include "../shared/saynaa_value.h"
 #include "saynaa_optionals.h"
 
+#if defined(__has_include)
+#if __has_include(<pcre2.h>)
+#define SAYNAA_HAS_PCRE2 1
+#endif
+#endif
+
+#ifndef SAYNAA_HAS_PCRE2
+#define SAYNAA_HAS_PCRE2 0
+#endif
+
+#if SAYNAA_HAS_PCRE2
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 
@@ -416,3 +427,76 @@ void registerModuleRegex(VM* vm) {
   registerModule(vm, re);
   releaseHandle(vm, re);
 }
+
+#else
+
+static void re_set_unavailable_error(VM* vm) {
+  SetRuntimeError(
+      vm, "Regex module is unavailable: PCRE2 headers/library are missing at build time.");
+}
+
+saynaa_function(_reMatch, "re.match(pattern: String, text: String) -> String|Null",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reFullMatch, "re.fullmatch(pattern: String, text: String) -> String|Null",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reSearch, "re.search(pattern: String, text: String) -> String|Null",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reSplit, "re.split(pattern: String, text: String, maxsplit: Int) -> List",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reSub, "re.sub(pattern: String, repl: String, text: String) -> String",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reSubn, "re.subn(pattern: String, repl: String, text: String) -> List",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reEscape, "re.escape(pattern: String) -> String", "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_rePurge, "re.purge() -> Null", "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reExtract, "re.extract(pattern: String, text: String) -> List|Null",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+saynaa_function(_reFindAll, "re.findall(pattern: String, text: String) -> List",
+                "Regex module unavailable.") {
+  re_set_unavailable_error(vm);
+}
+
+void registerModuleRegex(VM* vm) {
+  Handle* re = NewModule(vm, "re");
+  ModuleAddFunction(vm, re, "match", _reMatch, 2, NULL);
+  ModuleAddFunction(vm, re, "fullmatch", _reFullMatch, 2, NULL);
+  ModuleAddFunction(vm, re, "search", _reSearch, 2, NULL);
+  ModuleAddFunction(vm, re, "sub", _reSub, -1, NULL);
+  ModuleAddFunction(vm, re, "subn", _reSubn, -1, NULL);
+  ModuleAddFunction(vm, re, "split", _reSplit, -1, NULL);
+  ModuleAddFunction(vm, re, "extract", _reExtract, 2, NULL);
+  ModuleAddFunction(vm, re, "findall", _reFindAll, 2, NULL);
+  ModuleAddFunction(vm, re, "escape", _reEscape, 1, NULL);
+  ModuleAddFunction(vm, re, "purge", _rePurge, 0, NULL);
+  registerModule(vm, re);
+  releaseHandle(vm, re);
+}
+
+#endif
