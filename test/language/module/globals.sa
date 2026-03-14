@@ -1,0 +1,13 @@
+
+# Test Module.globals() returns a Map with correct values
+
+x = 100
+y = "hello string"
+
+g = _module.globals()
+
+assert(g["x"] == x)
+assert(g["y"] == y)
+assert(g["_module"] == _module)
+
+print("Module.globals() Map test passed")
