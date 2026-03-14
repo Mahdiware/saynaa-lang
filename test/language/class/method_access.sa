@@ -52,7 +52,7 @@ globals = math.globals
 assert(globals.name == "globals")
 # Ensure we can call it.
 g = globals()
-assert(g.typename() == "List")
+assert(g.typename() == "Map")
 
 # Test dir() on MethodBind to fix crash
 l = [1, 2]
