@@ -1846,22 +1846,23 @@ saynaa_function(_classMethods, "Class.methods() -> List",
 }
 
 saynaa_function(
-    _moduleGlobals, "Module.globals() -> List",
-    "Returns a list of all the globals in the module. Since classes and "
-    "functinos are also globals to a module it'll contain them too.") {
+    _moduleGlobals, "Module.globals() -> Map",
+    "Returns a map of all the globals in the module. Since classes and "
+    "functions are also globals to a module it'll contain them too.") {
   Module* thiz = (Module*) AS_OBJ(THIS);
 
-  List* list = newList(vm, thiz->globals.count);
-  vmPushTempRef(vm, &list->_super); // list.
+  Map* map = newMap(vm);
+  vmPushTempRef(vm, &map->_super); // map.
   for (int i = 0; i < (int) thiz->globals.count; i++) {
-    if (moduleGetStringAt(thiz, thiz->global_names.data[i])->data[0] == SPECIAL_NAME_CHAR) {
+    String* name = moduleGetStringAt(thiz, thiz->global_names.data[i]);
+    if (name->data[0] == SPECIAL_NAME_CHAR) {
       continue;
     }
-    listAppend(vm, list, thiz->globals.data[i]);
+    mapSet(vm, map, VAR_OBJ(name), thiz->globals.data[i]);
   }
-  vmPopTempRef(vm); // list.
+  vmPopTempRef(vm); // map.
 
-  RET(VAR_OBJ(list));
+  RET(VAR_OBJ(map));
 }
 
 saynaa_function(
