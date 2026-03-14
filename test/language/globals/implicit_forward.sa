@@ -1,0 +1,11 @@
+function main()
+  res = foo()
+  assert(res == 42)
+  print("Implicit forward passed")
+end
+
+function foo()
+  return 42
+end
+
+main()
