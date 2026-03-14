@@ -626,6 +626,13 @@ saynaa_function(_termRun, "term.run(config:Config) -> Null", "Run the main loop.
   _callConfigFn(vm, config, "init_fn", 0);
 
   reserveSlots(vm, 5);
+  // Ensure stack pointer covers the reserved slots, and initialize them to NULL
+  // so the GC can trace them properly. This is critical because SLOT(3) will
+  // hold the event object which must be kept alive.
+  while (vm->fiber->sp < vm->fiber->ret + 5) {
+    *vm->fiber->sp = VAR_NULL;
+    vm->fiber->sp++;
+  }
   // Slot layout:
   // 0: temp / config (in callConfigFn)
   // 1: passed to event_fn as arg

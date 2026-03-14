@@ -1,97 +1,195 @@
-# path Module
-path is a builtin Module.
+# path
+
+The `path` module provides functions for path manipulation.
+
+## Functions
+
+### abspath
+
+Returns the absolute version of a path.
 
 ```ruby
-import path
+abs_path = path.abspath("file.txt")
 ```
 
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (String): The absolute path.
+
+### basename
+
+Returns the base name of pathname property.
+
+```ruby
+name = path.basename("/foo/bar/baz.txt")
+## name -> "baz.txt"
+```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (String): The base name.
+
+### dirname
+
+Returns the directory name of pathname property.
+
+```ruby
+dir = path.dirname("/foo/bar/baz.txt")
+## dir -> "/foo/bar"
+```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (String): The directory name.
+
+### exists
+
+Returns true if the path refers to an existing path or an open file descriptor.
+
+```ruby
+if path.exists("file.txt") {
+  print("File exists")
+}
+```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (Boolean): True if explicitly exists.
+
 ### getcwd
+
 Returns the current working directory.
 
 ```ruby
-path.getcwd() -> String
+cwd = path.getcwd()
 ```
 
-### abspath
-Returns the absolute path of the [path].
-
-```ruby
-path.abspath(path:String) -> String
-```
-
-### relpath
-Returns the relative path of the [path] argument from the [from] directory.
-
-```ruby
-path.relpath(path:String, from:String) -> String
-```
-
-### join
-Joins path with path seperator and return it. The maximum count of paths which can be joined for a call is MAX_JOIN_PATHS.
-
-```ruby
-path.join(...) -> String
-```
-
-### normpath
-Returns the normalized path of the [path].
-
-```ruby
-path.normpath(path:String) -> String
-```
-
-### basename
-Returns the final component for the path
-
-```ruby
-path.basename(path:String) -> String
-```
-
-### dirname
-Returns the directory of the path.
-
-```ruby
-path.dirname(path:String) -> String
-```
-
-### isabspath
-Returns true if the path is absolute otherwise false.
-
-```ruby
-path.isabspath(path:String) -> Bool
-```
+**Returns:**
+- (String): The current working directory.
 
 ### getext
-Returns the file extension of the path.
+
+Returns the file extension.
 
 ```ruby
-path.getext(path:String) -> String
+ext = path.getext("file.txt")
+## ext -> ".txt"
 ```
 
-### exists
-Returns true if the file exists.
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (String): The file extension.
+
+### isabs
+
+Returns true if the path is an absolute path.
 
 ```ruby
-path.exists(path:String) -> String
+is_abs = path.isabs("/foo/bar")
+## is_abs -> true
 ```
 
-### isfile
-Returns true if the path is a file.
+**Parameters:**
+- `path` (String): The path.
 
-```ruby
-path.isfile(path:String) -> Bool
-```
+**Returns:**
+- (Boolean): True if absolute.
 
 ### isdir
-Returns true if the path is a directory.
+
+Returns true if the path is an existing directory.
 
 ```ruby
-path.isdir(path:String) -> Bool
+is_dir = path.isdir("docs")
 ```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (Boolean): True if directory.
+
+### isfile
+
+Returns true if the path is an existing regular file.
+
+```ruby
+is_file = path.isfile("file.txt")
+```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (Boolean): True if file.
+
+### join
+
+Joins one or more path components intelligently.
+
+```ruby
+full_path = path.join("/foo", "bar", "baz.txt")
+## full_path -> "/foo/bar/baz.txt"
+```
+
+**Parameters:**
+- `*paths` (String): The path components.
+
+**Returns:**
+- (String): The joined path.
 
 ### listdir
-Returns all the entries in the directory at the [path].
+
+Returns a list containing the names of the entries in the directory given by path.
 
 ```ruby
-path.listdir(path:String='.') -> List
+files = path.listdir(".")
 ```
+
+**Parameters:**
+- `path` (String): The directory path.
+- `recursive` (Boolean): Optional. If true, list recursively. Default is `false`.
+
+**Returns:**
+- (List): A list of file names/paths.
+
+### normpath
+
+Normalize a pathname.
+
+```ruby
+norm = path.normpath("/foo/../bar")
+## norm -> "/bar"
+```
+
+**Parameters:**
+- `path` (String): The path.
+
+**Returns:**
+- (String): The normalized path.
+
+### relpath
+
+Return a relative filepath to path either from the current directory or from an optional start directory.
+
+```ruby
+rel = path.relpath("/foo/bar/baz", "/foo")
+## rel -> "bar/baz"
+```
+
+**Parameters:**
+- `path` (String): The target path.
+- `start` (String): The starting path.
+
+**Returns:**
+- (String): The relative path.

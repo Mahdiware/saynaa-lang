@@ -123,3 +123,76 @@ class Square is Rectangle
   end
 end
 ```
+## Magic Methods
+
+Saynaa supports several magic methods that allow you to customize the behavior of your objects.
+
+### `_init(...)`
+The constructor method. Called when a new instance is created.
+
+```ruby
+class Foo
+  function _init(x)
+    this.x = x
+  end
+end
+```
+
+### `_str()`
+Returns a string representation of the object. Called by the `str()` builtin function or when the object is interpolated into a string.
+
+```ruby
+class Foo
+  function _str()
+    return "Foo"
+  end
+end
+```
+
+### `_call(...)`
+Allows an instance to be called as a function.
+
+```ruby
+class Multiplier
+  function _init(factor)
+    this.factor = factor
+  end
+  
+  function _call(x)
+    return x * this.factor
+  end
+end
+
+double = Multiplier(2)
+print(double(5)) # Output: 10
+```
+
+### `_getter(name)`
+Called when an attribute lookup fails. This allows for dynamic property access.
+
+```ruby
+class Dynamic
+  function _getter(name)
+    if (name == "foo") return "bar"
+    return null
+  end
+end
+
+d = Dynamic()
+print(d.foo) # Output: bar
+```
+
+### `_setter(name, value)`
+Called when an attribute assignment occurs.
+
+```ruby
+class Checked
+  function _setter(name, value)
+    if (name == "age" and value < 0)
+      print("Error: Age cannot be negative")
+      return
+    end
+    this.age = value
+  end
+end
+```

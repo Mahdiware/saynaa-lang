@@ -1,132 +1,166 @@
-## math Module
-math is a builtin Module.
+# math
+
+The `math` module provides basic mathematical functions and constants.
+
+## Constants
+
+### pi
+
+The ratio of a circle's circumference to its diameter (approximately 3.14159).
 
 ```ruby
-import math
+print(math.pi)
 ```
 
-### floor
-Return the floor value.
-
-```ruby
-math.floor(value:Numberber) -> Numberber
-```
-
-### ceil
-Returns the ceiling value.
-
-```ruby
-math.ceil(value:Number) -> Number
-```
-
-### pow
-Returns the power 'b' of 'a' similler to a**b.
-
-```ruby
-math.pow(a:Number, b:Number) -> Number
-```
-
-### sqrt
-Returns the square root of the value
-
-```ruby
-math.sqrt(value:Number) -> Number
-```
+## Functions
 
 ### abs
-Returns the absolute value.
+
+Returns the absolute value of `x`.
 
 ```ruby
-math.abs(value:Number) -> Number
+math.abs(x)
 ```
 
-### sign
-return the sign of the which is one of (+1, 0, -1).
+**Parameters:**
+- `x` (Number): The number.
+
+### ceil
+
+Returns the smallest integer greater than or equal to `x`.
 
 ```ruby
-math.sign(value:Number) -> Number
+math.ceil(x)
 ```
 
-### sin
-Return the sine value of the argument [rad] which is an angle expressed in radians.
+**Parameters:**
+- `x` (Number): The number.
+
+### floor
+
+Returns the largest integer less than or equal to `x`.
 
 ```ruby
-math.sin(rad:Number) -> Number
+math.floor(x)
 ```
 
-### cos
-Return the cosine value of the argument [rad] which is an angle expressed in radians.
-
-```ruby
-math.cos(rad:Number) -> Number
-```
-
-### tan
-Return the tangent value of the argument [rad] which is an angle expressed in radians.
-
-```ruby
-math.tan(rad:Number) -> Number
-```
-
-### sinh
-Return the hyperbolic sine value of the argument [val].
-
-```ruby
-math.sinh(val:Number) -> Number
-```
-
-### cosh
-Return the hyperbolic cosine value of the argument [val].
-
-```ruby
-math.cosh(val:Number) -> Number
-```
-
-### tanh
-Return the hyperbolic tangent value of the argument [val].
-
-```ruby
-math.tanh(val:Number) -> Number
-```
-
-### asin
-Return the arcsine value of the argument [num] which is an angle expressed in radians.
-
-```ruby
-math.asin(num:Number) -> Number
-```
-
-### acos
-Return the arc cosine value of the argument [num] which is an angle expressed in radians.
-
-```ruby
-math.acos(num:Number) -> Number
-```
-
-### atan
-Return the arc tangent value of the argument [num] which is an angle expressed in radians.
-
-```ruby
-math.atan(num:Number) -> Number
-```
-
-### log10
-Return the logarithm to base 10 of argument [value]
-
-```ruby
-math.log10(value:Number) -> Number
-```
+**Parameters:**
+- `x` (Number): The number.
 
 ### round
-Round to nearest integer, away from zero and return the number.
+
+Rounds the number to the nearest integer.
 
 ```ruby
-math.round(value:Number) -> Number
+math.round(x)
 ```
 
-### rand
-Return a random runber in the range of 0..0x7fff.
+**Parameters:**
+- `x` (Number): The number.
+
+### sign
+
+Returns the sign of `x`. output is -1, 0, or 1.
 
 ```ruby
-math.rand() -> Number
+math.sign(x)
+```
+
+**Parameters:**
+- `x` (Number): The number.
+
+### sqrt
+
+Returns the square root of `x`.
+
+```ruby
+math.sqrt(x)
+```
+
+**Parameters:**
+- `x` (Number): The number.
+
+### pow
+
+Returns `base` to the power of `exponent`.
+
+```ruby
+math.pow(base, exponent)
+```
+
+**Parameters:**
+- `base` (Number): The base.
+- `exponent` (Number): The exponent.
+
+### log10
+
+Returns the base-10 logarithm of `x`.
+
+```ruby
+math.log10(x)
+```
+
+**Parameters:**
+- `x` (Number): The number.
+
+### rand
+
+Returns a random integer between 0 and 32767.
+
+```ruby
+math.rand()
+```
+
+### random
+
+Returns a random integer between `min` and `max` (inclusive).
+
+```ruby
+math.random(min, max)
+```
+
+**Parameters:**
+- `min` (Number): The minimum value.
+- `max` (Number): The maximum value.
+
+### Trigonometric Functions
+
+All trigonometric functions typically work with radians.
+
+#### sin, cos, tan
+
+Returns the sine, cosine, or tangent of `x` (in radians).
+
+```ruby
+math.sin(x)
+math.cos(x)
+math.tan(x)
+```
+
+#### asin, acos, atan
+
+Returns the arc sine, arc cosine, or arc tangent of `x`.
+
+```ruby
+math.asin(x)
+math.acos(x)
+math.atan(x)
+```
+
+#### atan2
+
+Returns the arc tangent of `y/x`, accounting for the quadrant.
+
+```ruby
+math.atan2(y, x)
+```
+
+#### sinh, cosh, tanh
+
+Returns the hyperbolic sine, cosine, or tangent of `x`.
+
+```ruby
+math.sinh(x)
+math.cosh(x)
+math.tanh(x)
 ```

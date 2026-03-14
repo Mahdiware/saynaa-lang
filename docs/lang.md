@@ -1,42 +1,52 @@
-## lang Module
-lang is a builtin Module.
+# lang
 
-```ruby
-import lang
-```
+The `lang` module provides functions to interact with the runtime.
+
+## Functions
 
 ### gc
+
 Trigger garbage collection and return the amount of bytes cleaned.
 
 ```ruby
-lang.gc() -> Number
+freed = lang.gc()
 ```
+
+**Returns:**
+- (Number): Bytes cleaned.
 
 ### disas
-Returns the disassembled opcode of the function [function].
+
+Returns the disassembled opcode of the function.
 
 ```ruby
-lang.disas(function:Closure) -> String
+code = lang.disas(fn)
 ```
+
+**Parameters:**
+- `fn` (Closure): The function/closure to disassemble.
+
+**Returns:**
+- (String): The bytecode disassembly.
 
 ### backtrace
-Returns the backtrace as a string,
-each line is formated as '<function>;<file>;<line>'.
+
+Return the current backtrace as a list of strings.
 
 ```ruby
-lang.backtrace() -> String
+bt = lang.backtrace()
 ```
+
+**Returns:**
+- (List): The backtrace.
 
 ### modules
-Returns the list of all registered modules.
+
+Returns a list of all loaded module objects.
 
 ```ruby
-lang.modules() -> List
+mods = lang.modules()
 ```
 
-### debug_break
-A debug function for development (will be removed).
-
-```ruby
-lang.debug_break() -> Null
-```
+**Returns:**
+- (List): List of Module objects.

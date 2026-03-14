@@ -1,35 +1,35 @@
-* INTRODUCTION
-
-  * [Overview](README.md)
-  * [Getting Started](quickstart.md)
+* [Home](README.md)
+* [Getting Started](quickstart.md)
 
 * LANGUAGE GUIDE
 
   * [Syntax & Basics](syntax.md)
+  * [Built-in Functions](builtins.md)
+  * [Data Types](datatypes.md)
+    * [String](string.md)
+    * [Number](number.md)
+    * [Bool](bool.md)
+    * [List](list.md)
+    * [Map](map.md)
+    * [Range](range.md)
   * [Operators](operators.md)
   * [Control Flow](controlflow.md)
   * [Loops](loop.md)
   * [Functions](function.md)
   * [Closures](closure.md)
   * [Classes](class.md)
-  * [Data Types](datatypes.md)
-    * [Bool](bool.md)
-    * [List](list.md)
-    * [Map](map.md)
-    * [Range](range.md)
+  * [Creating Modules](creating_modules.md)
 
 * STANDARD LIBRARY
 
-  * [Io](io.md)
-  * [Json](json.md)
-  * [Lang](lang.md)
-  * [Math](math.md)
-  * [Os](os.md)
-  * [Path](path.md)
-  * [Regex](re.md)
-  * [Term](term.md)
-  * [Time](time.md)
-
-* EXTENDING SAYNAA
-
-  * [Creating Modules](creating_modules.md)
+  * [io](io.md)
+  * [os](os.md)
+  * [math](math.md)
+  * [json](json.md)
+  * [path](path.md)
+  * [re](re.md)
+  * [time](time.md)
+  * [types](types.md)
+  * [term](term.md)
+  * [lang](lang.md)
+  * [module](module.md)

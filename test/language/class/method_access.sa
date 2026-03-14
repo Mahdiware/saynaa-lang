@@ -1,0 +1,62 @@
+## Method access tests.
+
+# Class method call still works.
+assert(Module.typename() == "Class")
+
+# Class method can be accessed as a value (MethodBind), not only called.
+m = Module.typename
+assert(m.name == "typename")
+assert(m() == "Class")
+
+# Builtin function can be accessed as a closure value.
+p = print
+assert(p.name == "print")
+
+# Test method access on built-in types (String)
+s = "hello"
+upper = s.upper
+assert(upper.name == "upper")
+assert(upper() == "HELLO")
+
+# Test method access on built-in types (List)
+l = [1, 2]
+append = l.append
+assert(append.name == "append")
+append(3)
+assert(l == [1, 2, 3])
+
+# Test method access on built-in types (Map)
+m = {"a": 1}
+clr = m.clear
+assert(clr.name == "clear")
+# Call the bound method
+clr()
+assert(m.length == 0)
+
+# Test method access on built-in types (Range)
+r = 0..5
+assert(r.length == 5) # Property access works
+tn = r.typename       # Method access as property
+assert(tn.name == "typename")
+assert(tn() == "Range")
+
+# Test method access on built-in types (Closure)
+# 'exit' is a built-in closure. We can access methods on it (like Object methods).
+assert(exit.typename() == "Closure")
+getattr = exit.getattr
+assert(getattr.name == "getattr")
+
+# Test method access on built-in types (Module)
+import math
+globals = math.globals
+assert(globals.name == "globals")
+# Ensure we can call it.
+g = globals()
+assert(g.typename() == "List")
+
+# Test dir() on MethodBind to fix crash
+l = [1, 2]
+append = l.append
+d = dir(append)
+assert(d.typename() == "List")
+assert(d.find("bind") != -1)

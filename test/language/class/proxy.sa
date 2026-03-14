@@ -1,0 +1,51 @@
+
+## Test for Python-like CallableProxy pattern using _getter and _call.
+
+class CallableProxy
+  function _init(func)
+    this.func = func
+  end
+
+  function _call(a, b, c)
+    return this.func("Called via proxy:", a, b, c)
+  end
+end
+
+class Tijaabo
+  function _init()
+    this.some_var = 42
+  end
+
+  function _getter(name)
+    return CallableProxy(function(prefix, a, b, c)
+      args_str = "("
+      if (a != null) then args_str += "${a}" end
+      if (b != null) then args_str += ", ${b}" end
+      if (c != null) then args_str += ", ${c}" end
+      args_str += ")"
+
+      return "${prefix} ${name} called with ${args_str}"
+    end)
+  end
+end
+
+t = Tijaabo()
+
+# Test standard property access (variable access).
+assert(t.some_var == 42)
+
+# Test dynamic property access (returns proxy).
+proxy = t.dynamic_method
+assert(proxy is CallableProxy)
+
+# Test calling the dynamic property (function call via proxy).
+# This invokes Tijaabo._getter("foo") -> returns CallableProxy -> invokes CallableProxy._call(1, 2, 3)
+result = t.foo(1, 2, 3)
+
+assert(result == "Called via proxy: foo called with (1, 2, 3)")
+
+# Test with fewer arguments (missing args become null in _call).
+result2 = t.bar(10)
+assert(result2 == "Called via proxy: bar called with (10)")
+
+print("All proxy tests passed.")

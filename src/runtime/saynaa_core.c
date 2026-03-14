@@ -494,6 +494,8 @@ saynaa_function(coreDir, "dir(v:Var) -> List[String]",
     case vRANGE:
     case vCLOSURE:
     case vFIBER:
+    case vMETHOD_BIND:
+    case vPOINTER:
       {
         List* list = newList(vm, 8);
         vmPushTempRef(vm, &list->_super); // list.
@@ -681,6 +683,11 @@ saynaa_function(coreToString, "str(valueVar) -> String",
   if (str == NULL)
     RET(VAR_NULL);
   RET(VAR_OBJ(str));
+}
+
+saynaa_function(coreType, "type(value:Var) -> String", "Returns the type of the value.") {
+  const char* type_name = varTypeName(ARG(1));
+  RET(VAR_OBJ(newString(vm, type_name)));
 }
 
 saynaa_function(coreToInt, "int(value:Num) -> Integer",
@@ -1040,6 +1047,7 @@ static void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("hex", coreHex, 1);
   INITIALIZE_BUILTIN_FN("yield", coreYield, -1);
   INITIALIZE_BUILTIN_FN("str", coreToString, 1);
+  INITIALIZE_BUILTIN_FN("type", coreType, 1);
   INITIALIZE_BUILTIN_FN("int", coreToInt, 1);
   INITIALIZE_BUILTIN_FN("chr", coreChr, 1);
   INITIALIZE_BUILTIN_FN("ord", coreOrd, 1);
@@ -2792,39 +2800,39 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
       }
       break;
 
+    case OBJ_POINTER:
+      break;
+
     case OBJ_INST:
       {
         Instance* inst = (Instance*) obj;
         Var value = VAR_NULL;
 
-        if (!skipGetter) {
-          Closure* getter = getMagicMethod(inst->cls, METHOD_GETTER);
-          if (getter != NULL) {
-            Var attrib_name = VAR_OBJ(attrib);
-            vmCallMethod(vm, on, getter, 1, &attrib_name, &value);
-
-            // char* val = varToString(vm, value, false)->data;
-            // printf("value: %s, vartype: %s\n", val, getVarTypeName(getVarType(value)));
-            // char* val2 = varToString(vm, attrib_name, false)->data;
-            // printf("value: %s, vartype: %s\n", val2, getVarTypeName(getVarType(attrib_name)));
-
-            // Return the value returned by the getter.
-            return value;
-          }
-        }
-
         value = mapGet(inst->attribs, VAR_OBJ(attrib));
         if (!IS_UNDEF(value))
           return value;
-
-        Closure* method;
-        if (hasMethod(vm, on, attrib, &method)) {
-          MethodBind* mb = newMethodBind(vm, method);
-          mb->instance = on;
-          return VAR_OBJ(mb);
-        }
       }
       break;
+  }
+
+  {
+    Closure* method;
+    if (hasMethod(vm, on, attrib, &method)) {
+      MethodBind* mb = newMethodBind(vm, method);
+      mb->instance = on;
+      return VAR_OBJ(mb);
+    }
+  }
+
+  if (IS_OBJ_TYPE(on, OBJ_INST) && !skipGetter) {
+    Instance* inst = (Instance*) AS_OBJ(on);
+    Closure* getter = getMagicMethod(inst->cls, METHOD_GETTER);
+    if (getter != NULL) {
+      Var attrib_name = VAR_OBJ(attrib);
+      Var value = VAR_NULL;
+      vmCallMethod(vm, on, getter, 1, &attrib_name, &value);
+      return value;
+    }
   }
 
   ERR_NO_ATTRIB(vm, on, attrib);

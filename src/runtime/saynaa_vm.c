@@ -37,19 +37,19 @@ static void wildcardRuntimeCallback(const char* name, void* user_data) {
   // Import relative to current module path
   Var imported = vmImportModule(vm, data->current_ptr, mod_name);
   if (IS_OBJ_TYPE(imported, OBJ_MODULE)) {
-      VarBufferWrite(data->modules, vm, imported);
+    VarBufferWrite(data->modules, vm, imported);
 
-      // Bind the module to a variable in the current module with the name of the
-      // file without extension.
-      // e.g. from test import * (where test contains debug.sa)
-      // debug = import("test/debug")
-      const char* ext = strrchr(name, '.');
-      size_t name_len = (ext != NULL) ? (size_t)(ext - name) : strlen(name);
+    // Bind the module to a variable in the current module with the name of the
+    // file without extension.
+    // e.g. from test import * (where test contains debug.sa)
+    // debug = import("test/debug")
+    const char* ext = strrchr(name, '.');
+    size_t name_len = (ext != NULL) ? (size_t) (ext - name) : strlen(name);
 
-      if (name_len > 0) {
-        moduleSetGlobal(vm, data->target_module, name, (int)name_len, imported);
-      }
+    if (name_len > 0) {
+      moduleSetGlobal(vm, data->target_module, name, (int) name_len, imported);
     }
+  }
   vmPopTempRef(vm);
 }
 
@@ -1115,7 +1115,7 @@ L_vm_main_loop:
       DISPATCH();
     }
     OPCODE(PUSH_LOCAL_N) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       PUSH(rbp[index + 1]); // +1: rbp[0] is return value.
       DISPATCH();
     }
@@ -1133,20 +1133,20 @@ L_vm_main_loop:
       DISPATCH();
     }
     OPCODE(STORE_LOCAL_N) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       rbp[index + 1] = PEEK(-1); // +1: rbp[0] is return value.
       DISPATCH();
     }
 
     OPCODE(PUSH_GLOBAL) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->globals.count);
       PUSH(module->globals.data[index]);
       DISPATCH();
     }
 
     OPCODE(STORE_GLOBAL) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->globals.count);
       module->globals.data[index] = PEEK(-1);
       DISPATCH();
@@ -1169,13 +1169,13 @@ L_vm_main_loop:
     }
 
     OPCODE(PUSH_UPVALUE) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       PUSH(*(frame->closure->upvalues[index]->ptr));
       DISPATCH();
     }
 
     OPCODE(STORE_UPVALUE) : {
-      uint8_t index = READ_BYTE();
+      uint16_t index = READ_SHORT();
       *(frame->closure->upvalues[index]->ptr) = PEEK(-1);
       DISPATCH();
     }
@@ -1192,7 +1192,7 @@ L_vm_main_loop:
       // Capture the vaupes.
       for (int i = 0; i < fn->upvalue_count; i++) {
         uint8_t is_immediate = READ_BYTE();
-        uint8_t idx = READ_BYTE();
+        uint16_t idx = READ_SHORT();
 
         if (is_immediate) {
           // rbp[0] is the return value, rbp + 1 is the first local and so on.

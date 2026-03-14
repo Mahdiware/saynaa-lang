@@ -1,94 +1,170 @@
-## io Module
-io is a builtin Module.
+# io
 
+The `io` module provides functions and classes for input and output operations.
+
+## Functions
+
+### write
+
+Write `bytes` to the `stream`. `stream` should be one of `io.stdin`, `io.stdout`, or `io.stderr`.
+
+```ruby
+io.write(stream, bytes)
+```
+
+**Parameters:**
+- `stream` (Number): One of `io.stdin`, `io.stdout`, or `io.stderr`.
+- `bytes` (String): The data to write.
+
+**Example:**
 ```ruby
 import io
+io.write(io.stdout, "Hello World\n")
 ```
-### write
-Write [bytes] string to the stream.
-stream should be any of `io.stdin`, `io.stdout`, `io.stderr`.
-
-```ruby
-io.write(stream:Var, bytes:String) -> Null
-```
-> Warning: the function is subjected to be changed anytime soon.
 
 ### flush
-Flush stdout buffer.
+
+Flush the `stdout` buffer.
 
 ```ruby
-io.flush() -> Null
+io.flush()
 ```
-> Warning: the function is subjected to be changed anytime soon.
 
 ### getc
-Read a single character from stdin and return it.
+
+Read a single character from `stdin`.
 
 ```ruby
-io.getc() -> String
+char = io.getc()
 ```
+
+**Returns:**
+- (String): The character read from stdin.
+
+### readfile
+
+Reads a file at `path` and returns its content as a string.
+
+```ruby
+content = io.readfile(path)
+```
+
+**Parameters:**
+- `path` (String): Path to the file.
+
+**Returns:**
+- (String): The content of the file.
+
+### open
+
+Opens a file at the `path` with the specified `mode`. See `io.File.open` for details.
+
+```ruby
+f = io.open("test.txt", "r")
+```
+
+## Classes
 
 ### File
-A simple file type.
 
-#### open
-Opens a file at the [path] with the [mode]. Path should be either absolute or relative to the current working directory. and [mode] can be'r', 'w', 'a' in combination with 'b' (binary) and/or '+' (extended).
-```
- | mode | If already exists | If does not exist |
- |------+-------------------+-------------------|
- | 'r'  |  read from start  |   failure to open |
- | 'w'  |  destroy contents |   create new      |
- | 'a'  |  write to end     |   create new      |
- | 'r+' |  read from start  |   error           |
- | 'w+' |  destroy contents |   create new      |
- | 'a+' |  write to end     |   create new      |
-```
+A class for file manipulation.
+
+#### methods
+
+##### open
+
+Opens a file at the `path` with the `mode`. `path` should be either absolute or relative to the current working directory.
 
 ```ruby
-io.File.open(path:String, mode:String) -> Null
+f.open(path, mode)
 ```
 
-#### read
-Reads [count] number of bytes from the file and return it as String.If the count is -1 it'll read till the end of file and return it.
+**Parameters:**
+- `path` (String): The path to the file.
+- `mode` (String): The mode to open the file in.
+
+**Modes:**
+
+| Mode | If file exists | If file does not exist |
+|------|----------------|------------------------|
+| 'r'  | Read from start| Error                  |
+| 'w'  | Destroy content| Create new             |
+| 'a'  | Write to end   | Create new             |
+| 'r+' | Read from start| Error                  |
+| 'w+' | Destroy content| Create new             |
+| 'a+' | Write to end   | Create new             |
+
+You can append 'b' for binary mode (e.g., 'rb', 'wb').
+
+##### read
+
+Reads `count` bytes from the file. If `count` is -1, reads until the end of the file.
 
 ```ruby
-io.File.read(count:Number) -> String
+data = f.read(count)
 ```
 
-#### write
-Write the [data] to the file. Since saynaa string support any validbyte value in it's string, binary data can also be written with strings.
+**Parameters:**
+- `count` (Number): Number of bytes to read, or -1 for all.
+
+**Returns:**
+- (String): The data read.
+
+##### write
+
+Writes `data` to the file.
 
 ```ruby
-io.File.write(data:String) -> Null
+f.write(data)
 ```
 
-#### getline
-Reads a line from the file and return it as string. This function can only be used for files that are opened with text mode.qqq
+**Parameters:**
+- `data` (String): The data to write.
+
+##### getline
+
+Reads a line from the file. Only for text files.
 
 ```ruby
-io.File.getline() -> String
+line = f.getline()
 ```
 
-#### close
-Closes the opend file.
+**Returns:**
+- (String): The line read.
+
+##### seek
+
+Moves the file cursor.
 
 ```ruby
-io.File.close()
+f.seek(offset, whence)
 ```
 
-#### seek
-Move the file read/write offset. where [offset] is the offset from [whence] which should be any of the bellow three.
-  0: Begining of the file.
-  1: Current position.
-  2: End of the file.
+**Parameters:**
+- `offset` (Number): The offset to move.
+- `whence` (Number): The starting position (0: Beginning, 1: Current, 2: End).
+
+##### tell
+
+Returns the current file cursor position.
 
 ```ruby
-io.File.seek(offset:Number, whence:Number) -> Null
+pos = f.tell()
 ```
 
-#### tell
-Returns the read/write position of the file.
+**Returns:**
+- (Number): The current position.
+
+##### close
+
+Closes the file.
 
 ```ruby
-io.File.tell() -> Number
+f.close()
 ```
+
+## Constants
+
+- `io.stdin`: Standard Input (0)
+- `io.stdout`: Standard Output (1)
+- `io.stderr`: Standard Error (2)

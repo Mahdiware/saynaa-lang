@@ -1,58 +1,95 @@
-## List
+# List
 
-Lists (or arrays) are simple sequence of objects, their size is dynamic and their index starts always at 0. They provide fast random access to their elements. You can create a list by placing a sequence of comma-separated expressions inside square brackets:
+Lists are dynamic arrays of values.
+
+## Creation
 
 ```ruby
-  r = [1, 2, "Hello", 3.1415, true];
-
-  # list has a length attribute
-  n = r.length;  # n is 5
+l = [1, 2, 3]
 ```
 
-### Accessing items
-You can access an element from a list by calling the subscript operator [] on it with the index of the element you want. Like most languages, indices start at 0:
-      
+## Properties
+
+### length
+
+The number of elements in the list.
+
 ```ruby
-  fruits = ["Banana", "Apple", "Lime", "Orange", "Grape", "Mango"];
-  fruits[0];  # "Banana"
-  fruits[2];  # "Lime"
+n = l.length
 ```
 
-Negative indices count backwards from the end:
+## Methods
+
+### append
+
+Adds an item to the end of the list.
+
 ```ruby
-  names = ["Banana", "Apple", "Lime", "Orange", "Grape", "Mango"];
-  names[-1];  # "Mango"
-  names[-2];  # "Grape"
+l.append(4)
 ```
 
-### Iterating items
-The subscript operator works well for finding values when you know the key you’re looking for, but sometimes you want to see everything that’s in the list. Since the List class implements the iterator method, you can easily use it in a for loop:
+### insert
+
+Inserts an item at a given position.
+
 ```ruby
-  names = ["Banana", "Apple", "Lime", "Orange", "Grape", "Mango"];
-  for name in names do
-    print("Current name is " + name);
-  end
+l.insert(0, "start")
 ```
 
-### List as a stack
-The List class implements the pop methods as a convenient way to treat a list as a stack:
+**Parameters:**
+- `index` (Number): The index to insert at.
+- `value` (Any): The value to insert.
+
+### pop
+
+Removes the item at the given position in the list, and returns it. If no index is specified, `pop()` removes and returns the last item in the list.
+
 ```ruby
-  list = [10,20,30,40,50];
-  v1 = list.pop();  # pop 50
-  v2 = list.pop();  # pop 40
+last = l.pop()
+first = l.pop(0)
 ```
 
-### List Join
-The List class implements the join method as a convenient way to interpret a list as a string:
+**Parameters:**
+- `index` (Number): Optional. Default is -1 (last).
+
+### find
+
+Return the index of the first item whose value is equal to `value`. Raises an error if no such item is found (Verify this behavior).
+
 ```ruby
-  list = [1,2,3,4,5];
-  list.join(" + "); # Becomes: "1 + 2 + 3 + 4 + 5"
+idx = l.find(2)
 ```
 
-### Adding items
-A List instance can be expanded by setting an index that is greater than the current size of the list:
+**Parameters:**
+- `value` (Any): The value to search for.
+
+### clear
+
+Remove all items from the list.
+
 ```ruby
-  list = [10,20,30,40,50];
-  list[30] = 22; # list contains now 31 elements (index 0 to 30)
+l.clear()
 ```
+
+### join
+
+Return a string which is the concatenation of the strings in the list. `sep` is the separator between elements.
+
+```ruby
+s = ["a", "b", "c"].join("-") ## "a-b-c"
+```
+
+**Parameters:**
+- `sep` (String): The separator string.
+
+### resize
+
+Resize the list to contain `size` elements.
+
+```ruby
+l.resize(10)
+```
+
+**Parameters:**
+- `size` (Number): The new size. If smaller, elements are removed. If larger, `null` is padded.
 

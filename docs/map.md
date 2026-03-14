@@ -1,47 +1,82 @@
-## Map
+# Map
 
-Maps are associative containers implemented as pairs each of which maps a key to a value. You can create a map by placing a series of comma-separated entries inside brace. Each entry is a key and a value separated by a colon:
+Maps are key-value pairs (dictionaries). Keys must be hashable.
+
+## Creation
 
 ```ruby
-  # create a new map with 4 entries
-  d = {"Banana":10, "Apple":20, "Lime":30, "Orange":40};
-
-  # map has a length attribute
-  n = d.length;  # n is 4
-
-  # create an empty map
-  map = {};
+m = {"name": "Alice", "age": 30}
 ```
 
-### Looking up values
-You can access an element from a list by calling the subscript operator [] on it with the key of the element you want:
-      
+## Properties
+
+### length
+
+The number of items in the map.
+
 ```ruby
-  names = {"Banana":10, "Apple":20, "Lime":30, "Orange":40};
-  names["Banana"];      # 10
-  names["Apple"];       # 20
+l = m.length
 ```
 
-### Iterating items
-The subscript operator works well for finding values when you know the key you’re looking for, but sometimes you want to see everything that’s in the map. Since the Map class implements the iterator method (through the keys method), you can easily use it in a for loop:
+### keys
+
+Returns a list of the map's keys.
+
 ```ruby
-  fruits = {"Banana":10, "Apple":20, "Lime":30, "Orange":40};
-  for name in fruits.keys do
-    print("Current name is " + name);
-  end
+k = m.keys
+## ["name", "age"]
 ```
 
-### Adding items
-An item can be added to a map by simply setting a key/value:
+### values
+
+Returns a list of the map's values.
+
 ```ruby
-  fruits = {"Banana":10, "Apple":20, "Lime":30, "Orange":40};
-  fruits["Grape"] = 50;  # fruits now contains the "Grape" key with value 50
+v = m.values
+## ["Alice", 30]
 ```
 
-### Retrieving keys
-The keys method has been added to the map class as a conveniente way to get access to all keys:
+## Methods
+
+### get
+
+Return the value for `key` if `key` is in the map, else `default`. If `default` is not given, it defaults to `null`.
+
 ```ruby
-  fruits = {"Banana":10, "Apple":20, "Lime":30, "Orange":40};
-  fruits.keys; # ["Banana", "Orange", "Lime", "Apple"]
+val = m.get("name")
+val2 = m.get("missing", "default")
 ```
 
+**Parameters:**
+- `key` (Any): The key.
+- `default` (Any): Optional.
+
+### has
+
+Returns true if the map has the key `key`.
+
+```ruby
+present = m.has("name")
+```
+
+**Parameters:**
+- `key` (Any): The key.
+
+### pop
+
+If `key` is in the map, remove it and return its value. If not found, raise an error (Verify).
+
+```ruby
+val = m.pop("age")
+```
+
+**Parameters:**
+- `key` (Any): The key.
+
+### clear
+
+Remove all items from the map.
+
+```ruby
+m.clear()
+```
