@@ -2086,23 +2086,15 @@ static void exprName(Compiler* compiler) {
           int index = (int) moduleSetGlobal(compiler->parser.vm, compiler->module,
                                             start, length, VAR_NULL);
 
-          // FIXME: we made hardcode the max global count to 255
-          // for now since we only have one byte to encode
-          // the global index in OP_PUSH_GLOBAL and OP_STORE_GLOBAL,
-          // we need to refactor the import system to support
-          // more globals and remove this hardcode.
-          if (index > 255) {
-            semanticError(compiler, tkname, "Too many globals for implicit wildcard import.");
-          } else {
-            emitOpcode(compiler, OP_PUSH_GLOBAL);
-            emitByte(compiler, index);
-          }
+          emitOpcode(compiler, OP_PUSH_GLOBAL);
+          emitShort(compiler, index);
+
         } else {
           semanticError(compiler, tkname, "Name '%.*s' is not defined.", length, start);
         }
       } else {
         emitOpcode(compiler, OP_PUSH_GLOBAL);
-        int index = emitByte(compiler, 0xff);
+        int index = emitShort(compiler, 0xffff);
         compilerAddForward(compiler, index, _FN, &tkname);
       }
     } else {
@@ -2835,7 +2827,8 @@ static void patchListSize(Compiler* compiler, int size_index, int size) {
 }
 
 static void patchForward(Compiler* compiler, Fn* fn, int index, int name) {
-  fn->opcodes.data[index] = name & 0xff;
+  fn->opcodes.data[index] = (name >> 8) & 0xff;
+  fn->opcodes.data[index + 1] = name & 0xff;
 }
 
 /*****************************************************************************/
@@ -3682,7 +3675,8 @@ static void compileTopLevelStatement(Compiler* compiler) {
   if (match(compiler, TK_CLASS)) {
     compileClass(compiler);
 
-  } else if (match(compiler, TK_FUNCTION)) {
+  } else if (peek(compiler) == TK_FUNCTION && compiler->parser.next.type == TK_NAME) {
+    lexToken(compiler);
     compileFunction(compiler, FUNC_TOPLEVEL);
 
   } else if (match(compiler, TK_IMPORT)) {
