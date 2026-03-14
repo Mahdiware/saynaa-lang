@@ -19,5 +19,10 @@ Saynaa supports several built-in data types, divided into primitives and objects
 
 ## Type Checking
 
-You can check the type of a variable using `type(var)` (if available) or by behavior.
-*(Note: verify if a `type()` function exists, often in dynamic langs)*
+You can check the type name of any value using the `type()` built-in function or the `.typename()` method.
+
+```ruby
+a = 42
+print(type(a))      # Number
+print(a.typename()) # Number
+```

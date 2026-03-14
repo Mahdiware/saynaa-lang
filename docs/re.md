@@ -1,79 +1,153 @@
-# Regex Module (`re`)
+# re
 
-Saynaa provides Perl Compatible Regular Expressions (PCRE) support through the `re` module.
-
-```ruby
-import re
-```
+The `re` module provides Perl Compatible Regular Expressions (PCRE2) support.
 
 ## Functions
 
 ### match
+
 Match a regular expression pattern to the **beginning** of a string.
 
 ```ruby
-re.match(pattern: String, text: String) -> String|Null
+result = re.match(pattern, text)
 ```
 
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The string to search.
+
+**Returns:**
+- (String|Null): The matched string if successful, otherwise `null`.
+
 ### fullmatch
+
 Match a regular expression pattern to **all** of a string.
 
 ```ruby
-re.fullmatch(pattern: String, text: String) -> String|Null
+result = re.fullmatch(pattern, text)
 ```
+
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The string to search.
+
+**Returns:**
+- (String|Null): The matched string if successful, otherwise `null`.
 
 ### search
-Scan through string looking for the **first location** where the regular expression pattern produces a match.
+
+Scan through string looking for the first location where the regular expression pattern produces a match.
 
 ```ruby
-re.search(pattern: String, text: String) -> String|Null
+result = re.search(pattern, text)
 ```
 
-### findall
-Return all non-overlapping matches of pattern in string, as a list of strings.
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The string to search.
 
-```ruby
-re.findall(pattern: String, text: String) -> List
-```
-
-### split
-Split string by the occurrences of pattern. If capturing parentheses are used in pattern, then the text of all groups in the pattern are also returned as part of the resulting list.
-
-```ruby
-re.split(pattern: String, text: String, maxsplit: Int = 0) -> List
-```
+**Returns:**
+- (String|Null): The matched string if successful, otherwise `null`.
 
 ### sub
-Return the string obtained by replacing the leftmost non-overlapping occurrences of pattern in string by the replacement `repl`.
+
+Return the string obtained by replacing the leftmost non-overlapping occurrences of the pattern in string by the replacement `repl`.
 
 ```ruby
-re.sub(pattern: String, repl: String, text: String) -> String
+new_str = re.sub(pattern, repl, text)
 ```
+
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `repl` (String): The replacement string.
+- `text` (String): The text to process.
+
+**Returns:**
+- (String): The modified string.
 
 ### subn
-Perform the same operation as `sub()`, but return a tuple `[new_string, number_of_subs_made]`.
+
+Perform the same operation as `sub()`, but return a tuple (List) `[new_string, number_of_subs_made]`.
 
 ```ruby
-re.subn(pattern: String, repl: String, text: String) -> List
+result = re.subn(pattern, repl, text)
+new_str = result[0]
+count = result[1]
 ```
 
-### escape
-Escape special characters in a string.
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `repl` (String): The replacement string.
+- `text` (String): The text to process.
+
+**Returns:**
+- (List): `[new_string, count]`
+
+### split
+
+Split string by the occurrences of pattern.
 
 ```ruby
-re.escape(pattern: String) -> String
+parts = re.split(pattern, text, maxsplit)
 ```
+
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The text to split.
+- `maxsplit` (Number): Optional. The maximum number of splits. 0 for unlimited.
+
+**Returns:**
+- (List): The list of strings.
 
 ### extract
-Returns a list of captured groups from the first match.
+
+Find a pattern in the string and returns a list containing the full match as the first element, and captured groups as the subsequent elements.
 
 ```ruby
-re.extract(pattern: String, text: String) -> List|Null
+groups = re.extract("(\\d+)-(\\d+)", "123-456")
+## groups -> ["123-456", "123", "456"]
 ```
 
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The text to search.
+
+**Returns:**
+- (List|Null): The list of matches or null.
+
+### findall
+
+Return all non-overlapping matches of pattern in string, as a list of strings (or list of lists for groups).
+
+```ruby
+matches = re.findall(pattern, text)
+```
+
+**Parameters:**
+- `pattern` (String): The regex pattern.
+- `text` (String): The text to search.
+
+**Returns:**
+- (List): The list of matches.
+
+### escape
+
+Escape all the characters in pattern except ASCII letters, numbers and '_'.
+
+```ruby
+safe_pattern = re.escape(text)
+```
+
+**Parameters:**
+- `text` (String): The text to escape.
+
+**Returns:**
+- (String): The escaped pattern.
+
 ### purge
+
 Clear the regular expression cache.
 
 ```ruby
-re.purge() -> Null
+re.purge()
 ```

@@ -1,21 +1,46 @@
-### Range
+# Range
 
-A range is an object that represents a consecutive range of numbers.
+Ranges are immutable sequences of numbers.
+
+## Creation
+
+Ranges are created using the `..` operator.
+
 ```ruby
-  # a represents a range with values 1,2
-  a = 1..3
-
-  # b represents a range with values 1,2, 3
-  b = Range(1, 3+1)
-
-  # Ranges have also a conveniente count property
-  n1 = a.length;  # n1 is now 2
-  n2 = b.length;  # n2 is now 3
+r = 1..10
 ```
 
-A range is expecially useful in for loops:
+## Properties
+
+### length
+
+The number of items in the range.
+
 ```ruby
-  for i in 0..10
-    # repeat for 10 times (with i from 0 to 9)
-  end
+print((1..10).length) ## 9
+```
+
+### first
+
+The start of the range (inclusive).
+
+```ruby
+f = r.first
+```
+
+### last
+
+The end of the range (inclusive).
+
+```ruby
+l = r.last
+```
+
+### as_list
+
+Returns the range as a list of numbers.
+
+```ruby
+l = r.as_list
+## [1, 2, ..., 10]
 ```

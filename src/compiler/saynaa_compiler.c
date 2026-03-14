@@ -294,10 +294,13 @@ typedef struct sFunc {
   // function. Literal functions will have the scope where they are declared.
   int depth;
 
-  Local locals[MAX_VARIABLES]; //< Variables in the current context.
-  int local_count;             //< Number of locals in [locals].
+  Local* locals;      //< Variables in the current context.
+  int local_count;    //< Number of locals in [locals].
+  int local_capacity; //< Capacity of the locals array.
 
-  UpvalueInfo upvalues[MAX_UPVALUES]; //< Upvalues in the current context.
+  UpvalueInfo* upvalues; //< Upvalues in the current context.
+  int upvalue_count;     //< Number of upvalues in [upvalues].
+  int upvalue_capacity;  //< Capacity of the upvalues array.
 
   int stack_size; //< Current size including locals and temps.
 
@@ -1503,6 +1506,14 @@ static int addUpvalue(Compiler* compiler, Func* func, int index, bool is_immedia
     return -1;
   }
 
+  if (func->ptr->upvalue_count >= func->upvalue_capacity) {
+    int old_capacity = func->upvalue_capacity;
+    func->upvalue_capacity = (old_capacity < 8) ? 8 : old_capacity * 2;
+    func->upvalues = (UpvalueInfo*) vmRealloc(
+        compiler->parser.vm, func->upvalues, old_capacity * sizeof(UpvalueInfo),
+        func->upvalue_capacity * sizeof(UpvalueInfo));
+  }
+
   func->upvalues[func->ptr->upvalue_count].index = index;
   func->upvalues[func->ptr->upvalue_count].is_immediate = is_immediate;
   return func->ptr->upvalue_count++;
@@ -1762,7 +1773,7 @@ static GrammarRule* getRule(_TokenType type) {
 // Uses `OP_STORE_GLOBAL` to store the stack top value into the global at the specified index.
 static void emitStoreGlobal(Compiler* compiler, int index) {
   emitOpcode(compiler, OP_STORE_GLOBAL);
-  emitByte(compiler, index);
+  emitShort(compiler, index);
 }
 
 // Emit opcode to push the value of [type] at the [index] in it's array.
@@ -1783,18 +1794,18 @@ static void emitPushValue(Compiler* compiler, NameDefnType type, int index) {
         emitOpcode(compiler, (Opcode) (OP_PUSH_LOCAL_0 + index));
       } else {
         emitOpcode(compiler, OP_PUSH_LOCAL_N);
-        emitByte(compiler, index);
+        emitShort(compiler, index);
       }
       return;
 
     case NAME_UPVALUE:
       emitOpcode(compiler, OP_PUSH_UPVALUE);
-      emitByte(compiler, index);
+      emitShort(compiler, index);
       return;
 
     case NAME_GLOBAL_VAR:
       emitOpcode(compiler, OP_PUSH_GLOBAL);
-      emitByte(compiler, index);
+      emitShort(compiler, index);
       return;
 
     case NAME_BUILTIN_FN:
@@ -1829,13 +1840,13 @@ static void emitStoreValue(Compiler* compiler, NameDefnType type, int index) {
         emitOpcode(compiler, (Opcode) (OP_STORE_LOCAL_0 + index));
       } else {
         emitOpcode(compiler, OP_STORE_LOCAL_N);
-        emitByte(compiler, index);
+        emitShort(compiler, index);
       }
       return;
 
     case NAME_UPVALUE:
       emitOpcode(compiler, OP_STORE_UPVALUE);
-      emitByte(compiler, index);
+      emitShort(compiler, index);
       return;
 
     case NAME_GLOBAL_VAR:
@@ -2599,6 +2610,13 @@ static int compilerAddVariable(Compiler* compiler, const char* name,
   if (compiler->scope_depth == DEPTH_GLOBAL) {
     return (int) moduleSetGlobal(compiler->parser.vm, compiler->module, name, length, VAR_NULL);
   } else {
+    if (compiler->func->local_count == compiler->func->local_capacity) {
+      int old_capacity = compiler->func->local_capacity;
+      compiler->func->local_capacity = (old_capacity < 8) ? 8 : old_capacity * 2;
+      compiler->func->locals = (Local*) vmRealloc(
+          compiler->parser.vm, compiler->func->locals, old_capacity * sizeof(Local),
+          compiler->func->local_capacity * sizeof(Local));
+    }
     Local* local = &compiler->func->locals[compiler->func->local_count];
     local->name = name;
     local->length = length;
@@ -2696,14 +2714,15 @@ static void compilerPushFunc(Compiler* compiler, Func* fn, Function* func, FuncT
   fn->type = type;
   fn->outer_func = compiler->func;
   fn->local_count = 0;
+  fn->local_capacity = 0;
+  fn->locals = NULL;
   fn->stack_size = 0;
+  fn->upvalue_count = 0;
+  fn->upvalue_capacity = 0;
+  fn->upvalues = NULL;
   fn->ptr = func;
   fn->depth = compiler->scope_depth;
   compiler->func = fn;
-}
-
-static void compilerPopFunc(Compiler* compiler) {
-  compiler->func = compiler->func->outer_func;
 }
 
 /*****************************************************************************/
@@ -3155,11 +3174,11 @@ static void compileFunction(Compiler* compiler, FuncType fn_type) {
   // dumpFunctionCode(compiler->parser.vm, compiler->func->ptr);
 #endif
 
-  compilerPopFunc(compiler);
+  compiler->func = compiler->func->outer_func;
 
-  // Note: After the above compilerPopFunc() call, now we're at the outer
-  // function of this function, and the bellow emit calls will write to the
-  // outer function. If it's a literal function, we need to push a closure
+  // Note: Now we're at the outer function of this function (we popped the
+  // current function compiler above), and the below emit calls will write to
+  // the outer function. If it's a literal function, we need to push a closure
   // of it on the stack.
   emitOpcode(compiler, OP_PUSH_CLOSURE);
   emitShort(compiler, fn_index);
@@ -3167,7 +3186,15 @@ static void compileFunction(Compiler* compiler, FuncType fn_type) {
   // Capture the upvalues when the closure is created.
   for (int i = 0; i < curr_fn.ptr->upvalue_count; i++) {
     emitByte(compiler, (curr_fn.upvalues[i].is_immediate) ? 1 : 0);
-    emitByte(compiler, curr_fn.upvalues[i].index);
+    emitShort(compiler, curr_fn.upvalues[i].index);
+  }
+
+  // Free allocations for the popped function.
+  if (curr_fn.locals != NULL) {
+    DEALLOCATE_ARRAY(compiler->parser.vm, curr_fn.locals, Local, curr_fn.local_capacity);
+  }
+  if (curr_fn.upvalues != NULL) {
+    DEALLOCATE_ARRAY(compiler->parser.vm, curr_fn.upvalues, UpvalueInfo, curr_fn.upvalue_capacity);
   }
 
   if (fn_type == FUNC_TOPLEVEL) {
