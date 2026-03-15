@@ -1865,6 +1865,22 @@ saynaa_function(
   RET(VAR_OBJ(map));
 }
 
+saynaa_function(_moduleDefine, "Module.define(variable:String, value:Var) -> Null",
+                "Define a global variable in the module."
+                " with the name [variable] and value [value]") {
+  String* variable;
+  if (!validateArgString(vm, 1, &variable))
+    return;
+
+  Var valua = ARG(2);
+
+  Module* thiz = (Module*) AS_OBJ(THIS);
+
+  moduleSetGlobal(vm, thiz, variable->data, variable->length, valua);
+
+  RET(VAR_NULL);
+}
+
 saynaa_function(
     _fiberRun, "Fiber.run(...) -> Var",
     "Runs the fiber's function with the provided arguments and returns it's "
@@ -1989,6 +2005,7 @@ static void initializePrimitiveClasses(VM* vm) {
   ADD_METHOD(vCLASS, "methods", _classMethods, 0);
 
   ADD_METHOD(vMODULE, "globals", _moduleGlobals, 0);
+  ADD_METHOD(vMODULE, "define", _moduleDefine, 2);
 
   ADD_METHOD(vFIBER, "run", _fiberRun, -1);
   ADD_METHOD(vFIBER, "resume", _fiberResume, -1);

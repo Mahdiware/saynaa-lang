@@ -1,4 +1,11 @@
 
-import foobar
+import foo
+import foo.bar.baz.*
+import foo.bar.baz.file1.*
 
-assert(foobar.year() == 2023)
+assert(foo.year() == 2023)
+assert(file1_data == "Hello from file1")
+assert(file1.file1_data == "Hello from file1")
+
+
+print("Import tests passed")

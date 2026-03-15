@@ -3252,16 +3252,27 @@ static int compileImportPath(Compiler* compiler, Token* name_token, bool* is_wil
     Token* value = &compiler->parser.previous;
 
     // Adjust token to skip quotes
-    tkmodule.start++;
-    tkmodule.length = tkmodule.length - 2;
-    *name_token = tkmodule;
-
     String* str = (String*) AS_OBJ(value->value);
+    int seg_start = 0;
+    int seg_len = (int) str->length;
+    if (seg_len >= 2 && str->data[seg_len - 1] == '*' &&
+        (str->data[seg_len - 2] == '.' || str->data[seg_len - 2] == '/')) {
+      *is_wildcard = true;
+      seg_len -= 2;
+    }
+    for (int i = seg_len - 1; i >= 0; i--) {
+      if (str->data[i] == '/' || str->data[i] == '.') {
+        seg_start = i + 1;
+        seg_len = seg_len - seg_start;
+        break;
+      }
+    }
+    tkmodule.start += 1 + seg_start;
+    tkmodule.length = seg_len;
+    *name_token = tkmodule;
 
     for (uint32_t i = 0; i < str->length; i++) {
       char c = str->data[i];
-      if (c == '.')
-        c = '/';
       ByteBufferWrite(&buff, vm, c);
     }
   } else {
@@ -3269,7 +3280,9 @@ static int compileImportPath(Compiler* compiler, Token* name_token, bool* is_wil
     do {
       if (match(compiler, TK_STAR)) {
         *is_wildcard = true;
-        // We don't add '*' to the path here, assuming the path is the directory.
+        if (!first)
+          ByteBufferWrite(&buff, vm, '.');
+        ByteBufferWrite(&buff, vm, '*');
         break;
       }
 
@@ -3279,7 +3292,7 @@ static int compileImportPath(Compiler* compiler, Token* name_token, bool* is_wil
       tkmodule = compiler->parser.previous;
 
       if (!first)
-        ByteBufferWrite(&buff, vm, '/');
+        ByteBufferWrite(&buff, vm, '.');
       ByteBufferAddString(&buff, vm, tkmodule.start, tkmodule.length);
       first = false;
 
