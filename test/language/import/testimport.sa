@@ -1,0 +1,15 @@
+
+import module
+
+function _import(name)
+    define(name, "this is a test")
+    return true
+end
+
+module.searchers.append(_import)
+
+import custom_import
+
+print(custom_import) # Should print "this is a test"
+assert(custom_import == "this is a test")
+
