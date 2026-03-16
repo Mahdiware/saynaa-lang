@@ -1,0 +1,15 @@
+import module
+# expect error: Invalid import result for 'bad_import'.
+
+bad_import = null
+
+function _import(name)
+    if name == "bad_import" then
+        return "bad"
+    end
+    return null
+end
+
+module.searchers.append(_import)
+
+import bad_import

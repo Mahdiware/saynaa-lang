@@ -1,0 +1,43 @@
+import module
+# expect: Custom searcher import tests passed
+
+# Predeclare to make name visible to compiler.
+custom_import = "placeholder"
+
+function _import(name)
+    if name == "custom_import" then
+        define(name, null)
+        return true
+    end
+
+    if name == "bad_import_string" then
+        return "bad"
+    end
+
+    if name == "bad_import_number" then
+        return 123
+    end
+
+    if name == "bad_import_false" then
+        return false
+    end
+
+    return null
+end
+
+module.searchers.append(_import)
+
+ok1 = pcall(module.load, "custom_import")
+assert(ok1[0] == true)
+assert(custom_import == null)
+
+ok2 = pcall(module.load, "bad_import_string")
+assert(ok2[0] == false)
+
+ok3 = pcall(module.load, "bad_import_number")
+assert(ok3[0] == false)
+
+ok4 = pcall(module.load, "bad_import_false")
+assert(ok4[0] == false)
+
+print("Custom searcher import tests passed")
