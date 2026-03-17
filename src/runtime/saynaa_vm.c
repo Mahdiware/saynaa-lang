@@ -757,27 +757,7 @@ Var vmImportModule(VM* vm, String* from, String* path) {
       }
 
       if (!IS_NULL(result)) {
-        // The searcher returned 'true'.
-        // This indicates that the searcher already handled the import.
-        // Do not perform any extra global lookup here.
-        if (IS_BOOL(result) && AS_BOOL(result) == true) {
-          return result;
-        }
-
-        // Only allow runtime import values that are importable entities.
-        // Function values are represented as closures at runtime.
-        if (IS_OBJ_TYPE(result, OBJ_MODULE) || IS_OBJ_TYPE(result, OBJ_CLASS)
-            || IS_OBJ_TYPE(result, OBJ_CLOSURE)) {
-          return result;
-        }
-
-        VM_SET_ERROR(
-            vm,
-            stringFormat(vm,
-                         "Invalid import result for '@'. Searcher must return "
-                         "null, true (handled), Module, Class, or Function.",
-                         path));
-        return VAR_NULL;
+        return result;
       }
     }
   }
