@@ -1,15 +1,21 @@
 import module
-# expect error: Invalid import result for 'bad_import'.
+# expect error: Cannot import module 'bad_import'
 
 bad_import = null
 
 function _import(name)
-    if name == "bad_import" then
-        return "bad"
+    if name == "str_import" then
+        return "string"
     end
     return null
 end
 
 module.searchers.append(_import)
 
+import str_import
+
+assert(str_import == "string")
+
 import bad_import
+
+print("String import test passed")

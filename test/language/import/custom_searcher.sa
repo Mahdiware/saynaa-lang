@@ -10,16 +10,8 @@ function _import(name)
         return true
     end
 
-    if name == "bad_import_string" then
-        return "bad"
-    end
-
-    if name == "bad_import_number" then
-        return 123
-    end
-
-    if name == "bad_import_false" then
-        return false
+    if name == "bad_import_null" then
+        return null
     end
 
     return null
@@ -31,13 +23,7 @@ ok1 = pcall(module.load, "custom_import")
 assert(ok1[0] == true)
 assert(custom_import == null)
 
-ok2 = pcall(module.load, "bad_import_string")
-assert(ok2[0] == false)
-
-ok3 = pcall(module.load, "bad_import_number")
-assert(ok3[0] == false)
-
-ok4 = pcall(module.load, "bad_import_false")
+ok4 = pcall(module.load, "bad_import_null")
 assert(ok4[0] == false)
 
 print("Custom searcher import tests passed")
