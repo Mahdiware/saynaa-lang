@@ -408,6 +408,61 @@ Result RunString(VM* vm, const char* source) {
   return result;
 }
 
+Result RunStringPcall(VM* vm, const char* source) {
+  Result result = RESULT_SUCCESS;
+
+  // Create a temporary module for the source.
+  Module* module = newModule(vm);
+  vmPushTempRef(vm, &module->_super); // module.
+  {
+    module->path = newString(vm, "@(String)");
+    result = compile(vm, module, source, NULL);
+    if (result != RESULT_SUCCESS)
+      return result;
+
+    module->initialized = true;
+
+    // pcall-like protected execution.
+    Fiber* fiber = newFiber(vm, module->body);
+    vmPushTempRef(vm, &fiber->_super); // fiber.
+
+    bool success = vmPrepareFiber(vm, fiber, 0, NULL);
+    if (!success) {
+      vmPopTempRef(vm); // fiber.
+      return RESULT_RUNTIME_ERROR;
+    }
+
+    WriteFn old_stderr = vm->config.stderr_write;
+    vm->config.stderr_write = NULL;
+
+    Fiber* last = vm->fiber;
+    if (last != NULL)
+      vmPushTempRef(vm, &last->_super); // last.
+
+    nanotime_t tstart = nanotime();
+    if (fiber->closure->fn->is_native) {
+      ASSERT(fiber->closure->fn->native != NULL, "Native function was NULL");
+      vm->fiber = fiber;
+      fiber->closure->fn->native(vm);
+      result = VM_HAS_ERROR(vm) ? RESULT_RUNTIME_ERROR : RESULT_SUCCESS;
+    } else {
+      result = vmRunFiber(vm, fiber);
+    }
+    nanotime_t tend = nanotime();
+    vm->time = millitime(tstart, tend);
+
+    vm->config.stderr_write = old_stderr;
+    vm->fiber = last;
+
+    if (last != NULL)
+      vmPopTempRef(vm); // last.
+    vmPopTempRef(vm);   // fiber.
+  }
+  vmPopTempRef(vm); // module.
+
+  return result;
+}
+
 Result RunFile(VM* vm, const char* path) {
   // Note: Even if the file is already in the VM's script cache (e.g., via
   // import), we explicitly recompile it here to ensure the cache reflects the
