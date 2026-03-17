@@ -330,6 +330,9 @@ PUBLIC void ModuleAddSource(VM* vm, Handle* module, const char* source);
 // function returns.
 PUBLIC Result RunString(VM* vm, const char* source);
 
+// Compile and run a source string in protected mode (pcall-like).
+PUBLIC Result RunStringPcall(VM* vm, const char* source);
+
 // Run the file at [path] relative to the current working directory.
 PUBLIC Result RunFile(VM* vm, const char* path);
 
