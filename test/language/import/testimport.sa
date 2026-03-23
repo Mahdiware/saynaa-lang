@@ -1,12 +1,12 @@
 
-import module
+import package
 
 function _import(name)
     define(name, "this is a test")
     return true
 end
 
-module.searchers.append(_import)
+package.searchers.append(_import)
 
 import custom_import
 

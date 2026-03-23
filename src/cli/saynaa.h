@@ -336,6 +336,25 @@ PUBLIC Result RunStringPcall(VM* vm, const char* source);
 // Run the file at [path] relative to the current working directory.
 PUBLIC Result RunFile(VM* vm, const char* path);
 
+// Run the file at [path] and report if it was bytecode.
+PUBLIC Result RunFileAuto(VM* vm, const char* path, bool* is_bytecode);
+
+// Load script content, auto-detecting bytecode headers if present.
+// Returns NULL on error. The buffer is allocated with Realloc().
+PUBLIC char* LoadScriptAuto(VM* vm, const char* path, bool* is_bytecode);
+
+// Compile source string into bytecode file at [out_path].
+PUBLIC Result CompileStringToBytecode(VM* vm, const char* source,
+                                      const char* out_path);
+
+// Compile source file at [path] into bytecode file at [out_path].
+PUBLIC Result CompileFileToBytecode(VM* vm, const char* path,
+                                    const char* out_path);
+
+// Compile source file at [path] into bytecode file at [out_path] and run it.
+PUBLIC Result CompileRunBytecodeFile(VM* vm, const char* path,
+                                     const char* out_path);
+
 // time vm taked.
 PUBLIC double vm_time(VM* vm);
 

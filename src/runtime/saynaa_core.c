@@ -861,7 +861,19 @@ saynaa_function(coreEval, "eval(expression:String) -> Var",
   String* code = stringFormat(vm, "return (@)", expr);
   vmPushTempRef(vm, &code->_super); // code.
   {
-    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    CallFrame* frame = NULL;
+    if (vm->fiber->frame_count > 0) {
+      frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    } else if (vm->fiber->native && vm->fiber->native->frame_count > 0) {
+      frame = &vm->fiber->native->frames[vm->fiber->native->frame_count - 1];
+    }
+
+    if (frame == NULL) {
+      VM_SET_ERROR(vm, newString(vm, "Cannot eval without an active module context."));
+      vmPopTempRef(vm); // code.
+      RET(VAR_NULL);
+    }
+
     Module* current_module = frame->closure->fn->owner;
 
     Module* new_module = newModule(vm);
@@ -901,6 +913,24 @@ saynaa_function(coreDefine, "define(variable:String, value:Var) -> Null",
   Module* current_module = frame->closure->fn->owner;
 
   moduleSetGlobal(vm, current_module, variable->data, variable->length, valua);
+
+  RET(VAR_NULL);
+}
+
+saynaa_function(coreDelete, "delete(variable:String) -> Null",
+                ""
+                "Delete a global variable with the name [variable] from the "
+                "current module.") {
+  String* variable;
+  if (!validateArgString(vm, 1, &variable))
+    return;
+
+  CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+  Module* current_module = frame->closure->fn->owner;
+
+  if (!moduleDeleteGlobal(vm, current_module, variable->data, variable->length)) {
+    VM_SET_ERROR(vm, stringFormat(vm, "Name '@' is not defined.", variable));
+  }
 
   RET(VAR_NULL);
 }
@@ -1059,6 +1089,7 @@ static void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("compile", coreCompile, 1);
   INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
   INITIALIZE_BUILTIN_FN("define", coreDefine, 2);
+  INITIALIZE_BUILTIN_FN("delete", coreDelete, 1);
   INITIALIZE_BUILTIN_FN("pcall", corePcall, -1);
   INITIALIZE_BUILTIN_FN("error", coreError, 1);
 
@@ -1207,7 +1238,7 @@ saynaa_function(stdLangDebugBreak, "lang.debug_break() -> Null",
 }
 #endif
 
-saynaa_function(stdModuleLoad, "module.load(name:String) -> Module",
+saynaa_function(stdModuleLoad, "package.load(name:String) -> Module",
                 "Load import the module with [name] and returns it. "
                 "It won't be imported to the current scope.") {
   String* name;
@@ -1246,11 +1277,11 @@ static void initializeCoreModules(VM* vm) {
   MODULE_ADD_FN(lang, "debug_break", stdLangDebugBreak, 0);
 #endif
 
-  NEW_MODULE(module, "module");
-  MODULE_ADD_FN(module, "load", stdModuleLoad, 1);
-  moduleSetGlobal(vm, module, "path", 4, VAR_OBJ(vm->search_paths));
+  NEW_MODULE(package, "package");
+  MODULE_ADD_FN(package, "load", stdModuleLoad, 1);
+  moduleSetGlobal(vm, package, "path", 4, VAR_OBJ(vm->search_paths));
 
-  moduleSetGlobal(vm, module, "searchers", 9, VAR_OBJ(vm->searchers));
+  moduleSetGlobal(vm, package, "searchers", 9, VAR_OBJ(vm->searchers));
   Closure* stdSearcher = newNativeClosure(vm, "standardSearcher", vmStandardSearcher,
                                           1, "standard searcher");
   listAppend(vm, vm->searchers, VAR_OBJ(stdSearcher));
@@ -1881,6 +1912,21 @@ saynaa_function(_moduleDefine, "Module.define(variable:String, value:Var) -> Nul
   RET(VAR_NULL);
 }
 
+saynaa_function(_moduleDelete, "Module.delete(variable:String) -> Null",
+                "Delete a global variable in the module with the name "
+                "[variable].") {
+  String* variable;
+  if (!validateArgString(vm, 1, &variable))
+    return;
+
+  Module* thiz = (Module*) AS_OBJ(THIS);
+  if (!moduleDeleteGlobal(vm, thiz, variable->data, variable->length)) {
+    VM_SET_ERROR(vm, stringFormat(vm, "Name '@' is not defined.", variable));
+  }
+
+  RET(VAR_NULL);
+}
+
 saynaa_function(
     _fiberRun, "Fiber.run(...) -> Var",
     "Runs the fiber's function with the provided arguments and returns it's "
@@ -2006,6 +2052,7 @@ static void initializePrimitiveClasses(VM* vm) {
 
   ADD_METHOD(vMODULE, "globals", _moduleGlobals, 0);
   ADD_METHOD(vMODULE, "define", _moduleDefine, 2);
+  ADD_METHOD(vMODULE, "delete", _moduleDelete, 1);
 
   ADD_METHOD(vFIBER, "run", _fiberRun, -1);
   ADD_METHOD(vFIBER, "resume", _fiberResume, -1);
