@@ -61,6 +61,23 @@ define("my_global", 42)
 print(my_global) # 42
 ```
 
+### `Compile(path)`
+Creates a `Compile` instance for the given source path.
+
+```ruby
+c = Compile("script.sa")
+c.run()
+```
+
+You can also import the optional module and access the class directly:
+
+```ruby
+import compile
+
+c = compile.Compile("script.sa")
+out = c.save()
+```
+
 ## String & Character
 
 ### `chr(codepoint)`
