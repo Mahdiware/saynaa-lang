@@ -30,4 +30,5 @@ class Foo
   "Testing for
   class docstring"
 end
+print(Foo._docs)
 assert(Foo._docs == "Testing for\n  class docstring")
