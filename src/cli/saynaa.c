@@ -42,7 +42,6 @@ static VM* initializeVM(int argc, const char** argv) {
   return vm;
 }
 
-
 int main(int argc, const char** argv) {
   // Register signal handlers
 #if defined(__linux__)
