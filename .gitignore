@@ -15,11 +15,12 @@ saynaa-packages/
 # Prerequisites
 *.d
 
-# Object files
+# Object files & bytecode
 *.o
 *.ko
 *.obj
 *.elf
+*.sbc
 
 # Linker output
 *.ilk

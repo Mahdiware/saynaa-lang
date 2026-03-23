@@ -5,6 +5,7 @@
 
 #include "saynaa_vm.h"
 
+#include "../shared/saynaa_bytecode.h"
 #include "../utils/saynaa_debug.h"
 #include "../utils/saynaa_utils.h"
 
@@ -527,9 +528,45 @@ static Module* _importScript(VM* vm, String* resolved, String* name) {
 
   vmPushTempRef(vm, &module->_super); // module.
   {
-    initializeModule(vm, module, false);
-    Result result = compile(vm, module, source, NULL);
+    bool is_bytecode = false;
+    bool header_seen = false;
+    SaynaaBytecodeHeader header;
+    SaynaaBytecodeStatus status = saynaa_bytecode_decode_header(
+        (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
+    if (status == SAYNAA_BC_OK) {
+      status = saynaa_bytecode_validate_header(&header, 0);
+      if (status == SAYNAA_BC_INVALID_MAGIC) {
+        header_seen = false;
+      } else if (status == SAYNAA_BC_OK) {
+        header_seen = true;
+        const uint8_t* payload = (const uint8_t*) source
+                                 + SAYNAA_BYTECODE_HEADER_SIZE;
+        status = saynaa_bytecode_validate_checksum(&header, payload,
+                                                   header.bytecode_size);
+        if (status == SAYNAA_BC_OK) {
+          status = saynaa_bytecode_deserialize_module(vm, module, payload,
+                                                      header.bytecode_size);
+          if (status == SAYNAA_BC_OK) {
+            is_bytecode = true;
+          }
+        }
+      } else {
+        header_seen = true;
+      }
+    }
+
+    Result result = RESULT_SUCCESS;
+    if (header_seen && !is_bytecode) {
+      result = RESULT_COMPILE_ERROR;
+    } else if (!is_bytecode) {
+      initializeModule(vm, module, false);
+      result = compile(vm, module, source, NULL);
+    } else {
+      initializeModule(vm, module, false);
+    }
+
     Realloc(vm, source, 0);
+
     if (result == RESULT_SUCCESS) {
       vmRegisterModule(vm, module, resolved);
     } else {
@@ -1214,10 +1251,32 @@ L_vm_main_loop:
       DISPATCH();
     }
 
+    OPCODE(PUSH_GLOBAL_NAME) : {
+      uint16_t name_index = READ_SHORT();
+      String* name = moduleGetStringAt(module, (int) name_index);
+      ASSERT(name != NULL, OOPS);
+
+      int g_index = moduleGetGlobalIndex(module, name->data, name->length);
+      if (g_index == -1) {
+        RUNTIME_ERROR(stringFormat(vm, "Name '@' is not defined.", name));
+      }
+
+      PUSH(module->globals.data[g_index]);
+      DISPATCH();
+    }
+
     OPCODE(STORE_GLOBAL) : {
       uint16_t index = READ_SHORT();
       ASSERT_INDEX(index, module->globals.count);
       module->globals.data[index] = PEEK(-1);
+      DISPATCH();
+    }
+
+    OPCODE(STORE_GLOBAL_NAME) : {
+      uint16_t name_index = READ_SHORT();
+      String* name = moduleGetStringAt(module, (int) name_index);
+      ASSERT(name != NULL, OOPS);
+      moduleSetGlobal(vm, module, name->data, name->length, PEEK(-1));
       DISPATCH();
     }
 
@@ -1456,14 +1515,28 @@ L_vm_main_loop:
       // In this mode, true is only a sentinel and import value is read from
       // the target global slot (supports null values set by define()).
       if (IS_BOOL(_imported) && AS_BOOL(_imported) == true) {
-        if (!has_target_global) {
+        if (!has_target_global && (Opcode) (*ip) != OP_STORE_GLOBAL_NAME) {
           RUNTIME_ERROR(stringFormat(vm,
                                      "Invalid import bytecode state for '@': "
                                      "missing STORE_GLOBAL target.",
                                      name));
         }
 
-        _imported = module->globals.data[target_global_index];
+        if ((Opcode) (*ip) == OP_STORE_GLOBAL) {
+          _imported = module->globals.data[target_global_index];
+
+        } else if ((Opcode) (*ip) == OP_STORE_GLOBAL_NAME) {
+          uint16_t name_index = (uint16_t) ((ip[1] << 8) | ip[2]);
+          String* gname = moduleGetStringAt(module, (int) name_index);
+          ASSERT(gname != NULL, OOPS);
+
+          int g_index = moduleGetGlobalIndex(module, gname->data, gname->length);
+          if (g_index == -1) {
+            _imported = VAR_NULL;
+          } else {
+            _imported = module->globals.data[g_index];
+          }
+        }
       }
 
       // NOTE: _imported could be any value (module, class, function or just true).

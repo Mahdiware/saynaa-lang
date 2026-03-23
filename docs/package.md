@@ -1,6 +1,6 @@
-# module
+# package
 
-The `module` module provides functions and variables related to module loading.
+The `package` module provides functions and variables related to module loading.
 
 ## Properties
 
@@ -9,7 +9,7 @@ The `module` module provides functions and variables related to module loading.
 A list of strings specifying the search paths for modules. The default paths usually include current directory and installation directory.
 
 ```ruby
-module.path.append("/my/custom/path")
+package.path.append("/my/custom/path")
 ```
 
 ### searchers
@@ -17,7 +17,7 @@ module.path.append("/my/custom/path")
 A list of functions used to search for modules. You can add custom searchers.
 
 ```ruby
-module.searchers.append(my_searcher)
+package.searchers.append(my_searcher)
 ```
 
 ## Functions
@@ -27,7 +27,7 @@ module.searchers.append(my_searcher)
 Loads a module by name. It returns the module object.
 
 ```ruby
-mod = module.load("math")
+mod = package.load("math")
 ```
 
 **Parameters:**

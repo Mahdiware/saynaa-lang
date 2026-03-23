@@ -1,4 +1,4 @@
-import module
+import package
 # expect error: Cannot import module 'bad_import'
 
 bad_import = null
@@ -10,7 +10,7 @@ function _import(name)
     return null
 end
 
-module.searchers.append(_import)
+package.searchers.append(_import)
 
 import str_import
 

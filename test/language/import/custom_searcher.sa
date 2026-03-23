@@ -1,4 +1,4 @@
-import module
+import package
 # expect: Custom searcher import tests passed
 
 # Predeclare to make name visible to compiler.
@@ -17,13 +17,13 @@ function _import(name)
     return null
 end
 
-module.searchers.append(_import)
+package.searchers.append(_import)
 
-ok1 = pcall(module.load, "custom_import")
+ok1 = pcall(package.load, "custom_import")
 assert(ok1[0] == true)
 assert(custom_import == null)
 
-ok4 = pcall(module.load, "bad_import_null")
+ok4 = pcall(package.load, "bad_import_null")
 assert(ok4[0] == false)
 
 print("Custom searcher import tests passed")

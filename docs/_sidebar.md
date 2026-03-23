@@ -32,4 +32,4 @@
   * [types](types.md)
   * [term](term.md)
   * [lang](lang.md)
-  * [module](module.md)
+  * [package](package.md)

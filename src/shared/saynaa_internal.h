@@ -43,6 +43,9 @@
 // The file extension for the Saynaa script files.
 #define SAYNAA_FILE_EXT ".sa"
 
+// The file extension for the Saynaa bytecode files.
+#define SAYNAA_BYTECODE_EXT ".sbc"
+
 // The maximum path length for a module to import.
 // This is an arbitrary value and can be changed if needed.
 #define MAX_PATH_LEN 8192
