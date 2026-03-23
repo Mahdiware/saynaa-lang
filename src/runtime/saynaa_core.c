@@ -820,37 +820,6 @@ saynaa_function(
   exit((int) value);
 }
 
-saynaa_function(coreCompile, "compile(code:String) -> Closure",
-                "Compiles source code into"
-                " a closure (does not execute automatically).") {
-  String* code;
-  if (!validateArgString(vm, 1, &code))
-    return;
-  vmPushTempRef(vm, &code->_super); // code.
-
-  Module* module = newModule(vm);
-  vmPushTempRef(vm, &module->_super); // module.
-  {
-    module->path = newString(vm, "@(meta)");
-    Function* body_fn = newFunction(vm, "@meta", 5, module, false, NULL, NULL);
-    body_fn->arity = 0;
-
-    vmPushTempRef(vm, &body_fn->_super); // body_fn.
-    module->body = newClosure(vm, body_fn);
-    vmPopTempRef(vm); // body_fn.
-
-    CompileOptions options = newCompilerOptions();
-    options.runtime = true;
-    Result result = compile(vm, module, code->data, &options);
-
-    if (result == RESULT_SUCCESS) {
-      ARG(0) = VAR_OBJ(module->body);
-    }
-  }
-  vmPopTempRef(vm); // module.
-  vmPopTempRef(vm); // code.
-}
-
 saynaa_function(coreEval, "eval(expression:String) -> Var",
                 "Evaluate an expression and returns the result.\n"
                 "Only global variables can be used in the expression.") {
@@ -1086,7 +1055,6 @@ static void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("print", corePrint, -1);
   INITIALIZE_BUILTIN_FN("input", coreInput, -1);
   INITIALIZE_BUILTIN_FN("exit", coreExit, -1);
-  INITIALIZE_BUILTIN_FN("compile", coreCompile, 1);
   INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
   INITIALIZE_BUILTIN_FN("define", coreDefine, 2);
   INITIALIZE_BUILTIN_FN("delete", coreDelete, 1);
@@ -1384,7 +1352,6 @@ static void _ctorFiber(VM* vm) {
 /*****************************************************************************/
 
 #define THIS (vm->fiber->thiz)
-
 saynaa_function(_objTypeName, "Object.typename() -> String",
                 "Returns the type name of the object.") {
   RET(VAR_OBJ(newString(vm, varTypeName(THIS))));

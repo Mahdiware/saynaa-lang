@@ -1270,6 +1270,25 @@ L_vm_main_loop:
 
       int g_index = moduleGetGlobalIndex(module, name->data, name->length);
       if (g_index == -1) {
+        int missing_index = moduleGetGlobalIndex(module, LITS__missing,
+                                                 (uint32_t) strlen(LITS__missing));
+        if (missing_index != -1) {
+          Var missing = module->globals.data[missing_index];
+          if (IS_OBJ_TYPE(missing, OBJ_CLOSURE)) {
+            Var args[1] = { VAR_OBJ(name) };
+            Var result = VAR_NULL;
+            Result call_result = vmCallFunction(vm, (Closure*) AS_OBJ(missing),
+                                                1, args, &result);
+            if (call_result != RESULT_SUCCESS) {
+              CHECK_ERROR();
+            }
+            if (!IS_NULL(result) && !IS_UNDEF(result)) {
+              PUSH(result);
+              DISPATCH();
+            }
+          }
+        }
+
         RUNTIME_ERROR(stringFormat(vm, "Name '@' is not defined.", name));
       }
 

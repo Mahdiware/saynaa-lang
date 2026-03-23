@@ -15,6 +15,79 @@ static const uint8_t kSaynaaMagic[SAYNAA_BYTECODE_MAGIC_SIZE] = {
   'S', 'A', 'Y', 'N', 'A', 'A', '1', 0
 };
 
+void saynaa_bytecode_init(SaynaaBytecode* bytecode) {
+  if (bytecode == NULL)
+    return;
+  bytecode->data = NULL;
+  bytecode->size = 0;
+  bytecode->flags = 0;
+  bytecode->checksum = 0;
+  bytecode->timestamp = 0;
+}
+
+void saynaa_bytecode_clear(VM* vm, SaynaaBytecode* bytecode) {
+  if (bytecode == NULL)
+    return;
+  if (bytecode->data != NULL) {
+    Realloc(vm, bytecode->data, 0);
+  }
+  saynaa_bytecode_init(bytecode);
+}
+
+SaynaaBytecodeStatus saynaa_bytecode_set_payload(VM* vm, SaynaaBytecode* bytecode,
+                                                 const uint8_t* payload,
+                                                 size_t payload_size,
+                                                 uint8_t flags,
+                                                 uint64_t timestamp) {
+  if (bytecode == NULL || payload == NULL || payload_size == 0)
+    return SAYNAA_BC_INVALID_ARGUMENT;
+
+  saynaa_bytecode_clear(vm, bytecode);
+  bytecode->data = (uint8_t*) Realloc(vm, NULL, payload_size);
+  if (bytecode->data == NULL)
+    return SAYNAA_BC_INVALID_ARGUMENT;
+  memcpy(bytecode->data, payload, payload_size);
+  bytecode->size = payload_size;
+  bytecode->flags = flags;
+  bytecode->timestamp = timestamp;
+  bytecode->checksum = saynaa_bytecode_crc32(payload, payload_size);
+  return SAYNAA_BC_OK;
+}
+
+SaynaaBytecodeStatus saynaa_bytecode_save(const SaynaaBytecode* bytecode,
+                                          const char* path) {
+  if (bytecode == NULL || path == NULL || bytecode->data == NULL)
+    return SAYNAA_BC_INVALID_ARGUMENT;
+  return saynaa_bytecode_write_file(path, bytecode->data, bytecode->size,
+                                    bytecode->flags, bytecode->timestamp);
+}
+
+Result saynaa_bytecode_run(VM* vm, const SaynaaBytecode* bytecode) {
+  if (vm == NULL || bytecode == NULL || bytecode->data == NULL
+      || bytecode->size == 0) {
+    return RESULT_RUNTIME_ERROR;
+  }
+
+  Module* module = newModule(vm);
+  vmPushTempRef(vm, &module->_super); // module.
+
+  module->path = newString(vm, "@(Bytecode)");
+  SaynaaBytecodeStatus status = saynaa_bytecode_deserialize_module(
+      vm, module, bytecode->data, bytecode->size);
+  if (status != SAYNAA_BC_OK) {
+    vmPopTempRef(vm); // module.
+    return RESULT_COMPILE_ERROR;
+  }
+
+  initializeModule(vm, module, true);
+  vmRegisterModule(vm, module, module->path);
+  module->initialized = true;
+
+  Result result = vmCallFunction(vm, module->body, 0, NULL, NULL);
+  vmPopTempRef(vm); // module.
+  return result;
+}
+
 /*****************************************************************************/
 /* PATH HELPERS                                                              */
 /*****************************************************************************/

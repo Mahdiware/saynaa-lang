@@ -13,6 +13,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 
+
 #ifdef _MSC_VER
 #pragma comment(lib, "uuid.lib")
 #endif
@@ -77,6 +78,8 @@ typedef struct VM VM;
 // variable and ensure that the variable it holds won't be garbage collected
 // till it's released with releaseHandle().
 typedef struct Handle Handle;
+
+typedef struct SaynaaBytecode SaynaaBytecode;
 
 typedef struct Class Class;
 
@@ -337,23 +340,19 @@ PUBLIC Result RunStringPcall(VM* vm, const char* source);
 PUBLIC Result RunFile(VM* vm, const char* path);
 
 // Run the file at [path] and report if it was bytecode.
-PUBLIC Result RunFileAuto(VM* vm, const char* path, bool* is_bytecode);
+PUBLIC Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode);
 
 // Load script content, auto-detecting bytecode headers if present.
 // Returns NULL on error. The buffer is allocated with Realloc().
-PUBLIC char* LoadScriptAuto(VM* vm, const char* path, bool* is_bytecode);
+PUBLIC char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode);
 
-// Compile source string into bytecode file at [out_path].
+// Compile source string into in-memory bytecode.
 PUBLIC Result CompileStringToBytecode(VM* vm, const char* source,
-                                      const char* out_path);
+                                      SaynaaBytecode* out);
 
-// Compile source file at [path] into bytecode file at [out_path].
+// Compile source file at [path] into in-memory bytecode.
 PUBLIC Result CompileFileToBytecode(VM* vm, const char* path,
-                                    const char* out_path);
-
-// Compile source file at [path] into bytecode file at [out_path] and run it.
-PUBLIC Result CompileRunBytecodeFile(VM* vm, const char* path,
-                                     const char* out_path);
+                                    SaynaaBytecode* out);
 
 // time vm taked.
 PUBLIC double vm_time(VM* vm);
