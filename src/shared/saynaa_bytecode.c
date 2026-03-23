@@ -15,6 +15,10 @@ static const uint8_t kSaynaaMagic[SAYNAA_BYTECODE_MAGIC_SIZE] = {
   'S', 'A', 'Y', 'N', 'A', 'A', '1', 0
 };
 
+/*****************************************************************************/
+/* PATH HELPERS                                                              */
+/*****************************************************************************/
+
 static bool has_suffix(const char* value, const char* suffix) {
   size_t value_len = strlen(value);
   size_t suffix_len = strlen(suffix);
@@ -30,8 +34,9 @@ char* saynaa_bytecode_build_path(VM* vm, const char* input_path) {
   size_t input_len = strlen(input_path);
   size_t ext_len = strlen(SAYNAA_FILE_EXT);
   size_t out_len = 0;
+  bool has_sa_ext = has_suffix(input_path, SAYNAA_FILE_EXT) && input_len > ext_len;
 
-  if (has_suffix(input_path, SAYNAA_FILE_EXT) && input_len > ext_len) {
+  if (has_sa_ext) {
     out_len = input_len - ext_len + strlen(SAYNAA_BYTECODE_EXT);
   } else {
     out_len = input_len + strlen(SAYNAA_BYTECODE_EXT);
@@ -41,7 +46,7 @@ char* saynaa_bytecode_build_path(VM* vm, const char* input_path) {
   if (out_path == NULL)
     return NULL;
 
-  if (has_suffix(input_path, SAYNAA_FILE_EXT) && input_len > ext_len) {
+  if (has_sa_ext) {
     memcpy(out_path, input_path, input_len - ext_len);
     memcpy(out_path + (input_len - ext_len), SAYNAA_BYTECODE_EXT,
            strlen(SAYNAA_BYTECODE_EXT) + 1);
@@ -53,6 +58,10 @@ char* saynaa_bytecode_build_path(VM* vm, const char* input_path) {
 
   return out_path;
 }
+
+/*****************************************************************************/
+/* HEADER IO                                                                 */
+/*****************************************************************************/
 
 static void write_u32_le(uint8_t* out, uint32_t value) {
   out[0] = (uint8_t) (value & 0xff);
@@ -280,6 +289,10 @@ SaynaaBytecodeStatus saynaa_bytecode_write_file(const char* path,
 #define SAYNAA_BC_PAYLOAD_MAGIC_SIZE 4
 #define SAYNAA_BC_PAYLOAD_VERSION 1
 
+/*****************************************************************************/
+/* PAYLOAD IO                                                                */
+/*****************************************************************************/
+
 typedef enum {
   SAYNAA_BC_CONST_NULL = 0,
   SAYNAA_BC_CONST_BOOL = 1,
@@ -369,6 +382,19 @@ static int find_string_index_by_ptr(Module* module, const char* ptr) {
   return -1;
 }
 
+static int find_string_index_by_obj(Module* module, const Object* obj) {
+  if (obj == NULL)
+    return -1;
+  for (uint32_t i = 0; i < module->constants.count; i++) {
+    Var constant = module->constants.data[i];
+    if (!IS_OBJ_TYPE(constant, OBJ_STRING))
+      continue;
+    if (AS_OBJ(constant) == obj)
+      return (int) i;
+  }
+  return -1;
+}
+
 static int find_constant_index(Module* module, Var value) {
   for (uint32_t i = 0; i < module->constants.count; i++) {
     if (isValuesSame(module->constants.data[i], value))
@@ -384,10 +410,8 @@ SaynaaBytecodeStatus saynaa_bytecode_serialize_module(VM* vm, Module* module,
   if (module->body == NULL || module->body->fn == NULL)
     return SAYNAA_BC_INVALID_ARGUMENT;
 
-  ByteBufferWrite(out, vm, (uint8_t) SAYNAA_BC_PAYLOAD_MAGIC[0]);
-  ByteBufferWrite(out, vm, (uint8_t) SAYNAA_BC_PAYLOAD_MAGIC[1]);
-  ByteBufferWrite(out, vm, (uint8_t) SAYNAA_BC_PAYLOAD_MAGIC[2]);
-  ByteBufferWrite(out, vm, (uint8_t) SAYNAA_BC_PAYLOAD_MAGIC[3]);
+  ByteBufferAddString(out, vm, SAYNAA_BC_PAYLOAD_MAGIC,
+                      SAYNAA_BC_PAYLOAD_MAGIC_SIZE);
   bc_write_u8(out, vm, SAYNAA_BC_PAYLOAD_VERSION);
 
   bc_write_u32(out, vm, module->constants.count);
@@ -461,16 +485,8 @@ SaynaaBytecodeStatus saynaa_bytecode_serialize_module(VM* vm, Module* module,
       case OBJ_CLASS:
         {
           Class* cls = (Class*) obj;
-          int name_index = -1;
-          if (cls->name != NULL) {
-            for (uint32_t j = 0; j < module->constants.count; j++) {
-              Var c = module->constants.data[j];
-              if (IS_OBJ_TYPE(c, OBJ_STRING) && AS_OBJ(c) == &cls->name->_super) {
-                name_index = (int) j;
-                break;
-              }
-            }
-          }
+          int name_index = find_string_index_by_obj(module,
+                                                     (Object*) cls->name);
           if (name_index < 0)
             return SAYNAA_BC_INVALID_FORMAT;
 
@@ -517,9 +533,28 @@ typedef struct {
   uint8_t class_of;
 } PendingClass;
 
+static void free_pending_functions(VM* vm, PendingFunction* fns, uint32_t count) {
+  if (fns == NULL)
+    return;
+
+  for (uint32_t i = 0; i < count; i++) {
+    PendingFunction* pending = &fns[i];
+    if (pending->opcodes != NULL) {
+      vmRealloc(vm, pending->opcodes, pending->opcodes_count, 0);
+      pending->opcodes = NULL;
+    }
+    if (pending->oplines != NULL) {
+      size_t size = pending->oplines_count * sizeof(uint32_t);
+      vmRealloc(vm, pending->oplines, size, 0);
+      pending->oplines = NULL;
+    }
+  }
+}
+
 SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
                                                         const uint8_t* data,
                                                         size_t data_size) {
+  SaynaaBytecodeStatus status = SAYNAA_BC_OK;
   if (vm == NULL || module == NULL || data == NULL)
     return SAYNAA_BC_INVALID_ARGUMENT;
 
@@ -529,20 +564,30 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   reader.offset = 0;
 
   uint8_t magic[SAYNAA_BC_PAYLOAD_MAGIC_SIZE];
-  if (!bc_read_bytes(&reader, magic, sizeof(magic)))
-    return SAYNAA_BC_TRUNCATED;
-  if (memcmp(magic, SAYNAA_BC_PAYLOAD_MAGIC, sizeof(magic)) != 0)
-    return SAYNAA_BC_INVALID_FORMAT;
+  if (!bc_read_bytes(&reader, magic, sizeof(magic))) {
+    status = SAYNAA_BC_TRUNCATED;
+    goto cleanup;
+  }
+  if (memcmp(magic, SAYNAA_BC_PAYLOAD_MAGIC, sizeof(magic)) != 0) {
+    status = SAYNAA_BC_INVALID_FORMAT;
+    goto cleanup;
+  }
 
   uint8_t version = 0;
-  if (!bc_read_u8(&reader, &version))
-    return SAYNAA_BC_TRUNCATED;
-  if (version != SAYNAA_BC_PAYLOAD_VERSION)
-    return SAYNAA_BC_VERSION_MISMATCH;
+  if (!bc_read_u8(&reader, &version)) {
+    status = SAYNAA_BC_TRUNCATED;
+    goto cleanup;
+  }
+  if (version != SAYNAA_BC_PAYLOAD_VERSION) {
+    status = SAYNAA_BC_VERSION_MISMATCH;
+    goto cleanup;
+  }
 
   uint32_t constants_count = 0;
-  if (!bc_read_u32(&reader, &constants_count))
-    return SAYNAA_BC_TRUNCATED;
+  if (!bc_read_u32(&reader, &constants_count)) {
+    status = SAYNAA_BC_TRUNCATED;
+    goto cleanup;
+  }
 
   PendingFunction* pending_fns = NULL;
   uint32_t pending_fn_count = 0;
@@ -551,8 +596,10 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
 
   for (uint32_t i = 0; i < constants_count; i++) {
     uint8_t tag = 0;
-    if (!bc_read_u8(&reader, &tag))
-      return SAYNAA_BC_TRUNCATED;
+    if (!bc_read_u8(&reader, &tag)) {
+      status = SAYNAA_BC_TRUNCATED;
+      goto cleanup;
+    }
 
     switch ((SaynaaBytecodeConstTag) tag) {
       case SAYNAA_BC_CONST_NULL:
@@ -562,8 +609,10 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
       case SAYNAA_BC_CONST_BOOL:
         {
           uint8_t value = 0;
-          if (!bc_read_u8(&reader, &value))
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u8(&reader, &value)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
           VarBufferWrite(&module->constants, vm, VAR_BOOL(value != 0));
         }
         break;
@@ -571,8 +620,10 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
       case SAYNAA_BC_CONST_NUMBER:
         {
           double value = 0;
-          if (!bc_read_double(&reader, &value))
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_double(&reader, &value)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
           VarBufferWrite(&module->constants, vm, VAR_NUM(value));
         }
         break;
@@ -580,10 +631,14 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
       case SAYNAA_BC_CONST_STRING:
         {
           uint32_t length = 0;
-          if (!bc_read_u32(&reader, &length))
-            return SAYNAA_BC_TRUNCATED;
-          if (reader.offset + length > reader.size)
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u32(&reader, &length)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (reader.offset + length > reader.size) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
           String* str = newStringLength(vm, (const char*) (reader.data + reader.offset),
                                         length);
           vmPushTempRef(vm, &str->_super); // str.
@@ -597,23 +652,39 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
         {
           PendingFunction pending;
           pending.index = i;
-          if (!bc_read_u32(&reader, &pending.name_index))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_u32(&reader, &pending.doc_index))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_i32(&reader, &pending.arity))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_u8(&reader, &pending.is_method))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_u32(&reader, &pending.upvalue_count))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_i32(&reader, &pending.stack_size))
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u32(&reader, &pending.name_index)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_u32(&reader, &pending.doc_index)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_i32(&reader, &pending.arity)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_u8(&reader, &pending.is_method)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_u32(&reader, &pending.upvalue_count)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_i32(&reader, &pending.stack_size)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
 
-          if (!bc_read_u32(&reader, &pending.opcodes_count))
-            return SAYNAA_BC_TRUNCATED;
-          if (reader.offset + pending.opcodes_count > reader.size)
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u32(&reader, &pending.opcodes_count)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (reader.offset + pending.opcodes_count > reader.size) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
           pending.opcodes = NULL;
           if (pending.opcodes_count > 0) {
             pending.opcodes = (uint8_t*) vmRealloc(vm, NULL, 0, pending.opcodes_count);
@@ -621,16 +692,20 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
             reader.offset += pending.opcodes_count;
           }
 
-          if (!bc_read_u32(&reader, &pending.oplines_count))
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u32(&reader, &pending.oplines_count)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
           pending.oplines = NULL;
           if (pending.oplines_count > 0) {
             size_t size = pending.oplines_count * sizeof(uint32_t);
             pending.oplines = (uint32_t*) vmRealloc(vm, NULL, 0, size);
             for (uint32_t j = 0; j < pending.oplines_count; j++) {
               uint32_t line = 0;
-              if (!bc_read_u32(&reader, &line))
-                return SAYNAA_BC_TRUNCATED;
+              if (!bc_read_u32(&reader, &line)) {
+                status = SAYNAA_BC_TRUNCATED;
+                goto cleanup;
+              }
               pending.oplines[j] = line;
             }
           }
@@ -648,12 +723,18 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
         {
           PendingClass pending;
           pending.index = i;
-          if (!bc_read_u32(&reader, &pending.name_index))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_u32(&reader, &pending.doc_index))
-            return SAYNAA_BC_TRUNCATED;
-          if (!bc_read_u8(&reader, &pending.class_of))
-            return SAYNAA_BC_TRUNCATED;
+          if (!bc_read_u32(&reader, &pending.name_index)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_u32(&reader, &pending.doc_index)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
+          if (!bc_read_u8(&reader, &pending.class_of)) {
+            status = SAYNAA_BC_TRUNCATED;
+            goto cleanup;
+          }
 
           pending_classes = (PendingClass*) vmRealloc(
               vm, pending_classes, pending_class_count * sizeof(PendingClass),
@@ -665,27 +746,36 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
         break;
 
       default:
-        return SAYNAA_BC_UNSUPPORTED_CONST;
+        status = SAYNAA_BC_UNSUPPORTED_CONST;
+        goto cleanup;
     }
   }
 
   uint32_t body_index = 0;
-  if (!bc_read_u32(&reader, &body_index))
-    return SAYNAA_BC_TRUNCATED;
+  if (!bc_read_u32(&reader, &body_index)) {
+    status = SAYNAA_BC_TRUNCATED;
+    goto cleanup;
+  }
 
   for (uint32_t i = 0; i < pending_fn_count; i++) {
     PendingFunction* pending = &pending_fns[i];
-    if (pending->name_index >= module->constants.count)
-      return SAYNAA_BC_INVALID_FORMAT;
+    if (pending->name_index >= module->constants.count) {
+      status = SAYNAA_BC_INVALID_FORMAT;
+      goto cleanup;
+    }
 
     String* name = moduleGetStringAt(module, (int) pending->name_index);
-    if (name == NULL)
-      return SAYNAA_BC_INVALID_FORMAT;
+    if (name == NULL) {
+      status = SAYNAA_BC_INVALID_FORMAT;
+      goto cleanup;
+    }
     String* doc = NULL;
     if (pending->doc_index != UINT32_MAX) {
       doc = moduleGetStringAt(module, (int) pending->doc_index);
-      if (doc == NULL)
-        return SAYNAA_BC_INVALID_FORMAT;
+      if (doc == NULL) {
+        status = SAYNAA_BC_INVALID_FORMAT;
+        goto cleanup;
+      }
     }
 
     Function* fn = newFunctionRaw(vm, module, name, doc, pending->arity,
@@ -700,6 +790,7 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
       memcpy(fn->fn->opcodes.data, pending->opcodes, pending->opcodes_count);
       fn->fn->opcodes.count = pending->opcodes_count;
       vmRealloc(vm, pending->opcodes, pending->opcodes_count, 0);
+      pending->opcodes = NULL;
     }
 
     if (pending->oplines_count > 0) {
@@ -708,6 +799,7 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
              pending->oplines_count * sizeof(uint32_t));
       fn->fn->oplines.count = pending->oplines_count;
       vmRealloc(vm, pending->oplines, pending->oplines_count * sizeof(uint32_t), 0);
+      pending->oplines = NULL;
     }
 
     module->constants.data[pending->index] = VAR_OBJ(fn);
@@ -716,17 +808,23 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
 
   for (uint32_t i = 0; i < pending_class_count; i++) {
     PendingClass* pending = &pending_classes[i];
-    if (pending->name_index >= module->constants.count)
-      return SAYNAA_BC_INVALID_FORMAT;
+    if (pending->name_index >= module->constants.count) {
+      status = SAYNAA_BC_INVALID_FORMAT;
+      goto cleanup;
+    }
 
     String* name = moduleGetStringAt(module, (int) pending->name_index);
-    if (name == NULL)
-      return SAYNAA_BC_INVALID_FORMAT;
+    if (name == NULL) {
+      status = SAYNAA_BC_INVALID_FORMAT;
+      goto cleanup;
+    }
     String* doc = NULL;
     if (pending->doc_index != UINT32_MAX) {
       doc = moduleGetStringAt(module, (int) pending->doc_index);
-      if (doc == NULL)
-        return SAYNAA_BC_INVALID_FORMAT;
+      if (doc == NULL) {
+        status = SAYNAA_BC_INVALID_FORMAT;
+        goto cleanup;
+      }
     }
 
     Class* cls = newClassRaw(vm, module, name, doc);
@@ -737,18 +835,15 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
     vmPopTempRef(vm); // cls.
   }
 
-  if (pending_fns != NULL) {
-    vmRealloc(vm, pending_fns, pending_fn_count * sizeof(PendingFunction), 0);
+  if (body_index >= module->constants.count) {
+    status = SAYNAA_BC_INVALID_FORMAT;
+    goto cleanup;
   }
-  if (pending_classes != NULL) {
-    vmRealloc(vm, pending_classes, pending_class_count * sizeof(PendingClass), 0);
-  }
-
-  if (body_index >= module->constants.count)
-    return SAYNAA_BC_INVALID_FORMAT;
   Var body_fn = module->constants.data[body_index];
-  if (!IS_OBJ_TYPE(body_fn, OBJ_FUNC))
-    return SAYNAA_BC_INVALID_FORMAT;
+  if (!IS_OBJ_TYPE(body_fn, OBJ_FUNC)) {
+    status = SAYNAA_BC_INVALID_FORMAT;
+    goto cleanup;
+  }
 
   Closure* body = newClosure(vm, (Function*) AS_OBJ(body_fn));
   vmPushTempRef(vm, &body->_super); // body.
@@ -758,5 +853,15 @@ SaynaaBytecodeStatus saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   moduleSetGlobal(vm, module, IMPLICIT_MAIN_NAME,
                   (uint32_t) strlen(IMPLICIT_MAIN_NAME), VAR_OBJ(module->body));
 
-  return SAYNAA_BC_OK;
+  status = SAYNAA_BC_OK;
+
+cleanup:
+  free_pending_functions(vm, pending_fns, pending_fn_count);
+  if (pending_fns != NULL) {
+    vmRealloc(vm, pending_fns, pending_fn_count * sizeof(PendingFunction), 0);
+  }
+  if (pending_classes != NULL) {
+    vmRealloc(vm, pending_classes, pending_class_count * sizeof(PendingClass), 0);
+  }
+  return status;
 }
