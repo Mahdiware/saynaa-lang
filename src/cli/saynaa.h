@@ -13,7 +13,6 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 
-
 #ifdef _MSC_VER
 #pragma comment(lib, "uuid.lib")
 #endif
