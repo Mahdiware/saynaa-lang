@@ -19,6 +19,10 @@ typedef struct {
   Module* target_module;
 } WildcardImportRuntimeData;
 
+/*****************************************************************************/
+/* IMPORT HELPERS                                                            */
+/*****************************************************************************/
+
 // Build a dotted module name from wildcard base path and filename.
 // Example: base="foo.bar.*", name="file1.sa" -> "foo.bar.file1.sa"
 static void buildWildcardModuleName(const String* base, const char* name,
@@ -94,6 +98,44 @@ static void wildcardRuntimeCallback(const char* name, void* user_data) {
     }
   }
   vmPopTempRef(vm);
+}
+
+static String* importNameToPath(VM* vm, String* name, bool* needs_pop) {
+  if (needs_pop)
+    *needs_pop = false;
+
+  if (name == NULL)
+    return NULL;
+
+  uint32_t len = name->length;
+  bool has_dot = false;
+  bool is_wildcard = false;
+
+  if (len >= 2 && name->data[len - 2] == '.' && name->data[len - 1] == '*') {
+    len -= 2;
+    is_wildcard = true;
+  }
+
+  for (uint32_t i = 0; i < len; i++) {
+    if (name->data[i] == '.') {
+      has_dot = true;
+      break;
+    }
+  }
+
+  if (!has_dot && !is_wildcard)
+    return name;
+
+  String* path = newStringLength(vm, name->data, len);
+  for (uint32_t i = 0; i < path->length; i++) {
+    if (path->data[i] == '.')
+      path->data[i] = '/';
+  }
+  path->hash = utilHashString(path->data);
+  vmPushTempRef(vm, &path->_super);
+  if (needs_pop)
+    *needs_pop = true;
+  return path;
 }
 
 Handle* vmNewHandle(VM* vm, Var value) {
@@ -693,43 +735,13 @@ void vmStandardSearcher(VM* vm) {
   }
   String* name = AS_STRING(vm->fiber->ret[1]);
 
-  // Convert dots to slashes for file path search. A copy is made to not
-  // verified the string passed (which could be shared or constant).
-
-  uint32_t len = name->length;
-  bool is_wildcard = false;
-
-  // Check for trailing '.*' and strip it from the file path we'll search for.
-  if (len >= 2 && name->data[len - 2] == '.' && name->data[len - 1] == '*') {
-    len -= 2;
-    is_wildcard = true;
-  }
-
-  bool has_dot = false;
-  for (uint32_t i = 0; i < len; i++) {
-    if (name->data[i] == '.') {
-      has_dot = true;
-      break;
-    }
-  }
-
-  String* path = name;
-  if (has_dot || is_wildcard) {
-    path = newStringLength(vm, name->data, len);
-    for (uint32_t i = 0; i < path->length; i++) {
-      if (path->data[i] == '.') {
-        path->data[i] = '/';
-      }
-    }
-    path->hash = utilHashString(path->data);
-    vmPushTempRef(vm, &path->_super);
-  }
-
+  // Convert dots to slashes for file path search. A copy is made to avoid
+  // mutating the original import name.
+  bool needs_pop = false;
+  String* path = importNameToPath(vm, name, &needs_pop);
   Var result = _importPathSearch(vm, path);
-
-  if (has_dot || is_wildcard) {
+  if (needs_pop)
     vmPopTempRef(vm);
-  }
 
   vm->fiber->ret[0] = result;
 }
