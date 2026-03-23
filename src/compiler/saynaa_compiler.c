@@ -700,6 +700,13 @@ static void eatString(Compiler* compiler, bool single_quote) {
       break;
     }
 
+    if (c == '\r') {
+      if (peekChar(parser) == '\n')
+        eatChar(parser);
+      ByteBufferWrite(&buff, parser->vm, '\n');
+      continue;
+    }
+
     if (c == '\\') {
       switch (eatChar(parser)) {
         case '"':
