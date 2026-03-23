@@ -32,6 +32,7 @@ endif
 
 # TODO: MacOS don't impelement shared library properly yet
 UNAME_S := $(shell uname -s)
+UNAME_O := $(shell uname -o)
 BUILD_SHARED = no
 
 ifeq ($(UNAME_S),Darwin)
@@ -41,6 +42,10 @@ ifeq ($(UNAME_S),Darwin)
 else ifeq ($(UNAME_S),Linux)
     LDFLAGS += -Wl,--export-dynamic
     BUILD_SHARED = yes
+    
+    ifeq ($(UNAME_O),Android)
+        LDFLAGS += -llog
+    endif
 endif
 
 ifeq ($(READLINE),enable)
