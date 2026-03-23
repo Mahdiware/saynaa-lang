@@ -46,14 +46,6 @@ Raises a runtime error with the given value as message.
 error("Something went wrong")
 ```
 
-### `compile(code)`
-Compiles a string of code into a closure.
-
-```ruby
-func = compile("return 1 + 1")
-print(func()) # 2
-```
-
 ### `eval(code)`
 Evaluates a string of code and returns the result of the last expression.
 

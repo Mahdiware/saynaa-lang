@@ -95,8 +95,8 @@ static void* defaultRealloc(void* memory, size_t new_size, void* _);
 static void stderrWrite(VM* vm, const char* text);
 static void stdoutWrite(VM* vm, const char* text);
 static char* stdinRead(VM* vm);
-static char* loadScript(VM* vm, const char* path);
-static Result runFileWithAutoLoad(VM* vm, const char* path, bool* is_bytecode);
+static char* loadScriptAutoDetect(VM* vm, const char* path);
+static Result runFileAutoDetect(VM* vm, const char* path, bool* is_bytecode);
 
 void* Realloc(VM* vm, void* ptr, size_t size) {
   ASSERT(vm->config.realloc_fn != NULL, "VM's allocator was NULL.");
@@ -122,7 +122,7 @@ Configuration NewConfiguration() {
 #endif
 
 #endif
-  config.load_script_fn = loadScript;
+  config.load_script_fn = loadScriptAutoDetect;
 
   return config;
 }
@@ -467,14 +467,14 @@ Result RunStringPcall(VM* vm, const char* source) {
 }
 
 Result RunFile(VM* vm, const char* path) {
-  return runFileWithAutoLoad(vm, path, NULL);
+  return runFileAutoDetect(vm, path, NULL);
 }
 
-Result RunFileAuto(VM* vm, const char* path, bool* is_bytecode) {
-  return runFileWithAutoLoad(vm, path, is_bytecode);
+Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode) {
+  return runFileAutoDetect(vm, path, is_bytecode);
 }
 
-static Result runFileWithAutoLoad(VM* vm, const char* path, bool* is_bytecode) {
+static Result runFileAutoDetect(VM* vm, const char* path, bool* is_bytecode) {
   // Note: Even if the file is already in the VM's script cache (e.g., via
   // import), we explicitly recompile it here to ensure the cache reflects the
   // latest content on disk.
@@ -517,7 +517,7 @@ static Result runFileWithAutoLoad(VM* vm, const char* path, bool* is_bytecode) {
 
     const char* _path = module->path->data;
     bool local_is_bytecode = false;
-    char* source = LoadScriptAuto(vm, _path, &local_is_bytecode);
+    char* source = LoadScriptAutoDetect(vm, _path, &local_is_bytecode);
     if (source == NULL) {
       result = RESULT_COMPILE_ERROR;
       if (vm->config.stderr_write != NULL) {
@@ -538,12 +538,8 @@ static Result runFileWithAutoLoad(VM* vm, const char* path, bool* is_bytecode) {
         if (status == SAYNAA_BC_OK) {
           const uint8_t* payload = (const uint8_t*) source
                                    + SAYNAA_BYTECODE_HEADER_SIZE;
-          status = saynaa_bytecode_validate_checksum(&header, payload,
-                                                     header.bytecode_size);
-          if (status == SAYNAA_BC_OK) {
-            status = saynaa_bytecode_deserialize_module(vm, module, payload,
-                                                        header.bytecode_size);
-          }
+          status = saynaa_bytecode_deserialize_module(vm, module, payload,
+                                                      header.bytecode_size);
         }
 
         if (status != SAYNAA_BC_OK) {
@@ -588,9 +584,11 @@ static Result runFileWithAutoLoad(VM* vm, const char* path, bool* is_bytecode) {
   return result;
 }
 
-Result CompileStringToBytecode(VM* vm, const char* source, const char* out_path) {
-  if (vm == NULL || source == NULL || out_path == NULL)
+Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) {
+  if (vm == NULL || source == NULL || out == NULL)
     return RESULT_COMPILE_ERROR;
+
+  saynaa_bytecode_init(out);
 
   Module* module = newModule(vm);
   vmPushTempRef(vm, &module->_super); // module.
@@ -604,8 +602,8 @@ Result CompileStringToBytecode(VM* vm, const char* source, const char* out_path)
     SaynaaBytecodeStatus status = saynaa_bytecode_serialize_module(vm, module,
                                                                     &payload);
     if (status == SAYNAA_BC_OK) {
-      status = saynaa_bytecode_write_file(out_path, payload.data, payload.count,
-                                          0, (uint64_t) time(NULL));
+      status = saynaa_bytecode_set_payload(vm, out, payload.data, payload.count,
+                                           0, (uint64_t) time(NULL));
     }
     ByteBufferClear(&payload, vm);
     result = (status == SAYNAA_BC_OK) ? RESULT_SUCCESS : RESULT_COMPILE_ERROR;
@@ -615,12 +613,12 @@ Result CompileStringToBytecode(VM* vm, const char* source, const char* out_path)
   return result;
 }
 
-Result CompileFileToBytecode(VM* vm, const char* path, const char* out_path) {
-  if (vm == NULL || path == NULL || out_path == NULL)
+Result CompileFileToBytecode(VM* vm, const char* path, SaynaaBytecode* out) {
+  if (vm == NULL || path == NULL || out == NULL)
     return RESULT_COMPILE_ERROR;
 
   bool is_bytecode = false;
-  char* source = LoadScriptAuto(vm, path, &is_bytecode);
+  char* source = LoadScriptAutoDetect(vm, path, &is_bytecode);
   if (source == NULL)
     return RESULT_COMPILE_ERROR;
 
@@ -629,17 +627,9 @@ Result CompileFileToBytecode(VM* vm, const char* path, const char* out_path) {
     return RESULT_COMPILE_ERROR;
   }
 
-  Result result = CompileStringToBytecode(vm, source, out_path);
+  Result result = CompileStringToBytecode(vm, source, out);
   Realloc(vm, source, 0);
   return result;
-}
-
-Result CompileRunBytecodeFile(VM* vm, const char* path, const char* out_path) {
-  Result result = CompileFileToBytecode(vm, path, out_path);
-  if (result != RESULT_SUCCESS)
-    return result;
-
-  return RunFile(vm, out_path);
 }
 
 // TODO: Consider moving to a shared location.
@@ -1372,11 +1362,11 @@ static char* stdinRead(VM* vm) {
   return str;
 }
 
-static char* loadScript(VM* vm, const char* path) {
-  return LoadScriptAuto(vm, path, NULL);
+static char* loadScriptAutoDetect(VM* vm, const char* path) {
+  return LoadScriptAutoDetect(vm, path, NULL);
 }
 
-static uint8_t* loadFileRaw(VM* vm, const char* path, size_t* out_size) {
+static uint8_t* readFileRawBytes(VM* vm, const char* path, size_t* out_size) {
   if (out_size)
     *out_size = 0;
   FILE* file = fopen(path, "rb");
@@ -1403,12 +1393,12 @@ static uint8_t* loadFileRaw(VM* vm, const char* path, size_t* out_size) {
   return buff;
 }
 
-char* LoadScriptAuto(VM* vm, const char* path, bool* is_bytecode) {
+char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode) {
   if (is_bytecode)
     *is_bytecode = false;
 
   size_t read = 0;
-  uint8_t* buff = loadFileRaw(vm, path, &read);
+  uint8_t* buff = readFileRawBytes(vm, path, &read);
   if (buff == NULL)
     return NULL;
 

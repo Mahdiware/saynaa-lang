@@ -434,6 +434,9 @@ struct Compiler {
   // Since the compiler manually call some builtin functions we need to cache
   // the index of the functions in order to prevent search for them each time.
   int bifn_list_join;
+
+  // Globals defined at compile time (indexes into module->constants).
+  UintBuffer global_names;
 };
 
 typedef struct {
@@ -506,6 +509,8 @@ static void compilerInit(Compiler* compiler, VM* vm, const char* source,
   compiler->can_define = true;
   compiler->new_local = false;
   compiler->is_last_call = false;
+
+  UintBufferInit(&compiler->global_names);
 
   const char* source_path = "@??";
   if (module->path != NULL) {
@@ -1569,12 +1574,15 @@ static NameSearchResult compilerSearchName(Compiler* compiler, const char* name,
   }
 
   // Search through globals.
-  index = moduleGetGlobalIndex(compiler->module, name, length);
-  if (index != -1) {
-    result.type = NAME_GLOBAL_VAR;
-    ASSERT(index < (int) compiler->module->global_names.count, OOPS);
-    result.index = (int) compiler->module->global_names.data[index];
-    return result;
+  for (uint32_t i = 0; i < compiler->global_names.count; i++) {
+    uint32_t name_index = compiler->global_names.data[i];
+    String* g_name = moduleGetStringAt(compiler->module, (int) name_index);
+    ASSERT(g_name != NULL, OOPS);
+    if (g_name->length == length && strncmp(g_name->data, name, length) == 0) {
+      result.type = NAME_GLOBAL_VAR;
+      result.index = (int) name_index;
+      return result;
+    }
   }
 
   // Search through builtin functions.
@@ -2541,6 +2549,11 @@ static int compilerAddGlobalName(Compiler* compiler, const char* name,
                                  uint32_t length) {
   int index = 0;
   moduleAddString(compiler->module, compiler->parser.vm, name, length, &index);
+  for (uint32_t i = 0; i < compiler->global_names.count; i++) {
+    if (compiler->global_names.data[i] == (uint32_t) index)
+      return index;
+  }
+  UintBufferWrite(&compiler->global_names, compiler->parser.vm, (uint32_t) index);
   return index;
 }
 
@@ -3727,10 +3740,13 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
   // Return the compilation result.
   if (compiler->parser.has_errors) {
     if (compiler->parser.repl_mode && compiler->parser.need_more_lines) {
+      UintBufferClear(&compiler->global_names, vm);
       return RESULT_UNEXPECTED_EOF;
     }
+    UintBufferClear(&compiler->global_names, vm);
     return RESULT_COMPILE_ERROR;
   }
+  UintBufferClear(&compiler->global_names, vm);
   return RESULT_SUCCESS;
 }
 

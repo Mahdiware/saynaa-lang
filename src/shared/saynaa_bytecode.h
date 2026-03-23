@@ -26,6 +26,14 @@ typedef struct SaynaaBytecodeHeader {
   uint64_t timestamp;
 } SaynaaBytecodeHeader;
 
+typedef struct SaynaaBytecode {
+  uint8_t* data;
+  size_t size;
+  uint8_t flags;
+  uint32_t checksum;
+  uint64_t timestamp;
+} SaynaaBytecode;
+
 typedef enum SaynaaBytecodeStatus {
   SAYNAA_BC_OK = 0,
   SAYNAA_BC_INVALID_ARGUMENT,
@@ -65,6 +73,21 @@ SaynaaBytecodeStatus saynaa_bytecode_write_file(const char* path,
                                                 size_t bytecode_size,
                                                 uint8_t flags,
                                                 uint64_t timestamp);
+
+void saynaa_bytecode_init(SaynaaBytecode* bytecode);
+
+void saynaa_bytecode_clear(VM* vm, SaynaaBytecode* bytecode);
+
+SaynaaBytecodeStatus saynaa_bytecode_set_payload(VM* vm, SaynaaBytecode* bytecode,
+                                                 const uint8_t* payload,
+                                                 size_t payload_size,
+                                                 uint8_t flags,
+                                                 uint64_t timestamp);
+
+SaynaaBytecodeStatus saynaa_bytecode_save(const SaynaaBytecode* bytecode,
+                                          const char* path);
+
+Result saynaa_bytecode_run(VM* vm, const SaynaaBytecode* bytecode);
 
 // Build a bytecode output path from an input path. Caller must free with Realloc().
 char* saynaa_bytecode_build_path(VM* vm, const char* input_path);
