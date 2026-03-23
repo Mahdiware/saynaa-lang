@@ -131,3 +131,32 @@ void registerLibs(VM* vm) {
 *   **`ValidateSlotString(vm, slot, &out, &len)`**: Checks/gets a string.
 *   **`setSlotString(vm, slot, "str")`**: Sets a string to a slot.
 *   **`VAR_NUM(double)`, `VAR_BOOL(bool)`, `VAR_NULL`**: Value constructors.
+
+## Bytecode API (C)
+
+Saynaa now compiles bytecode into memory. You can save or run it later.
+
+```c
+#include "../shared/saynaa_bytecode.h"
+
+SaynaaBytecode bc;
+saynaa_bytecode_init(&bc);
+
+Result result = CompileFileToBytecode(vm, "script.sa", &bc);
+if (result == RESULT_SUCCESS) {
+  // Save to disk
+  saynaa_bytecode_save(&bc, "script.sbc");
+
+  // Run directly from memory
+  saynaa_bytecode_run(vm, &bc);
+}
+
+saynaa_bytecode_clear(vm, &bc);
+```
+
+**Key functions:**
+- `CompileStringToBytecode(vm, source, &bc)`
+- `CompileFileToBytecode(vm, path, &bc)`
+- `saynaa_bytecode_save(&bc, path)`
+- `saynaa_bytecode_run(vm, &bc)`
+- `saynaa_bytecode_clear(vm, &bc)`
