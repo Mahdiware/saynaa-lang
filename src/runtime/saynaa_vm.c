@@ -1266,7 +1266,9 @@ L_vm_main_loop:
     OPCODE(PUSH_GLOBAL_NAME) : {
       uint16_t name_index = READ_SHORT();
       String* name = moduleGetStringAt(module, (int) name_index);
-      ASSERT(name != NULL, OOPS);
+      if (name == NULL) {
+        RUNTIME_ERROR(stringFormat(vm, "Invalid global name in module data."));
+      }
 
       int g_index = moduleGetGlobalIndex(module, name->data, name->length);
       if (g_index == -1) {
@@ -1306,7 +1308,9 @@ L_vm_main_loop:
     OPCODE(STORE_GLOBAL_NAME) : {
       uint16_t name_index = READ_SHORT();
       String* name = moduleGetStringAt(module, (int) name_index);
-      ASSERT(name != NULL, OOPS);
+      if (name == NULL) {
+        RUNTIME_ERROR(stringFormat(vm, "Invalid global name in module data."));
+      }
       moduleSetGlobal(vm, module, name->data, name->length, PEEK(-1));
       DISPATCH();
     }
@@ -1503,7 +1507,10 @@ L_vm_main_loop:
           uint32_t name_idx = imported->global_names.data[j];
           ASSERT(name_idx < imported->constants.count, OOPS);
 
-          String* name = AS_STRING(imported->constants.data[name_idx]);
+          String* name = moduleGetStringAt(imported, (int) name_idx);
+          if (name == NULL) {
+            continue;
+          }
 
           // Skip internal/private names (starting with @ or _)
           if (name->length > 0 && (name->data[0] == '@' || name->data[0] == '_')) {
@@ -1527,7 +1534,9 @@ L_vm_main_loop:
     OPCODE(IMPORT) : {
       uint16_t index = READ_SHORT();
       String* name = moduleGetStringAt(module, (int) index);
-      ASSERT(name != NULL, OOPS);
+      if (name == NULL) {
+        RUNTIME_ERROR(stringFormat(vm, "Invalid import name in module data."));
+      }
 
       // Regular import bytecode is followed by STORE_GLOBAL for the imported symbol.
       // For handled imports (true), we bind from that target global slot.
@@ -1548,7 +1557,7 @@ L_vm_main_loop:
       if (IS_BOOL(_imported) && AS_BOOL(_imported) == true) {
         if (!has_target_global && (Opcode) (*ip) != OP_STORE_GLOBAL_NAME) {
           RUNTIME_ERROR(stringFormat(vm,
-                                     "Invalid import bytecode state for '@': "
+                                     "Invalid import instruction state for '@': "
                                      "missing STORE_GLOBAL target.",
                                      name));
         }
@@ -1559,7 +1568,9 @@ L_vm_main_loop:
         } else if ((Opcode) (*ip) == OP_STORE_GLOBAL_NAME) {
           uint16_t name_index = (uint16_t) ((ip[1] << 8) | ip[2]);
           String* gname = moduleGetStringAt(module, (int) name_index);
-          ASSERT(gname != NULL, OOPS);
+          if (gname == NULL) {
+            RUNTIME_ERROR(stringFormat(vm, "Invalid import target name in module data."));
+          }
 
           int g_index = moduleGetGlobalIndex(module, gname->data, gname->length);
           if (g_index == -1) {
