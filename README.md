@@ -1,16 +1,16 @@
 [![build](https://github.com/mahdiware/saynaa-lang/actions/workflows/build.yml/badge.svg)](https://github.com/mahdiware/saynaa-lang/actions/workflows/build.yml)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/mahdiware)
-[![Telegram](https://img.shields.io/badge/-telegram-red?color=white&logo=telegram&logoColor=black)](https://telegram.me/SaynaaOfficial)
+[![Telegram](https://img.shields.io/badge/-telegram-red?color=white&logo=telegram&logoColor=black)](https://telegram.me/mahdiware)
 [![License](https://img.shields.io/packagist/l/longman/telegram-bot.svg)](https://github.com/mahdiware/saynaa-lang/blob/main/LICENSE)
 
 
 <p align="center"> <img src="docs/assets/icon.png" alt="Saynaa-Language" title="Saynaa Programming Language" align="center"> </p>
 
 # What is Saynaa?
-**Saynaa** is a interpreted object-oriented, powerful, lightweight, embeddable scripting language written in C,
-Its Simple Syntax, and standalone executable with zero external dependencies.
+**Saynaa** is an interpreted, object-oriented, lightweight, embeddable scripting language written in C.
+It has a simple syntax and ships as a standalone executable with zero external dependencies.
 
-## What saynaa code looks like
+## What Saynaa code looks like
 
 ```ruby
 class Vector
@@ -43,7 +43,7 @@ end
 
 ## Features of Saynaa
 - Simple Syntax
-- No setup. Single binary and your're good to go.
+- No setup. Single binary and you're good to go.
 - REPL
 - Object oriented
 - Dynamic typing
@@ -57,6 +57,28 @@ end
 - Highly optimized loops
 - Tail call optimization
 - **optional semicolons**
+
+## Quickstart
+```bash
+make
+./saynaa --help
+./saynaa
+./saynaa examples/helloworld.sa
+```
+
+## Documentation
+- Language docs: [docs/README.md](docs/README.md)
+- Syntax reference: [docs/syntax.md](docs/syntax.md)
+- Standard library: [docs/lang.md](docs/lang.md)
+
+## Optional modules
+Saynaa ships with optional modules that can be enabled at build time. These include:
+- `io`, `json`, `math`, `os`, `path`, `re`, `term`, `time`
+
+## Testing
+```bash
+python3 util/test.py
+```
 
 ## Special thanks
 Saynaa was supported by a couple of open-source projects.

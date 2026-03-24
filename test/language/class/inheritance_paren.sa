@@ -1,0 +1,23 @@
+# expect: Parenthesis inheritance tests passed
+
+class Animal
+  function speak()
+    return "Animal sound"
+  end
+end
+
+class Dog(Animal)
+  function speak()
+    return "Bark"
+  end
+end
+
+a = Animal()
+d = Dog()
+
+assert(a.speak() == "Animal sound")
+assert(d.speak() == "Bark")
+assert(d is Dog)
+assert(d is Animal)
+
+print("Parenthesis inheritance tests passed")

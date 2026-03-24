@@ -1,0 +1,74 @@
+# expect: Operator overload tests passed
+
+class Box
+	function _init(v)
+		this.v = v
+	end
+
+	function _str()
+		return "Box(${this.v})"
+	end
+
+	function +(other)
+		return Box(this.v + other.v)
+	end
+
+	function -(other)
+		return Box(this.v - other.v)
+	end
+
+	function *(other)
+		return Box(this.v * other.v)
+	end
+
+	function /(other)
+		return Box(this.v / other.v)
+	end
+
+	function ==(other)
+		return this.v == other.v
+	end
+
+	function >(other)
+		return this.v > other.v
+	end
+
+	function <(other)
+		return this.v < other.v
+	end
+
+	function [](idx)
+		return this.v + idx
+	end
+
+	function []=(idx, value)
+		this.v = value + idx
+	end
+end
+
+a = Box(10)
+b = Box(5)
+
+c = a + b
+assert(c.v == 15)
+
+d = a - b
+assert(d.v == 5)
+
+e = a * b
+assert(e.v == 50)
+
+f = a / b
+assert(f.v == 2)
+
+assert(a > b)
+assert(b < a)
+assert(a == Box(10))
+
+assert(a[2] == 12)
+a[3] = 7
+assert(a.v == 10)
+
+assert(str(a) == "Box(10)")
+
+print("Operator overload tests passed")

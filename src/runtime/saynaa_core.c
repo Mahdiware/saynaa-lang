@@ -377,6 +377,71 @@ static inline bool _callBinaryOpMethod(VM* vm, Var thiz, Var other,
   return true;
 }
 
+// Delete an attribute from an object. If [skipDelattr] is true, _delattr is skipped.
+static void varDelAttrib(VM* vm, Var on, String* attrib, bool skipDelattr) {
+#define ERR_NO_ATTRIB(vm, on, attrib) \
+  VM_SET_ERROR(vm, stringFormat(vm, "'$' object has no attribute named '$'", \
+                                varTypeName(on), attrib->data))
+
+  if (!IS_OBJ(on)) {
+    ERR_NO_ATTRIB(vm, on, attrib);
+    return;
+  }
+
+  Object* obj = AS_OBJ(on);
+  switch (obj->type) {
+    case OBJ_MODULE:
+      if (!moduleDeleteGlobal(vm, (Module*) obj, attrib->data, attrib->length)) {
+        ERR_NO_ATTRIB(vm, on, attrib);
+      }
+      return;
+
+    case OBJ_CLASS:
+      {
+        Class* cls = (Class*) obj;
+        Var removed = mapRemoveKey(vm, cls->static_attribs, VAR_OBJ(attrib));
+        if (IS_UNDEF(removed))
+          ERR_NO_ATTRIB(vm, on, attrib);
+      }
+      return;
+
+    case OBJ_MAP:
+      {
+        Map* map = (Map*) obj;
+        Var removed = mapRemoveKey(vm, map, VAR_OBJ(attrib));
+        if (IS_UNDEF(removed))
+          ERR_NO_ATTRIB(vm, on, attrib);
+      }
+      return;
+
+    case OBJ_INST:
+      {
+        Instance* inst = (Instance*) obj;
+
+        if (!skipDelattr) {
+          Closure* delattr = getMagicMethod(inst->cls, METHOD_DELATTR);
+          if (delattr != NULL) {
+            Var arg = VAR_OBJ(attrib);
+            vmCallMethod(vm, on, delattr, 1, &arg, NULL);
+            return;
+          }
+        }
+
+        Var removed = mapRemoveKey(vm, inst->attribs, VAR_OBJ(attrib));
+        if (IS_UNDEF(removed))
+          ERR_NO_ATTRIB(vm, on, attrib);
+      }
+      return;
+
+    default:
+      break;
+  }
+
+  ERR_NO_ATTRIB(vm, on, attrib);
+
+#undef ERR_NO_ATTRIB
+}
+
 /*****************************************************************************/
 /* REFLECTION AND HELPER FUNCTIONS                                           */
 /*****************************************************************************/
@@ -886,22 +951,33 @@ saynaa_function(coreDefine, "define(variable:String, value:Var) -> Null",
   RET(VAR_NULL);
 }
 
-saynaa_function(coreDelete, "delete(variable:String) -> Null",
+saynaa_function(coreDelete, "delete(variable:String|instance:Var) -> Null",
                 ""
-                "Delete a global variable with the name [variable] from the "
-                "current module.") {
-  String* variable;
-  if (!validateArgString(vm, 1, &variable))
-    return;
+                "If [variable] is a String, delete the global variable with that name. "
+                "If it's an instance, call _del() when defined.") {
+  Var target = ARG(1);
+  if (IS_OBJ_TYPE(target, OBJ_STRING)) {
+    String* variable = (String*) AS_OBJ(target);
 
-  CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
-  Module* current_module = frame->closure->fn->owner;
+    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    Module* current_module = frame->closure->fn->owner;
 
-  if (!moduleDeleteGlobal(vm, current_module, variable->data, variable->length)) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Name '@' is not defined.", variable));
+    if (!moduleDeleteGlobal(vm, current_module, variable->data, variable->length)) {
+      VM_SET_ERROR(vm, stringFormat(vm, "Name '@' is not defined.", variable));
+    }
+    RET(VAR_NULL);
   }
 
-  RET(VAR_NULL);
+  if (IS_OBJ_TYPE(target, OBJ_INST)) {
+    Instance* inst = (Instance*) AS_OBJ(target);
+    Closure* del = getMagicMethod(inst->cls, METHOD_DEL);
+    if (del != NULL) {
+      vmCallMethod(vm, target, del, 0, NULL, NULL);
+    }
+    RET(VAR_NULL);
+  }
+
+  RET_ERR(newString(vm, "delete() expects a String or an instance."));
 }
 
 saynaa_function(
@@ -1385,6 +1461,38 @@ saynaa_function(_objSetattr, "Object.setattr(name:String, value:Var[, skipSetter
 
   bool skipSetter = (ARGC >= 3 ? toBool(ARG(3)) : false);
   varSetAttrib(vm, THIS, name, ARG(2), skipSetter);
+}
+
+saynaa_function(_objNew, "Object._new([cls:Class]) -> Var",
+                "Allocate an instance of [cls] (or this class) without calling _new/_init.") {
+  Class* cls = NULL;
+  if (!CheckArgcRange(vm, ARGC, 0, 1))
+    return;
+
+  if (ARGC == 1) {
+    if (!validateArgClass(vm, 1, &cls))
+      return;
+  } else {
+    if (!IS_OBJ_TYPE(THIS, OBJ_CLASS)) {
+      RET_ERR(newString(vm, "_new requires a Class context."));
+    }
+    cls = (Class*) AS_OBJ(THIS);
+  }
+
+  RET(preConstructThis(vm, cls));
+}
+
+saynaa_function(_objDelattr, "Object.delattr(name:String[, skipDelattr: bool]) -> Null",
+                "Deletes the named attribute of an object.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
+
+  String* name;
+  if (!validateArgString(vm, 1, &name))
+    return;
+
+  bool skipDelattr = (ARGC >= 2 ? toBool(ARG(2)) : false);
+  varDelAttrib(vm, THIS, name, skipDelattr);
 }
 
 saynaa_function(
@@ -1982,9 +2090,11 @@ static void initializePrimitiveClasses(VM* vm) {
   // TODO: write docs.
   ADD_METHOD(vOBJECT, "typename", _objTypeName, 0);
   ADD_METHOD(vOBJECT, "_repr", _objRepr, 0);
+  ADD_METHOD(vOBJECT, "_new", _objNew, -1);
 
   ADD_METHOD(vOBJECT, "getattr", _objGetattr, -1);
   ADD_METHOD(vOBJECT, "setattr", _objSetattr, -1);
+  ADD_METHOD(vOBJECT, "delattr", _objDelattr, -1);
 
   ADD_METHOD(vNUMBER, "times", _numberTimes, 1);
   ADD_METHOD(vNUMBER, "isint", _numberIsint, 0);
@@ -2078,14 +2188,26 @@ void bindMethod(VM* vm, Class* cls, Closure* method) {
   // TODO: check hash instead of using strcmp?
   if (strcmp(method->fn->name, LITS__init) == 0) {
     cls->magic_methods[METHOD_INIT] = method;
+  } else if (strcmp(method->fn->name, LITS__new) == 0) {
+    cls->magic_methods[METHOD_NEW] = method;
+  } else if (strcmp(method->fn->name, LITS__del) == 0) {
+    cls->magic_methods[METHOD_DEL] = method;
   } else if (strcmp(method->fn->name, LITS__str) == 0) {
     cls->magic_methods[METHOD_STR] = method;
   } else if (strcmp(method->fn->name, LITS__repr) == 0) {
     cls->magic_methods[METHOD_REPR] = method;
+  } else if (strcmp(method->fn->name, LITS__getattribute) == 0) {
+    cls->magic_methods[METHOD_GETATTRIBUTE] = method;
+  } else if (strcmp(method->fn->name, LITS__getattr) == 0) {
+    cls->magic_methods[METHOD_GETATTR] = method;
   } else if (strcmp(method->fn->name, LITS__getter) == 0) {
     cls->magic_methods[METHOD_GETTER] = method;
+  } else if (strcmp(method->fn->name, LITS__setattr) == 0) {
+    cls->magic_methods[METHOD_SETATTR] = method;
   } else if (strcmp(method->fn->name, LITS__setter) == 0) {
     cls->magic_methods[METHOD_SETTER] = method;
+  } else if (strcmp(method->fn->name, LITS__delattr) == 0) {
+    cls->magic_methods[METHOD_DELATTR] = method;
   } else if (strcmp(method->fn->name, LITS__call) == 0) {
     cls->magic_methods[METHOD_CALL] = method;
   }
@@ -2629,6 +2751,17 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
     return VAR_NULL;
   }
 
+  if (IS_OBJ_TYPE(on, OBJ_INST) && !skipGetter) {
+    Instance* inst = (Instance*) AS_OBJ(on);
+    Closure* getattribute = getMagicMethod(inst->cls, METHOD_GETATTRIBUTE);
+    if (getattribute != NULL) {
+      Var attrib_name = VAR_OBJ(attrib);
+      Var value = VAR_NULL;
+      vmCallMethod(vm, on, getattribute, 1, &attrib_name, &value);
+      return value;
+    }
+  }
+
   Object* obj = AS_OBJ(on);
   switch (obj->type) {
     case OBJ_STRING:
@@ -2718,6 +2851,14 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
     case OBJ_MODULE:
       {
         Module* module = (Module*) obj;
+
+        // Prefer module methods over globals.
+        Closure* method = NULL;
+        if (hasMethod(vm, on, attrib, &method)) {
+          MethodBind* mb = newMethodBind(vm, method);
+          mb->instance = on;
+          return VAR_OBJ(mb);
+        }
 
         // Search in globals.
         int index = moduleGetGlobalIndex(module, attrib->data, attrib->length);
@@ -2858,6 +2999,14 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
 
   if (IS_OBJ_TYPE(on, OBJ_INST) && !skipGetter) {
     Instance* inst = (Instance*) AS_OBJ(on);
+    Closure* getattr = getMagicMethod(inst->cls, METHOD_GETATTR);
+    if (getattr != NULL) {
+      Var attrib_name = VAR_OBJ(attrib);
+      Var value = VAR_NULL;
+      vmCallMethod(vm, on, getattr, 1, &attrib_name, &value);
+      return value;
+    }
+
     Closure* getter = getMagicMethod(inst->cls, METHOD_GETTER);
     if (getter != NULL) {
       Var attrib_name = VAR_OBJ(attrib);
@@ -2916,6 +3065,13 @@ void varSetAttrib(VM* vm, Var on, String* attrib, Var value, bool skipSetter) {
         Instance* inst = (Instance*) obj;
 
         if (!skipSetter) {
+          Closure* setattr = getMagicMethod(inst->cls, METHOD_SETATTR);
+          if (setattr != NULL) {
+            Var args[2] = {VAR_OBJ(attrib), value};
+            vmCallMethod(vm, VAR_OBJ(inst), setattr, 2, args, NULL);
+            return; // If any error occure, it was already set.
+          }
+
           Closure* setter = getMagicMethod(inst->cls, METHOD_SETTER);
           if (setter != NULL) {
             // FIXME: Optimize argument passing to `_setter`.

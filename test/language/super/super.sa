@@ -15,7 +15,7 @@ class A
   end
 end
 
-class B is A
+class B(A)
   function _init()
     super()
     print("B init")
