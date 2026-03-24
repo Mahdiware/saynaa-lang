@@ -1545,7 +1545,9 @@ int moduleGetGlobalIndex(Module* module, const char* name, uint32_t length) {
   for (uint32_t i = 0; i < module->global_names.count; i++) {
     uint32_t name_index = module->global_names.data[i];
     String* g_name = moduleGetStringAt(module, name_index);
-    ASSERT(g_name != NULL, OOPS);
+    if (g_name == NULL) {
+      continue;
+    }
     if (g_name->length == length && strncmp(g_name->data, name, length) == 0) {
       return (int) i;
     }
