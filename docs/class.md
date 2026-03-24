@@ -65,14 +65,14 @@ end
 ```
 
 All classes are ultimately inherit an abstract class named `Object` to inherit from any other class
-use `is` keyword at the class definition. However you cannot inherit from the builtin class like
+use a parent class in parentheses at the class definition. However you cannot inherit from the builtin class like
 Number, Boolean, Null, String, List, ...
 
 ```ruby
 class Shape # Implicitly inherit Object class
 end
 
-class Circle is Shape # Inherits the Shape class
+class Circle(Shape) # Inherits the Shape class
 end
 ```
 
@@ -85,7 +85,7 @@ class Shape
   end
 end
 
-class Circle is Shape
+class Circle(Shape)
   function _init(r)
     this.r = r
   end
@@ -99,7 +99,7 @@ To call the a method on the super class use `super` keyword. If the method name 
 method `super()` will do otherwise method name should be specified `super.method_name()`.
 
 ```ruby
-class Rectangle is Shape
+class Rectangle(Shape)
   function _init(w, h)
     this.w = w; this.h = h
   end
@@ -109,7 +109,7 @@ class Rectangle is Shape
   end
 end
 
-class Square is Rectangle
+class Square(Rectangle)
   function _init(s)
     super(s, s) ## Calls super._init(s, s)
   end
@@ -129,6 +129,31 @@ Saynaa supports several magic methods that allow you to customize the behavior o
 
 ### `_init(...)`
 The constructor method. Called when a new instance is created.
+### `_new(...)`
+Called before `_init(...)` when a class is invoked. If it returns `null` or
+`undefined`, the default allocation path is used and `_init(...)` is called.
+If it returns a non-instance value, `_init(...)` is skipped and the returned
+value becomes the result of the call.
+
+```ruby
+class Foo
+  function _new(x)
+    inst = Foo() # or allocate using other logic
+    return inst
+  end
+end
+```
+
+### `_del()`
+Called by `delete(obj)` if defined on the instance.
+
+```ruby
+class Foo
+  function _del()
+    print("cleanup")
+  end
+end
+```
 
 ```ruby
 class Foo
@@ -184,6 +209,49 @@ print(d.foo) # Output: bar
 
 ### `_setter(name, value)`
 Called when an attribute assignment occurs.
+### `_getattribute(name)`
+Called for **every** attribute access. It overrides normal lookup.
+
+```ruby
+class Dynamic
+  function _getattribute(name)
+    return "attr: $name"
+  end
+end
+```
+
+### `_getattr(name)`
+Called only when an attribute lookup fails (after normal lookup).
+
+```ruby
+class Dynamic
+  function _getattr(name)
+    return "missing: $name"
+  end
+end
+```
+
+### `_setattr(name, value)`
+Called on every attribute assignment. Use `this.setattr(name, value, true)` to bypass.
+
+```ruby
+class Dynamic
+  function _setattr(name, value)
+    this.setattr(name, value, true)
+  end
+end
+```
+
+### `_delattr(name)`
+Called on attribute deletion. Use `this.delattr(name, true)` to perform the actual removal.
+
+```ruby
+class Dynamic
+  function _delattr(name)
+    this.delattr(name, true)
+  end
+end
+```
 
 ```ruby
 class Checked

@@ -217,6 +217,7 @@ typedef enum {
 typedef enum {
   FUNC_MAIN, // The body function of the script.
   FUNC_TOPLEVEL,
+  FUNC_NAMED, // Named function declared in a statement.
   FUNC_LITERAL,
   FUNC_METHOD,
   FUNC_CONSTRUCTOR,
@@ -1998,9 +1999,10 @@ static void exprName(Compiler* compiler) {
 
       if (result.type == NAME_NOT_DEFINED || result.type == NAME_BUILTIN_FN
           || result.type == NAME_BUILTIN_TY) {
-        // In module scope, assignments always create/update globals even
-        // inside nested blocks. Locals are only implicit inside functions.
-        if (compiler->func->type == FUNC_MAIN) {
+        // In module scope, only top-level assignments create globals.
+        // Nested blocks create locals to keep block scope.
+        if (compiler->func->type == FUNC_MAIN
+            && compiler->scope_depth == DEPTH_GLOBAL) {
           name_type = NAME_GLOBAL_VAR;
           index = compilerAddGlobalName(compiler, start, length);
         } else {
@@ -2797,6 +2799,7 @@ typedef enum {
 
 static void compileStatement(Compiler* compiler);
 static void compileBlockBody(Compiler* compiler, BlockType type);
+static void compileNamedFunctionStatement(Compiler* compiler);
 
 // Compile a class and return it's index in the module's types buffer.
 static int compileClass(Compiler* compiler) {
@@ -2818,12 +2821,26 @@ static int compileClass(Compiler* compiler) {
 
   checkMaxConstantsReached(compiler, cls_index);
 
-  if (match(compiler, TK_IS)) {
-    consume(compiler, TK_NAME, "Expected a class name to inherit.");
+  bool has_parent = false;
+  if (match(compiler, TK_LPARAN)) {
+    skipNewLines(compiler);
+    consume(compiler, TK_NAME, "Expected a parent class name.");
     if (!compiler->parser.has_syntax_error) {
       exprName(compiler); // Push the super class on the stack.
+      has_parent = true;
     }
-  } else {
+    skipNewLines(compiler);
+    consume(compiler, TK_RPARAN, "Expected ')' after parent class name.");
+
+  } else if (match(compiler, TK_IS)) {
+    consume(compiler, TK_NAME, "Expected a parent class name.");
+    if (!compiler->parser.has_syntax_error) {
+      exprName(compiler); // Push the super class on the stack.
+      has_parent = true;
+    }
+  }
+
+  if (!has_parent) {
     // Implicitly inherit from 'Object' class.
     emitPushValue(compiler, NAME_BUILTIN_TY, (int) vOBJECT);
   }
@@ -3535,7 +3552,11 @@ static void compileStatement(Compiler* compiler) {
   // print it's value when running in REPL mode.
   bool is_expression = false;
 
-  if (match(compiler, TK_BREAK)) {
+  if (peek(compiler) == TK_FUNCTION && compiler->parser.next.type == TK_NAME) {
+    lexToken(compiler); // Consume TK_FUNCTION.
+    compileNamedFunctionStatement(compiler);
+
+  } else if (match(compiler, TK_BREAK)) {
     if (compiler->loop == NULL) {
       error(compiler, "Cannot use 'break' outside a loop.");
       return;
@@ -3632,6 +3653,55 @@ static void compileStatement(Compiler* compiler) {
 
   if (is_temporary)
     emitOpcode(compiler, OP_POP);
+}
+
+static void compileNamedFunctionStatement(Compiler* compiler) {
+  if (peek(compiler) != TK_NAME) {
+    error(compiler, "Expected a function name.");
+    return;
+  }
+
+  Token name_token = compiler->parser.current;
+
+  compileFunction(compiler, FUNC_NAMED);
+  if (compiler->parser.has_syntax_error)
+    return;
+
+  NameSearchResult result = compilerSearchName(compiler, name_token.start,
+                                               (uint32_t) name_token.length);
+
+  NameDefnType name_type = result.type;
+  int index = result.index;
+  bool new_local = false;
+
+  if (result.type == NAME_NOT_DEFINED || result.type == NAME_BUILTIN_FN
+      || result.type == NAME_BUILTIN_TY) {
+    // In module scope, only top-level definitions are globals.
+    if (compiler->func->type == FUNC_MAIN && compiler->scope_depth == DEPTH_GLOBAL) {
+      name_type = NAME_GLOBAL_VAR;
+      index = compilerAddGlobalName(compiler, name_token.start,
+                                    (uint32_t) name_token.length);
+    } else {
+      name_type = NAME_LOCAL_VAR;
+      index = compilerAddVariable(compiler, name_token.start,
+                                  (uint32_t) name_token.length,
+                                  name_token.line);
+      new_local = true;
+
+      if (!compiler->can_define) {
+        semanticError(compiler, name_token, "Variable definition isn't allowed here.");
+      }
+    }
+  }
+
+  if (new_local) {
+    ASSERT(compiler->parser.has_errors
+           || (compiler->func->stack_size - 1) == index, OOPS);
+    return;
+  }
+
+  emitStoreValue(compiler, name_type, index);
+  emitOpcode(compiler, OP_POP);
 }
 
 // Compile statements that are only valid at the top level of the module. Such

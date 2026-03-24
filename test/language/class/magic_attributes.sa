@@ -1,0 +1,126 @@
+# expect: __new__ called
+# expect: __init__ called
+# expect: Magic attribute tests passed
+
+class AllGetAttr
+	function _getattribute(name)
+		if name == "x"
+			return 1
+		end
+		return "attr: $name"
+	end
+end
+
+class AttrHooks
+	function _getattr(name)
+		return "missing: $name"
+	end
+
+	function _setattr(name, value)
+		this.setattr(name, value, true)
+	end
+
+	function _delattr(name)
+		this.delattr(name, true)
+	end
+end
+
+class WithDel
+	function _init()
+		this.deleted = false
+	end
+
+	function _del()
+		this.deleted = true
+	end
+end
+
+class Factory
+	function _new(value)
+		return [value, "from_new"]
+	end
+
+	function _init(value)
+		# Should not run when _new returns non-instance
+		this.value = value
+	end
+end
+
+class Parent
+	function _init()
+		Parent.called = true
+	end
+
+	function greet()
+		Parent.greeted = true
+		return "parent"
+	end
+end
+
+class NewInit(Parent)
+	function _new()
+		print("__new__ called")
+		NewInit.new_called = true
+		return super._new(this)
+	end
+
+	function _init()
+		print("__init__ called")
+		NewInit.init_called = true
+	end
+end
+
+class Child(Parent)
+	function _init()
+		super()
+		Child.called = true
+	end
+
+	function greet()
+		Child.greeted = true
+		return super.greet()
+	end
+end
+
+a = AllGetAttr()
+assert(a.x == 1)
+assert(a.any == "attr: any")
+
+b = AttrHooks()
+b.y = 42
+assert(b.y == 42)
+assert(b.z == "missing: z")
+
+b.delattr("y")
+res = pcall(function()
+	return b.getattr("y", true)
+end)
+assert(res[0] == false)
+
+w = WithDel()
+delete(w)
+assert(w.deleted == true)
+
+f = Factory(9)
+assert(f is List)
+assert(f[0] == 9)
+assert(f[1] == "from_new")
+
+NewInit.new_called = false
+NewInit.init_called = false
+a = NewInit()
+assert(NewInit.new_called == true)
+assert(NewInit.init_called == true)
+
+Parent.called = false
+Child.called = false
+Parent.greeted = false
+Child.greeted = false
+c = Child()
+assert(Parent.called == true)
+assert(Child.called == true)
+assert(c.greet() == "parent")
+assert(Parent.greeted == true)
+assert(Child.greeted == true)
+
+print("Magic attribute tests passed")

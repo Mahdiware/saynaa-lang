@@ -1,0 +1,82 @@
+import debug
+# expect: Debug module tests passed
+
+function test_locals()
+  a = 10
+  b = 20
+
+  vals = debug.locals(0)
+  assert(vals.length >= 2)
+  assert(vals[0] == 10)
+  assert(vals[1] == 20)
+
+  assert(debug.getlocal(0, 1) == 10)
+  assert(debug.getlocal(0, 2) == 20)
+end
+
+function test_nested_blocks()
+  x = 1
+  if true
+    y = 2
+    if true
+      z = 3
+      vals = debug.locals(0)
+      assert(vals.length >= 3)
+      assert(vals[0] == 1)
+      assert(vals[1] == 2)
+      assert(vals[2] == 3)
+    end
+  end
+end
+
+function callee()
+  c = 30
+  d = 40
+  assert(debug.getlocal(0, 1) == 30)
+  assert(debug.getlocal(0, 2) == 40)
+  return debug.locals(0)
+end
+
+function caller()
+  a = 10
+  b = 20
+  vals = callee()
+  assert(vals.length >= 2)
+  assert(vals[0] == 30)
+  assert(vals[1] == 40)
+  assert(debug.getlocal(0, 1) == 10)
+  assert(debug.getlocal(0, 2) == 20)
+end
+
+function grand_callee()
+  e = 50
+  f = 60
+  assert(debug.getlocal(0, 1) == 50)
+  assert(debug.getlocal(0, 2) == 60)
+  assert(debug.getlocal(1, 1) == 30)
+  assert(debug.getlocal(1, 2) == 40)
+  assert(debug.getlocal(2, 1) == 10)
+  assert(debug.getlocal(2, 2) == 20)
+end
+
+function mid()
+  c = 30
+  d = 40
+  grand_callee()
+end
+
+function multi_caller()
+  a = 10
+  b = 20
+  mid()
+end
+
+test_locals()
+test_nested_blocks()
+caller()
+multi_caller()
+
+res = pcall(debug.getlocal, 0, 999)
+assert(res[0] == false)
+
+print("Debug module tests passed")

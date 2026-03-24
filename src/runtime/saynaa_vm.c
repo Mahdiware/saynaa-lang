@@ -1661,30 +1661,71 @@ L_vm_main_loop:
       } else if (IS_OBJ_TYPE(callable, OBJ_CLASS)) {
         Class* cls = (Class*) AS_OBJ(callable);
 
-        // Allocate / create a new this before calling constructor on it.
-        fiber->thiz = preConstructThis(vm, cls);
-        CHECK_ERROR();
-
-        // Note:
-        // For instance the constructor will update this and return
-        // the instance (which might not be necessary since we're
-        // setting it here).
-        *fiber->ret = fiber->thiz;
-
-        closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
-
-        // No constructor is defined on the class. Just return thiz.
-        if (closure == NULL) {
-          if (argc != 0) {
-            String* msg = stringFormat(vm,
-                                       "Expected exactly 0 argument(s) "
-                                       "for constructor $.",
-                                       cls->name->data);
-            RUNTIME_ERROR(msg);
+        Closure* new_method = getMagicMethod(cls, METHOD_NEW);
+        if (new_method != NULL) {
+          Var new_instance = VAR_NULL;
+          Result new_result = vmCallMethod(vm, VAR_OBJ(cls), new_method, argc,
+                                           fiber->ret + 1, &new_instance);
+          if (new_result != RESULT_SUCCESS) {
+            CHECK_ERROR();
           }
 
-          fiber->thiz = VAR_UNDEFINED;
-          DISPATCH();
+          if (IS_NULL(new_instance) || IS_UNDEF(new_instance)) {
+            // Fall back to default allocation and call _init.
+            fiber->thiz = preConstructThis(vm, cls);
+            CHECK_ERROR();
+            *fiber->ret = fiber->thiz;
+            closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
+            if (closure == NULL) {
+              if (argc != 0) {
+                String* msg = stringFormat(vm,
+                                           "Expected exactly 0 argument(s) "
+                                           "for constructor $.",
+                                           cls->name->data);
+                RUNTIME_ERROR(msg);
+              }
+              fiber->thiz = VAR_UNDEFINED;
+              DISPATCH();
+            }
+
+          } else {
+            *fiber->ret = new_instance;
+            fiber->thiz = new_instance;
+
+            closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
+            if (closure == NULL || !IS_OBJ_TYPE(new_instance, OBJ_INST)) {
+              fiber->sp = fiber->ret + 1; // Pop args, leave return value.
+              fiber->thiz = VAR_UNDEFINED;
+              DISPATCH();
+            }
+          }
+
+        } else {
+          // Allocate / create a new this before calling constructor on it.
+          fiber->thiz = preConstructThis(vm, cls);
+          CHECK_ERROR();
+
+          // Note:
+          // For instance the constructor will update this and return
+          // the instance (which might not be necessary since we're
+          // setting it here).
+          *fiber->ret = fiber->thiz;
+
+          closure = (const Closure*) getMagicMethod(cls, METHOD_INIT);
+
+          // No constructor is defined on the class. Just return thiz.
+          if (closure == NULL) {
+            if (argc != 0) {
+              String* msg = stringFormat(vm,
+                                         "Expected exactly 0 argument(s) "
+                                         "for constructor $.",
+                                         cls->name->data);
+              RUNTIME_ERROR(msg);
+            }
+
+            fiber->thiz = VAR_UNDEFINED;
+            DISPATCH();
+          }
         }
 
       } else {

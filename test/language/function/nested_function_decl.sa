@@ -1,0 +1,14 @@
+# expect: Nested function declaration tests passed
+
+function funt1(arg1)
+  function funt2(arg2)
+    return "args: $arg1, $arg2"
+  end
+
+  return funt2("hello")
+end
+
+res = funt1("world")
+assert(res == "args: world, hello")
+
+print("Nested function declaration tests passed")
