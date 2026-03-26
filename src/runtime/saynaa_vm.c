@@ -573,22 +573,25 @@ static Module* _importScript(VM* vm, String* resolved, String* name) {
     bool is_bytecode = false;
     bool header_seen = false;
     SaynaaBytecodeHeader header;
-    SaynaaBytecodeStatus status = saynaa_bytecode_decode_header(
+    Result status = saynaa_bytecode_decode_header(
         (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
-    if (status == SAYNAA_BC_OK) {
+    if (status == RESULT_SUCCESS) {
       status = saynaa_bytecode_validate_header(&header, 0);
-      if (status == SAYNAA_BC_INVALID_MAGIC) {
+      if (status == RESULT_BYTECODE_INVALID_MAGIC) {
         header_seen = false;
-      } else if (status == SAYNAA_BC_OK) {
+      } else if (status == RESULT_SUCCESS) {
         header_seen = true;
         const uint8_t* payload = (const uint8_t*) source
                                  + SAYNAA_BYTECODE_HEADER_SIZE;
         status = saynaa_bytecode_validate_checksum(&header, payload,
                                                    header.bytecode_size);
-        if (status == SAYNAA_BC_OK) {
-          status = saynaa_bytecode_deserialize_module(vm, module, payload,
-                                                      header.bytecode_size);
-          if (status == SAYNAA_BC_OK) {
+        if (status == RESULT_SUCCESS) {
+          status = saynaa_bytecode_validate_payload(payload, header.bytecode_size);
+          if (status == RESULT_SUCCESS) {
+            status = saynaa_bytecode_deserialize_module(vm, module, payload,
+                                                        header.bytecode_size);
+          }
+          if (status == RESULT_SUCCESS) {
             is_bytecode = true;
           }
         }
@@ -1217,6 +1220,21 @@ L_vm_main_loop:
 
       DROP(); // value
       DROP(); // key
+
+      DISPATCH();
+    }
+
+    OPCODE(MAP_APPEND) : {
+      Var value = PEEK(-1); // Don't pop yet, we need the reference for gc.
+      Var on = PEEK(-2);
+
+      ASSERT(IS_OBJ_TYPE(on, OBJ_MAP), OOPS);
+
+      Map* map = (Map*) AS_OBJ(on);
+      Var key = VAR_NUM((double) map->next_index);
+      mapSet(vm, map, key, value);
+
+      DROP(); // value
 
       DISPATCH();
     }

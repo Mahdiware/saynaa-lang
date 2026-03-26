@@ -8,6 +8,20 @@ Maps are key-value pairs (dictionaries). Keys must be hashable.
 m = {"name": "Alice", "age": 30}
 ```
 
+You can also create a map with value-only entries. Keys are auto-assigned
+starting at 0 and increasing by 1 for each value.
+
+```ruby
+m = {10, 20, 30}
+# => {0: 10, 1: 20, 2: 30}
+```
+
+If you mix explicit numeric keys, the next auto key continues after the
+highest numeric key seen so far.
+
+Maps preserve insertion order for printing, iteration, and the `keys`/`values`
+properties.
+
 ## Properties
 
 ### length

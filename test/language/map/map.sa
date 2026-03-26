@@ -48,3 +48,24 @@ for k in m5 do
   count += 1
 end
 assert(count == 2)
+
+# Validating map insertion order
+m6 = {a: 1, 1: "one", b: 2, c: 3}
+keys = []
+for k in m6 do
+  keys.append(k)
+end
+assert(keys == ["a", 1, "b", "c"])
+assert(m6.keys == ["a", 1, "b", "c"])
+assert(m6.values == [1, "one", 2, 3])
+
+# Validating value-only map literal
+m7 = {10, 20, 30}
+assert(m7.keys == [0, 1, 2])
+assert(m7.values == [10, 20, 30])
+assert(m7[0] == 10)
+
+# Validating mixed value-only and explicit keys
+m8 = {10, 20, 2: 30, 40}
+assert(m8.keys == [0, 1, 2, 3])
+assert(m8.values == [10, 20, 30, 40])

@@ -1,0 +1,14 @@
+# expect: string methods ok
+
+assert("hello".sub(1, 4) == "ell")
+assert("hello".sub(-2) == "lo")
+assert("world".reverse() == "dlrow")
+assert("ha".rep(3) == "hahaha")
+assert("abc".byte(1) == 98)
+assert("name=%s age=%d".format("bob", 5) == "name=bob age=5")
+assert("hello".match("ll") == "ll")
+assert("hello".match("zz") == null)
+assert("a-b-a".gsub("a", "x") == "x-b-x")
+assert("a-b-a".gmatch("a").join(",") == "a,a")
+
+print("string methods ok")
