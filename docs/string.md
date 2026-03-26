@@ -115,3 +115,78 @@ Returns true if the string ends with the specified suffix.
 
 **Parameters:**
 - `suffix` (String): The suffix.
+
+### sub
+
+Returns the substring from `start` (inclusive) to `end` (exclusive).
+
+```ruby
+"hello".sub(1, 4) ## "ell"
+"hello".sub(-2) ## "lo"
+```
+
+**Parameters:**
+- `start` (Number): Start index (0-based). Negative values count from the end.
+- `end` (Number): Optional end index (exclusive). Negative values count from the end.
+
+### reverse
+
+Returns a copy of the string with bytes reversed.
+
+```ruby
+"abc".reverse() ## "cba"
+```
+
+### rep
+
+Returns a new string repeated `count` times.
+
+```ruby
+"ha".rep(3) ## "hahaha"
+```
+
+**Parameters:**
+- `count` (Number): Repeat count (>= 0).
+
+### byte
+
+Returns the byte value at `index`.
+
+```ruby
+"abc".byte(1) ## 98
+```
+
+**Parameters:**
+- `index` (Number): 0-based index. Negative values count from the end.
+
+### format
+
+Formats the string using printf-style specifiers.
+
+```ruby
+"name=%s age=%d".format("bob", 5)
+```
+
+### match
+
+Returns the first substring match of `sub` starting at `start`, or `null`.
+
+```ruby
+"hello".match("ll") ## "ll"
+```
+
+### gsub
+
+Replaces occurrences of `old` with `new`.
+
+```ruby
+"a-b-a".gsub("a", "x") ## "x-b-x"
+```
+
+### gmatch
+
+Returns a list of all substring matches of `sub`.
+
+```ruby
+"a-b-a".gmatch("a") ## ["a", "a"]
+```
