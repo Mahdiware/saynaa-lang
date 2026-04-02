@@ -1,15 +1,13 @@
+import io
 import path
 import compile
 
-c = compile.Compile("test/language/globals/compile_class_input.sa")
+code = io.readfile("test/language/globals/compile_class_input.sa")
 
+c = compile.Compile(code)
 c.run()
 
-out1 = c.save()
-assert(out1 == "test/language/globals/compile_class_input.sbc")
-assert(path.exists(out1))
-
 out2 = c.save("test/language/globals/compile_class_custom.sbc")
-assert(path.exists(out2))
+assert(path.exists("test/language/globals/compile_class_custom.sbc"))
 
 print("Compile class tests passed")
