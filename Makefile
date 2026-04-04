@@ -12,6 +12,7 @@ READLINE = enable
 
 CC        = gcc
 CCFLAGS   = -fPIC -MMD -MP
+REG_VM    ?= yes
 LDFLAGS   = -lm -ldl -lpcre2-8
 OBJ_DIR   = obj/
 
@@ -28,6 +29,10 @@ ifneq ($(MODE),RELEASE)
 	CFLAGS += $(CCFLAGS) -DDEBUG -g3 -Og
 else
 	CFLAGS += $(CCFLAGS) -g -O3
+endif
+
+ifeq ($(REG_VM),yes)
+	CFLAGS += -DSAYNAA_REG_VM
 endif
 
 # TODO: MacOS don't impelement shared library properly yet
