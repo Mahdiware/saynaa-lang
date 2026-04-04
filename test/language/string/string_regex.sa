@@ -1,0 +1,15 @@
+# expect: string regex ok
+
+import re
+
+groups = re.extract('^(-?[.0-9]+)%([wh])$', "12.5%w")
+assert(groups != null)
+assert(groups[0] == "12.5%w")
+assert(groups[1] == "12.5")
+assert(groups[2] == "w")
+assert(re.match('^(-?[.0-9]+)%([wh])$', "bad") == null)
+
+assert(re.sub("[0-9]", "x", "a1b2") == "axbx")
+assert(re.findall("[0-9]", "a1b2").join("") == "12")
+
+print("string regex ok")
