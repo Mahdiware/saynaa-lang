@@ -1,0 +1,22 @@
+# case_id="runtime.module_import"
+# phase="runtime"
+# description="Imported module function calls"
+# mode="run-source"
+# ops=400000
+
+import modules.m01
+import modules.m02
+import modules.m03
+import modules.m04
+import modules.m05
+
+acc = 0
+for i in 0..80000
+  acc += m01.inc(i)
+  acc += m02.inc(i)
+  acc += m03.inc(i)
+  acc += m04.inc(i)
+  acc += m05.inc(i)
+end
+
+assert(acc > 0)

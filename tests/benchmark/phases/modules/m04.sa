@@ -1,0 +1,5 @@
+value = 4
+
+function inc(v)
+  return v + value
+end

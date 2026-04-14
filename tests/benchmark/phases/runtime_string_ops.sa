@@ -1,0 +1,17 @@
+# case_id="runtime.string_ops"
+# phase="runtime"
+# description="String split/join/transform loop"
+# mode="run-source"
+# ops=70000
+
+base = "alpha,beta,gamma,delta,epsilon"
+total = 0
+
+for i in 0..70000
+  parts = base.split(",")
+  joined = parts.join("|")
+  clean = "  hello  ".strip().upper().lower()
+  total += joined.length + clean.length
+end
+
+assert(total > 0)

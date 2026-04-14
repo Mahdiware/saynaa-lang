@@ -1,0 +1,16 @@
+# case_id="runtime.function_call"
+# phase="runtime"
+# description="Tight function call loop"
+# mode="run-source"
+# ops=250000
+
+function add1(x)
+  return x + 1
+end
+
+acc = 0
+for i in 0..250000
+  acc = add1(acc)
+end
+
+assert(acc == 250000)

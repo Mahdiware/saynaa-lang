@@ -19,13 +19,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libpcre2-dev libreadline-dev
       - name: Run the Makefile.
-        run: make all
+        run: make MODE=RELEASE all
       - name: Run tests.
         run: python3 util/test.py
       - uses: actions/upload-artifact@v4
         with:
           name: saynaa-linux
           path: saynaa
+
+  linux-benchmark:
+    runs-on: ubuntu-latest
+    needs: linux-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PCRE2, readline-dev (Dependencies)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcre2-dev libreadline-dev
+      - name: Build release binary
+        run: make MODE=RELEASE all
+      - name: Run benchmark (CI profile)
+        run: |
+          python3 util/run.py \
+            --app ./saynaa \
+            --warmup 1 \
+            --iterations 3 \
+            --json-out tests/benchmark/results/ci-latest.json
+      - name: Regression gate (optional baseline)
+        run: |
+          BASELINE=tests/benchmark/baselines/linux-ci.json
+          if [ -f "$BASELINE" ]; then
+            python3 util/run.py \
+              --app ./saynaa \
+              --warmup 1 \
+              --iterations 3 \
+              --baseline "$BASELINE" \
+              --fail-on-regression-pct 15 \
+              --fail-on-missing-baseline \
+              --json-out tests/benchmark/results/ci-gated.json
+          else
+            echo "No baseline found at $BASELINE. Skipping regression gate."
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saynaa-benchmark-linux
+          path: |
+            tests/benchmark/results/ci-latest.json
+            tests/benchmark/results/ci-gated.json
+          if-no-files-found: warn
 
   windows-build:
     runs-on: windows-latest
@@ -79,7 +120,7 @@ jobs:
       - name: Install PCRE2
         run: brew install pcre2
       - name: Run the Makefile.
-        run: make all
+        run: make MODE=RELEASE all
       - name: Run tests.
         run: python3 util/test.py
       - uses: actions/upload-artifact@v4

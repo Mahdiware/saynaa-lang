@@ -1,0 +1,12 @@
+# case_id="runtime.loop"
+# phase="runtime"
+# description="Numeric loop accumulation"
+# mode="run-source"
+# ops=300000
+
+sum = 0
+for i in 0..300000
+  sum += i
+end
+
+assert(sum > 0)

@@ -1,0 +1,5 @@
+value = 3
+
+function inc(v)
+  return v + value
+end

@@ -7,7 +7,7 @@ NAME = saynaa
 
 ## MODE can be DEBUG or RELEASE
 ## READLINE can be enable or disable
-MODE 	 = DEBUG
+MODE 	 ?= DEBUG
 READLINE = enable
 
 CC        = gcc
@@ -53,7 +53,10 @@ ifeq ($(READLINE),enable)
 	LDFLAGS += -lreadline
 endif
 
-.PHONY: all clean
+.PHONY: all clean release perf benchmark benchmark-ci benchmark-compare
+
+BENCH_APP1 ?= ./$(NAME)
+BENCH_APP2 ?= /usr/local/bin/$(NAME)
 
 $(NAME): $(OBJS)
 	@mkdir -p $(dir $@)
@@ -70,6 +73,20 @@ $(OBJ_DIR)%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 all: $(NAME)
+
+release:
+	$(MAKE) MODE=RELEASE all
+
+perf: release
+
+benchmark: release
+	python3 util/run.py --app ./$(NAME)
+
+benchmark-ci: release
+	python3 util/run.py --app ./$(NAME) --warmup 1 --iterations 3 --json-out tests/benchmark/results/ci-latest.json
+
+benchmark-compare: release
+	python3 util/compare.py --app1 "$(BENCH_APP1)" --app2 "$(BENCH_APP2)"
 
 install:
 	@cp -r $(NAME) /usr/local/bin/

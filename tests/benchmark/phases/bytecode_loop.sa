@@ -1,0 +1,12 @@
+# case_id="bytecode.loop"
+# phase="bytecode"
+# description="Run precompiled bytecode loop"
+# mode="run-bytecode"
+# ops=300000
+
+sum = 0
+for i in 0..300000
+  sum += i
+end
+
+assert(sum > 0)

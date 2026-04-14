@@ -1,0 +1,22 @@
+# case_id="runtime.method_dispatch"
+# phase="runtime"
+# description="Method dispatch loop"
+# mode="run-source"
+# ops=180000
+
+class Counter
+  function _init(start)
+    this.value = start
+  end
+
+  function inc
+    this.value += 1
+  end
+end
+
+c = Counter(0)
+for i in 0..180000
+  c.inc()
+end
+
+assert(c.value == 180000)
