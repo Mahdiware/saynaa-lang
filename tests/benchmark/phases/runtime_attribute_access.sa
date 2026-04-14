@@ -1,0 +1,21 @@
+# case_id="runtime.attribute_access"
+# phase="runtime"
+# description="Attribute get/set loop"
+# mode="run-source"
+# ops=180000
+
+class Box
+  function _init(value)
+    this.value = value
+  end
+end
+
+b = Box(0)
+sum = 0
+for i in 0..180000
+  b.value = b.value + 1
+  sum += b.value
+end
+
+assert(b.value == 180000)
+assert(sum > 0)

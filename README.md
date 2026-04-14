@@ -80,6 +80,39 @@ Saynaa ships with optional modules that can be enabled at build time. These incl
 python3 util/test.py
 ```
 
+## Benchmarking
+```bash
+make benchmark
+# or
+python3 util/run.py --app ./saynaa
+
+# compare to a baseline
+python3 util/run.py --app ./saynaa --baseline tests/benchmark/results/latest.json
+
+# run a specific benchmark file case
+python3 util/run.py --app ./saynaa --case runtime_function_call.sa
+
+# fail if regression is above 15%
+python3 util/run.py --app ./saynaa --baseline tests/benchmark/results/latest.json --fail-on-regression-pct 15
+
+# CI-oriented quick profile
+make benchmark-ci
+
+# compare local build vs installed binary and generate HTML report
+python3 util/compare.py --app1 ./saynaa --app2 /usr/local/bin/saynaa
+
+# compare three or more builds
+python3 util/compare.py --app1 ./saynaa --app2 /usr/local/bin/saynaa --app3 ./saynaa-other
+
+# custom labels in HTML report
+python3 util/compare.py --app1 ./saynaa --name1 local --app2 /usr/local/bin/saynaa --name2 system
+
+# Makefile shortcut (override inputs)
+make benchmark-compare BENCH_APP1=./saynaa BENCH_APP2=/usr/local/bin/saynaa
+```
+
+Benchmark cases are auto-discovered from metadata headers in `tests/benchmark/phases/*.sa`.
+
 ## Special thanks
 Saynaa was supported by a couple of open-source projects.
 - Bob Nystrom. *craftinginterpreters* www.craftinginterpreters.com

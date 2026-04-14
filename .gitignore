@@ -7,6 +7,7 @@
 obj/
 build/
 tmp/
+__pycache__/
 
 # saynaa packages
 saynaa-packages/
