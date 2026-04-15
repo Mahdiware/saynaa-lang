@@ -17,6 +17,7 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.GetUserData_ptr = api->GetUserData_ptr;
   native_api.RegisterBuiltinFn_ptr = api->RegisterBuiltinFn_ptr;
   native_api.AddSearchPath_ptr = api->AddSearchPath_ptr;
+  native_api.ClearImportResolveCache_ptr = api->ClearImportResolveCache_ptr;
   native_api.Realloc_ptr = api->Realloc_ptr;
   native_api.releaseHandle_ptr = api->releaseHandle_ptr;
   native_api.NewModule_ptr = api->NewModule_ptr;
@@ -28,7 +29,12 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.NativeClassAddMethod_ptr = api->NativeClassAddMethod_ptr;
   native_api.ModuleAddSource_ptr = api->ModuleAddSource_ptr;
   native_api.RunString_ptr = api->RunString_ptr;
+  native_api.RunStringPcall_ptr = api->RunStringPcall_ptr;
   native_api.RunFile_ptr = api->RunFile_ptr;
+  native_api.RunFileAutoDetect_ptr = api->RunFileAutoDetect_ptr;
+  native_api.LoadScriptAutoDetect_ptr = api->LoadScriptAutoDetect_ptr;
+  native_api.CompileStringToBytecode_ptr = api->CompileStringToBytecode_ptr;
+  native_api.CompileFileToBytecode_ptr = api->CompileFileToBytecode_ptr;
   native_api.vm_time_ptr = api->vm_time_ptr;
   native_api.RunREPL_ptr = api->RunREPL_ptr;
   native_api.SetRuntimeError_ptr = api->SetRuntimeError_ptr;
@@ -70,6 +76,7 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.NewPointer_ptr = api->NewPointer_ptr;
   native_api.NewClosure_ptr = api->NewClosure_ptr;
   native_api.ListInsert_ptr = api->ListInsert_ptr;
+  native_api.MapSet_ptr = api->MapSet_ptr;
   native_api.ListPop_ptr = api->ListPop_ptr;
   native_api.ListLength_ptr = api->ListLength_ptr;
   native_api.CallFunction_ptr = api->CallFunction_ptr;
@@ -104,6 +111,10 @@ void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn, int arity, const c
 
 void AddSearchPath(VM* vm, const char* path) {
   native_api.AddSearchPath_ptr(vm, path);
+}
+
+void ClearImportResolveCache(VM* vm) {
+  native_api.ClearImportResolveCache_ptr(vm);
 }
 
 void* Realloc(VM* vm, void* ptr, size_t size) {
@@ -150,8 +161,28 @@ Result RunString(VM* vm, const char* source) {
   return native_api.RunString_ptr(vm, source);
 }
 
+Result RunStringPcall(VM* vm, const char* source) {
+  return native_api.RunStringPcall_ptr(vm, source);
+}
+
 Result RunFile(VM* vm, const char* path) {
   return native_api.RunFile_ptr(vm, path);
+}
+
+Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode) {
+  return native_api.RunFileAutoDetect_ptr(vm, path, is_bytecode);
+}
+
+char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode, Result* out_status) {
+  return native_api.LoadScriptAutoDetect_ptr(vm, path, is_bytecode, out_status);
+}
+
+Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) {
+  return native_api.CompileStringToBytecode_ptr(vm, source, out);
+}
+
+Result CompileFileToBytecode(VM* vm, const char* path, SaynaaBytecode* out) {
+  return native_api.CompileFileToBytecode_ptr(vm, path, out);
 }
 
 double vm_time(VM* vm) {
@@ -316,6 +347,10 @@ void NewClosure(VM* vm, int index, const char* name, nativeFn fptr, int arity, c
 
 bool ListInsert(VM* vm, int list, int32_t index, int value) {
   return native_api.ListInsert_ptr(vm, list, index, value);
+}
+
+bool MapSet(VM* vm, int map, int key, int value) {
+  return native_api.MapSet_ptr(vm, map, key, value);
 }
 
 bool ListPop(VM* vm, int list, int32_t index, int popped) {

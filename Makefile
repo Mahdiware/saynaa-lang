@@ -7,7 +7,7 @@ NAME = saynaa
 
 ## MODE can be DEBUG or RELEASE
 ## READLINE can be enable or disable
-MODE 	 ?= DEBUG
+MODE 	 ?= RELEASE
 READLINE = enable
 
 CC        = gcc
@@ -27,7 +27,8 @@ LIB_OBJS = $(addprefix $(OBJ_DIR), $(LIB_SRCS:.c=.o))
 ifneq ($(MODE),RELEASE)
 	CFLAGS += $(CCFLAGS) -DDEBUG -g3 -Og
 else
-	CFLAGS += $(CCFLAGS) -g -O3
+	CFLAGS += $(CCFLAGS) -DNDEBUG -O3 -march=native -flto=auto -fuse-linker-plugin
+	LDFLAGS += -flto=auto
 endif
 
 # TODO: MacOS don't impelement shared library properly yet

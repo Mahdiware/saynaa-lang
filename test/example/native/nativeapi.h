@@ -26,6 +26,7 @@
 
 typedef struct VM VM;
 typedef struct Handle Handle;
+typedef struct SaynaaBytecode SaynaaBytecode;
 typedef struct Class Class;
 typedef struct Configuration Configuration;
 
@@ -76,6 +77,18 @@ typedef enum Result {
 
   RESULT_COMPILE_ERROR, // Compilation failed.
   RESULT_RUNTIME_ERROR, // An error occurred at runtime.
+
+  // Bytecode errors.
+  RESULT_BYTECODE_INVALID_ARGUMENT,
+  RESULT_BYTECODE_INCOMPLETE_HEADER,
+  RESULT_BYTECODE_INVALID_MAGIC,
+  RESULT_BYTECODE_VERSION_MISMATCH,
+  RESULT_BYTECODE_SIZE_MISMATCH,
+  RESULT_BYTECODE_CHECKSUM_MISMATCH,
+  RESULT_BYTECODE_INVALID_FORMAT,
+  RESULT_BYTECODE_UNSUPPORTED_CONST,
+  RESULT_BYTECODE_TRUNCATED,
+  RESULT_BYTECODE_IO_ERROR,
 } Result;
 
 typedef struct Argument {
@@ -122,6 +135,7 @@ typedef void (*SetUserData_t)(VM*, void*);
 typedef void* (*GetUserData_t)(const VM*);
 typedef void (*RegisterBuiltinFn_t)(VM*, const char*, nativeFn, int, const char*);
 typedef void (*AddSearchPath_t)(VM*, const char*);
+typedef void (*ClearImportResolveCache_t)(VM*);
 typedef void* (*Realloc_t)(VM*, void*, size_t);
 typedef void (*releaseHandle_t)(VM*, Handle*);
 typedef Handle* (*NewModule_t)(VM*, const char*);
@@ -133,7 +147,12 @@ typedef Class* (*NewNativeClass_t)(VM*, const char*, NewInstanceFn, DeleteInstan
 typedef void (*NativeClassAddMethod_t)(VM*, Class*, const char*, nativeFn, int, const char*);
 typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
+typedef Result (*RunStringPcall_t)(VM*, const char*);
 typedef Result (*RunFile_t)(VM*, const char*);
+typedef Result (*RunFileAutoDetect_t)(VM*, const char*, bool*);
+typedef char* (*LoadScriptAutoDetect_t)(VM*, const char*, bool*, Result*);
+typedef Result (*CompileStringToBytecode_t)(VM*, const char*, SaynaaBytecode*);
+typedef Result (*CompileFileToBytecode_t)(VM*, const char*, SaynaaBytecode*);
 typedef double (*vm_time_t)(VM*);
 typedef Result (*RunREPL_t)(VM*);
 typedef void (*SetRuntimeError_t)(VM*, const char*);
@@ -175,6 +194,7 @@ typedef void (*NewString_t)(VM*, int);
 typedef void (*NewPointer_t)(VM*, int, void*, Destructor);
 typedef void (*NewClosure_t)(VM*, int, const char*, nativeFn, int, const char*);
 typedef bool (*ListInsert_t)(VM*, int, int32_t, int);
+typedef bool (*MapSet_t)(VM*, int, int, int);
 typedef bool (*ListPop_t)(VM*, int, int32_t, int);
 typedef uint32_t (*ListLength_t)(VM*, int);
 typedef bool (*CallFunction_t)(VM*, int, int, int, int);
@@ -191,6 +211,7 @@ typedef struct {
   GetUserData_t GetUserData_ptr;
   RegisterBuiltinFn_t RegisterBuiltinFn_ptr;
   AddSearchPath_t AddSearchPath_ptr;
+  ClearImportResolveCache_t ClearImportResolveCache_ptr;
   Realloc_t Realloc_ptr;
   releaseHandle_t releaseHandle_ptr;
   NewModule_t NewModule_ptr;
@@ -202,7 +223,12 @@ typedef struct {
   NativeClassAddMethod_t NativeClassAddMethod_ptr;
   ModuleAddSource_t ModuleAddSource_ptr;
   RunString_t RunString_ptr;
+  RunStringPcall_t RunStringPcall_ptr;
   RunFile_t RunFile_ptr;
+  RunFileAutoDetect_t RunFileAutoDetect_ptr;
+  LoadScriptAutoDetect_t LoadScriptAutoDetect_ptr;
+  CompileStringToBytecode_t CompileStringToBytecode_ptr;
+  CompileFileToBytecode_t CompileFileToBytecode_ptr;
   vm_time_t vm_time_ptr;
   RunREPL_t RunREPL_ptr;
   SetRuntimeError_t SetRuntimeError_ptr;
@@ -244,6 +270,7 @@ typedef struct {
   NewPointer_t NewPointer_ptr;
   NewClosure_t NewClosure_ptr;
   ListInsert_t ListInsert_ptr;
+  MapSet_t MapSet_ptr;
   ListPop_t ListPop_ptr;
   ListLength_t ListLength_ptr;
   CallFunction_t CallFunction_ptr;
@@ -260,6 +287,7 @@ void SetUserData(VM* vm, void* user_data);
 void* GetUserData(const VM* vm);
 void RegisterBuiltinFn(VM* vm, const char* name, nativeFn fn, int arity, const char* docstring);
 void AddSearchPath(VM* vm, const char* path);
+void ClearImportResolveCache(VM* vm);
 void* Realloc(VM* vm, void* ptr, size_t size);
 void releaseHandle(VM* vm, Handle* handle);
 Handle* NewModule(VM* vm, const char* name);
@@ -271,7 +299,12 @@ Class* NewNativeClass(VM* vm, const char* name, NewInstanceFn new_fn, DeleteInst
 void NativeClassAddMethod(VM* vm, Class* cls, const char* name, nativeFn fptr, int arity, const char* docstring);
 void ModuleAddSource(VM* vm, Handle* module, const char* source);
 Result RunString(VM* vm, const char* source);
+Result RunStringPcall(VM* vm, const char* source);
 Result RunFile(VM* vm, const char* path);
+Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode);
+char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode, Result* out_status);
+Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out);
+Result CompileFileToBytecode(VM* vm, const char* path, SaynaaBytecode* out);
 double vm_time(VM* vm);
 Result RunREPL(VM* vm);
 void SetRuntimeError(VM* vm, const char* message);
@@ -313,6 +346,7 @@ void NewString(VM* vm, int index);
 void NewPointer(VM* vm, int index, void* native_ptr, Destructor destructor);
 void NewClosure(VM* vm, int index, const char* name, nativeFn fptr, int arity, const char* docstring);
 bool ListInsert(VM* vm, int list, int32_t index, int value);
+bool MapSet(VM* vm, int map, int key, int value);
 bool ListPop(VM* vm, int list, int32_t index, int popped);
 uint32_t ListLength(VM* vm, int list);
 bool CallFunction(VM* vm, int fn, int argc, int argv, int ret);
