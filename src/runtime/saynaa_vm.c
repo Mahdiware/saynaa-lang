@@ -1235,10 +1235,10 @@ Result vmRunFiber(VM* vm, Fiber* fiber_) {
 #error "OPCODE" should not be deifined here.
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#define USE_COMPUTED_GOTO 1
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(NO_COMPUTED_GOTO)
+    #define USE_COMPUTED_GOTO 1
 #else
-#define USE_COMPUTED_GOTO 0
+    #define USE_COMPUTED_GOTO 0
 #endif
 
   Opcode instruction;
