@@ -1621,8 +1621,7 @@ static void patchJump(Compiler* compiler, int addr_index);
 static void patchListSize(Compiler* compiler, int size_index, int size);
 
 static int compilerAddConstant(Compiler* compiler, Var value);
-static int compilerAddGlobalName(Compiler* compiler, const char* name,
-                                 uint32_t length);
+static int compilerAddGlobalName(Compiler* compiler, const char* name, uint32_t length);
 static int compilerAddVariable(Compiler* compiler, const char* name,
                                uint32_t length, int line);
 static void compilerChangeStack(Compiler* compiler, int num);
@@ -2001,8 +2000,7 @@ static void exprName(Compiler* compiler) {
           || result.type == NAME_BUILTIN_TY) {
         // In module scope, only top-level assignments create globals.
         // Nested blocks create locals to keep block scope.
-        if (compiler->func->type == FUNC_MAIN
-            && compiler->scope_depth == DEPTH_GLOBAL) {
+        if (compiler->func->type == FUNC_MAIN && compiler->scope_depth == DEPTH_GLOBAL) {
           name_type = NAME_GLOBAL_VAR;
           index = compilerAddGlobalName(compiler, start, length);
         } else {
@@ -2142,6 +2140,87 @@ static void exprConditional(Compiler* compiler) {
   patchJump(compiler, elseJump);
 }
 
+static bool valueToNumber(Var value, double* out) {
+  if (IS_NUM(value)) {
+    *out = AS_NUM(value);
+    return true;
+  }
+  if (IS_INT(value)) {
+    *out = (double) AS_INT(value);
+    return true;
+  }
+  return false;
+}
+
+static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode, uint8_t inplace) {
+  if (inplace != 0)
+    return false;
+
+  if (!(opcode == OP_ADD || opcode == OP_SUBTRACT || opcode == OP_MULTIPLY
+        || opcode == OP_DIVIDE)) {
+    return false;
+  }
+
+  ByteBuffer* code = &_FN->opcodes;
+  UintBuffer* lines = &_FN->oplines;
+
+  if (code->count < 8)
+    return false;
+
+  uint32_t op_pos = code->count - 2;
+  if (code->data[op_pos] != (uint8_t) opcode || code->data[op_pos + 1] != inplace)
+    return false;
+
+  uint32_t rhs_pos = op_pos - 3;
+  uint32_t lhs_pos = rhs_pos - 3;
+  if (code->data[lhs_pos] != OP_PUSH_CONSTANT || code->data[rhs_pos] != OP_PUSH_CONSTANT)
+    return false;
+
+  uint16_t lhs_index = (uint16_t) ((code->data[lhs_pos + 1] << 8) | code->data[lhs_pos + 2]);
+  uint16_t rhs_index = (uint16_t) ((code->data[rhs_pos + 1] << 8) | code->data[rhs_pos + 2]);
+
+  if (lhs_index >= compiler->module->constants.count
+      || rhs_index >= compiler->module->constants.count) {
+    return false;
+  }
+
+  Var lhs = compiler->module->constants.data[lhs_index];
+  Var rhs = compiler->module->constants.data[rhs_index];
+
+  double n1, n2;
+  if (!valueToNumber(lhs, &n1) || !valueToNumber(rhs, &n2))
+    return false;
+
+  if (opcode == OP_DIVIDE && n2 == 0.0)
+    return false;
+
+  double result = 0.0;
+  switch (opcode) {
+    case OP_ADD:
+      result = n1 + n2;
+      break;
+    case OP_SUBTRACT:
+      result = n1 - n2;
+      break;
+    case OP_MULTIPLY:
+      result = n1 * n2;
+      break;
+    case OP_DIVIDE:
+      result = n1 / n2;
+      break;
+    default:
+      return false;
+  }
+
+  int index = compilerAddConstant(compiler, VAR_NUM(result));
+
+  code->count = lhs_pos;
+  lines->count = lhs_pos;
+  emitByte(compiler, OP_PUSH_CONSTANT);
+  emitShort(compiler, index);
+  return true;
+}
+
 static void exprBinaryOp(Compiler* compiler) {
   _TokenType op = compiler->parser.previous.type;
   skipNewLines(compiler);
@@ -2154,6 +2233,10 @@ static void exprBinaryOp(Compiler* compiler) {
     emitByte(compiler, 0); \
   } while (false)
 
+  Opcode emitted = OP_END;
+  uint8_t emitted_inplace = 0;
+  bool try_fold = false;
+
   switch (op) {
     case TK_DOTDOT:
       emitOpcode(compiler, OP_RANGE);
@@ -2163,15 +2246,23 @@ static void exprBinaryOp(Compiler* compiler) {
       break;
     case TK_PLUS:
       EMIT_BINARY_OP_INPLACE(OP_ADD);
+      emitted = OP_ADD;
+      try_fold = true;
       break;
     case TK_MINUS:
       EMIT_BINARY_OP_INPLACE(OP_SUBTRACT);
+      emitted = OP_SUBTRACT;
+      try_fold = true;
       break;
     case TK_STAR:
       EMIT_BINARY_OP_INPLACE(OP_MULTIPLY);
+      emitted = OP_MULTIPLY;
+      try_fold = true;
       break;
     case TK_FSLASH:
       EMIT_BINARY_OP_INPLACE(OP_DIVIDE);
+      emitted = OP_DIVIDE;
+      try_fold = true;
       break;
     case TK_STARSTAR:
       EMIT_BINARY_OP_INPLACE(OP_EXPONENT);
@@ -2219,6 +2310,10 @@ static void exprBinaryOp(Compiler* compiler) {
       break;
     default:
       UNREACHABLE();
+  }
+
+  if (try_fold) {
+    tryFoldBinaryConstants(compiler, emitted, emitted_inplace);
   }
 }
 
@@ -2557,8 +2652,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence) {
 
 // Add a global name constant and return its index.
 // Globals are resolved at runtime by name.
-static int compilerAddGlobalName(Compiler* compiler, const char* name,
-                                 uint32_t length) {
+static int compilerAddGlobalName(Compiler* compiler, const char* name, uint32_t length) {
   int index = 0;
   moduleAddString(compiler->module, compiler->parser.vm, name, length, &index);
   for (uint32_t i = 0; i < compiler->global_names.count; i++) {
@@ -3239,8 +3333,7 @@ static int compileImportPath(Compiler* compiler, Token* name_token, bool* is_wil
     int seg_len = (int) str->length;
     // Wildcard import syntax is language-level (".*").
     // Filesystem separator concerns are handled at runtime.
-    if (seg_len >= 2 && str->data[seg_len - 1] == '*'
-        && str->data[seg_len - 2] == '.') {
+    if (seg_len >= 2 && str->data[seg_len - 1] == '*' && str->data[seg_len - 2] == '.') {
       *is_wildcard = true;
       seg_len -= 2;
     }
@@ -3330,8 +3423,7 @@ void compileRegularImport(Compiler* compiler) {
           name_tk = compiler->parser.previous;
       }
 
-      int global_index = compilerAddGlobalName(compiler, name_tk.start,
-                       name_tk.length);
+      int global_index = compilerAddGlobalName(compiler, name_tk.start, name_tk.length);
       emitStoreGlobal(compiler, global_index);
       emitOpcode(compiler, OP_POP);
     }
@@ -3394,8 +3486,7 @@ static void compileFromImport(Compiler* compiler) {
       tkname = compiler->parser.previous;
     }
 
-    int global_index = compilerAddGlobalName(compiler, tkname.start,
-                         tkname.length);
+    int global_index = compilerAddGlobalName(compiler, tkname.start, tkname.length);
 
     emitStoreGlobal(compiler, global_index);
     emitOpcode(compiler, OP_POP);
@@ -3694,8 +3785,7 @@ static void compileNamedFunctionStatement(Compiler* compiler) {
     } else {
       name_type = NAME_LOCAL_VAR;
       index = compilerAddVariable(compiler, name_token.start,
-                                  (uint32_t) name_token.length,
-                                  name_token.line);
+                                  (uint32_t) name_token.length, name_token.line);
       new_local = true;
 
       if (!compiler->can_define) {
@@ -3705,8 +3795,7 @@ static void compileNamedFunctionStatement(Compiler* compiler) {
   }
 
   if (new_local) {
-    ASSERT(compiler->parser.has_errors
-           || (compiler->func->stack_size - 1) == index, OOPS);
+    ASSERT(compiler->parser.has_errors || (compiler->func->stack_size - 1) == index, OOPS);
     return;
   }
 
