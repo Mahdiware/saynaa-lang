@@ -1658,6 +1658,7 @@ static void exprValue(Compiler* compiler);
 
 static void exprThis(Compiler* compiler);
 static void exprSuper(Compiler* compiler);
+static bool valueToNumber(Var value, double* out);
 
 #define NO_RULE {NULL, NULL, PREC_NONE}
 #define NO_INFIX PREC_NONE
@@ -1899,6 +1900,13 @@ static bool _compileOptionalParanCall(Compiler* compiler, int method) {
 
 static void exprLiteral(Compiler* compiler) {
   Token* value = &compiler->parser.previous;
+  if (value->type == TK_NUMBER) {
+    double n = 0.0;
+    if (valueToNumber(value->value, &n) && n == 0.0) {
+      emitOpcode(compiler, OP_PUSH_0);
+      return;
+    }
+  }
   int index = compilerAddConstant(compiler, value->value);
   emitOpcode(compiler, OP_PUSH_CONSTANT);
   emitShort(compiler, index);
@@ -2152,23 +2160,32 @@ static bool valueToNumber(Var value, double* out) {
   return false;
 }
 
-static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode, uint8_t inplace) {
-  if (inplace != 0)
+static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode,
+                                   uint8_t inplace, bool has_inplace) {
+  if (has_inplace && inplace != 0)
     return false;
 
-  if (!(opcode == OP_ADD || opcode == OP_SUBTRACT || opcode == OP_MULTIPLY
-        || opcode == OP_DIVIDE)) {
+  bool is_arith = (opcode == OP_ADD || opcode == OP_SUBTRACT
+                   || opcode == OP_MULTIPLY || opcode == OP_DIVIDE);
+  bool is_compare = (opcode == OP_EQEQ || opcode == OP_NOTEQ
+                     || opcode == OP_LT || opcode == OP_LTEQ
+                     || opcode == OP_GT || opcode == OP_GTEQ);
+
+  if (!is_arith && !is_compare)
     return false;
-  }
 
   ByteBuffer* code = &_FN->opcodes;
   UintBuffer* lines = &_FN->oplines;
 
-  if (code->count < 8)
+  uint32_t op_bytes = has_inplace ? 2u : 1u;
+  uint32_t min_count = 6u + op_bytes;
+  if (code->count < min_count)
     return false;
 
-  uint32_t op_pos = code->count - 2;
-  if (code->data[op_pos] != (uint8_t) opcode || code->data[op_pos + 1] != inplace)
+  uint32_t op_pos = code->count - op_bytes;
+  if (code->data[op_pos] != (uint8_t) opcode)
+    return false;
+  if (has_inplace && code->data[op_pos + 1] != inplace)
     return false;
 
   uint32_t rhs_pos = op_pos - 3;
@@ -2191,33 +2208,66 @@ static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode, uint8_t in
   if (!valueToNumber(lhs, &n1) || !valueToNumber(rhs, &n2))
     return false;
 
-  if (opcode == OP_DIVIDE && n2 == 0.0)
+  if (is_arith && opcode == OP_DIVIDE && n2 == 0.0)
     return false;
-
-  double result = 0.0;
-  switch (opcode) {
-    case OP_ADD:
-      result = n1 + n2;
-      break;
-    case OP_SUBTRACT:
-      result = n1 - n2;
-      break;
-    case OP_MULTIPLY:
-      result = n1 * n2;
-      break;
-    case OP_DIVIDE:
-      result = n1 / n2;
-      break;
-    default:
-      return false;
-  }
-
-  int index = compilerAddConstant(compiler, VAR_NUM(result));
 
   code->count = lhs_pos;
   lines->count = lhs_pos;
-  emitByte(compiler, OP_PUSH_CONSTANT);
-  emitShort(compiler, index);
+
+  if (is_arith) {
+    double result = 0.0;
+    switch (opcode) {
+      case OP_ADD:
+        result = n1 + n2;
+        break;
+      case OP_SUBTRACT:
+        result = n1 - n2;
+        break;
+      case OP_MULTIPLY:
+        result = n1 * n2;
+        break;
+      case OP_DIVIDE:
+        result = n1 / n2;
+        break;
+      default:
+        return false;
+    }
+
+    int index = compilerAddConstant(compiler, VAR_NUM(result));
+    emitByte(compiler, OP_PUSH_CONSTANT);
+    emitShort(compiler, index);
+    return true;
+  }
+
+  if (is_compare) {
+    bool result = false;
+    switch (opcode) {
+      case OP_EQEQ:
+        result = (n1 == n2);
+        break;
+      case OP_NOTEQ:
+        result = (n1 != n2);
+        break;
+      case OP_LT:
+        result = (n1 < n2);
+        break;
+      case OP_LTEQ:
+        result = (n1 <= n2);
+        break;
+      case OP_GT:
+        result = (n1 > n2);
+        break;
+      case OP_GTEQ:
+        result = (n1 >= n2);
+        break;
+      default:
+        return false;
+    }
+
+    emitByte(compiler, result ? OP_PUSH_TRUE : OP_PUSH_FALSE);
+    return true;
+  }
+
   return true;
 }
 
@@ -2235,6 +2285,7 @@ static void exprBinaryOp(Compiler* compiler) {
 
   Opcode emitted = OP_END;
   uint8_t emitted_inplace = 0;
+  bool emitted_has_inplace = false;
   bool try_fold = false;
 
   switch (op) {
@@ -2247,21 +2298,25 @@ static void exprBinaryOp(Compiler* compiler) {
     case TK_PLUS:
       EMIT_BINARY_OP_INPLACE(OP_ADD);
       emitted = OP_ADD;
+      emitted_has_inplace = true;
       try_fold = true;
       break;
     case TK_MINUS:
       EMIT_BINARY_OP_INPLACE(OP_SUBTRACT);
       emitted = OP_SUBTRACT;
+      emitted_has_inplace = true;
       try_fold = true;
       break;
     case TK_STAR:
       EMIT_BINARY_OP_INPLACE(OP_MULTIPLY);
       emitted = OP_MULTIPLY;
+      emitted_has_inplace = true;
       try_fold = true;
       break;
     case TK_FSLASH:
       EMIT_BINARY_OP_INPLACE(OP_DIVIDE);
       emitted = OP_DIVIDE;
+      emitted_has_inplace = true;
       try_fold = true;
       break;
     case TK_STARSTAR:
@@ -2286,21 +2341,33 @@ static void exprBinaryOp(Compiler* compiler) {
 
     case TK_GT:
       emitOpcode(compiler, OP_GT);
+      emitted = OP_GT;
+      try_fold = true;
       break;
     case TK_LT:
       emitOpcode(compiler, OP_LT);
+      emitted = OP_LT;
+      try_fold = true;
       break;
     case TK_EQEQ:
       emitOpcode(compiler, OP_EQEQ);
+      emitted = OP_EQEQ;
+      try_fold = true;
       break;
     case TK_NOTEQ:
       emitOpcode(compiler, OP_NOTEQ);
+      emitted = OP_NOTEQ;
+      try_fold = true;
       break;
     case TK_GTEQ:
       emitOpcode(compiler, OP_GTEQ);
+      emitted = OP_GTEQ;
+      try_fold = true;
       break;
     case TK_LTEQ:
       emitOpcode(compiler, OP_LTEQ);
+      emitted = OP_LTEQ;
+      try_fold = true;
       break;
     case TK_IN:
       emitOpcode(compiler, OP_IN);
@@ -2313,7 +2380,7 @@ static void exprBinaryOp(Compiler* compiler) {
   }
 
   if (try_fold) {
-    tryFoldBinaryConstants(compiler, emitted, emitted_inplace);
+    tryFoldBinaryConstants(compiler, emitted, emitted_inplace, emitted_has_inplace);
   }
 }
 
