@@ -2142,6 +2142,89 @@ static void exprConditional(Compiler* compiler) {
   patchJump(compiler, elseJump);
 }
 
+static bool valueToNumber(Var value, double* out) {
+  if (IS_NUM(value)) {
+    *out = AS_NUM(value);
+    return true;
+  }
+  if (IS_INT(value)) {
+    *out = (double) AS_INT(value);
+    return true;
+  }
+  return false;
+}
+
+static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode, uint8_t inplace) {
+  if (inplace != 0)
+    return false;
+
+  if (!(opcode == OP_ADD || opcode == OP_SUBTRACT
+        || opcode == OP_MULTIPLY || opcode == OP_DIVIDE)) {
+    return false;
+  }
+
+  ByteBuffer* code = &_FN->opcodes;
+  UintBuffer* lines = &_FN->oplines;
+
+  if (code->count < 8)
+    return false;
+
+  uint32_t op_pos = code->count - 2;
+  if (code->data[op_pos] != (uint8_t) opcode || code->data[op_pos + 1] != inplace)
+    return false;
+
+  uint32_t rhs_pos = op_pos - 3;
+  uint32_t lhs_pos = rhs_pos - 3;
+  if (code->data[lhs_pos] != OP_PUSH_CONSTANT || code->data[rhs_pos] != OP_PUSH_CONSTANT)
+    return false;
+
+  uint16_t lhs_index = (uint16_t) ((code->data[lhs_pos + 1] << 8)
+                                   | code->data[lhs_pos + 2]);
+  uint16_t rhs_index = (uint16_t) ((code->data[rhs_pos + 1] << 8)
+                                   | code->data[rhs_pos + 2]);
+
+  if (lhs_index >= compiler->module->constants.count
+      || rhs_index >= compiler->module->constants.count) {
+    return false;
+  }
+
+  Var lhs = compiler->module->constants.data[lhs_index];
+  Var rhs = compiler->module->constants.data[rhs_index];
+
+  double n1, n2;
+  if (!valueToNumber(lhs, &n1) || !valueToNumber(rhs, &n2))
+    return false;
+
+  if (opcode == OP_DIVIDE && n2 == 0.0)
+    return false;
+
+  double result = 0.0;
+  switch (opcode) {
+    case OP_ADD:
+      result = n1 + n2;
+      break;
+    case OP_SUBTRACT:
+      result = n1 - n2;
+      break;
+    case OP_MULTIPLY:
+      result = n1 * n2;
+      break;
+    case OP_DIVIDE:
+      result = n1 / n2;
+      break;
+    default:
+      return false;
+  }
+
+  int index = compilerAddConstant(compiler, VAR_NUM(result));
+
+  code->count = lhs_pos;
+  lines->count = lhs_pos;
+  emitByte(compiler, OP_PUSH_CONSTANT);
+  emitShort(compiler, index);
+  return true;
+}
+
 static void exprBinaryOp(Compiler* compiler) {
   _TokenType op = compiler->parser.previous.type;
   skipNewLines(compiler);
@@ -2154,6 +2237,10 @@ static void exprBinaryOp(Compiler* compiler) {
     emitByte(compiler, 0); \
   } while (false)
 
+  Opcode emitted = OP_END;
+  uint8_t emitted_inplace = 0;
+  bool try_fold = false;
+
   switch (op) {
     case TK_DOTDOT:
       emitOpcode(compiler, OP_RANGE);
@@ -2163,15 +2250,23 @@ static void exprBinaryOp(Compiler* compiler) {
       break;
     case TK_PLUS:
       EMIT_BINARY_OP_INPLACE(OP_ADD);
+      emitted = OP_ADD;
+      try_fold = true;
       break;
     case TK_MINUS:
       EMIT_BINARY_OP_INPLACE(OP_SUBTRACT);
+      emitted = OP_SUBTRACT;
+      try_fold = true;
       break;
     case TK_STAR:
       EMIT_BINARY_OP_INPLACE(OP_MULTIPLY);
+      emitted = OP_MULTIPLY;
+      try_fold = true;
       break;
     case TK_FSLASH:
       EMIT_BINARY_OP_INPLACE(OP_DIVIDE);
+      emitted = OP_DIVIDE;
+      try_fold = true;
       break;
     case TK_STARSTAR:
       EMIT_BINARY_OP_INPLACE(OP_EXPONENT);
@@ -2219,6 +2314,10 @@ static void exprBinaryOp(Compiler* compiler) {
       break;
     default:
       UNREACHABLE();
+  }
+
+  if (try_fold) {
+    tryFoldBinaryConstants(compiler, emitted, emitted_inplace);
   }
 }
 
