@@ -35,7 +35,6 @@ typedef void* (*ReallocFn)(void* memory, size_t new_size, void* user_data);
 typedef void (*WriteFn)(VM* vm, const char* text);
 typedef char* (*ReadFn)(VM* vm);
 typedef void (*SignalFn)(void*);
-typedef char* (*LoadScriptFn)(VM* vm, const char* path);
 typedef void* (*LoadDL)(VM* vm, const char* path);
 typedef Handle* (*ImportDL)(VM* vm, void* handle);
 typedef void (*UnloadDL)(VM* vm, void* handle);
@@ -43,6 +42,7 @@ typedef char* (*ResolvePathFn)(VM* vm, const char* from, const char* path);
 typedef void* (*NewInstanceFn)(VM* vm);
 typedef void (*DeleteInstanceFn)(VM* vm, void*);
 typedef void (*Destructor)(void*);
+typedef LoadScriptResult (*LoadScriptFn)(VM* vm, const char* path);
 
 typedef enum VarType {
   vOBJECT = 0,
@@ -90,6 +90,12 @@ typedef enum Result {
   RESULT_BYTECODE_TRUNCATED,
   RESULT_BYTECODE_IO_ERROR,
 } Result;
+
+typedef struct {
+  char* content;    // script source or bytecode buffer
+  bool is_bytecode; // 1 = bytecode, 0 = source
+  Result status;    // execution / load status
+} LoadScriptResult;
 
 typedef struct Argument {
   // argument count: is number of value inside argv
@@ -149,8 +155,7 @@ typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
 typedef Result (*RunStringPcall_t)(VM*, const char*);
 typedef Result (*RunFile_t)(VM*, const char*);
-typedef Result (*RunFileAutoDetect_t)(VM*, const char*, bool*);
-typedef char* (*LoadScriptAutoDetect_t)(VM*, const char*, bool*, Result*);
+typedef LoadScriptResult (*LoadScript_t)(VM*, const char*);
 typedef Result (*CompileStringToBytecode_t)(VM*, const char*, SaynaaBytecode*);
 typedef Result (*CompileFileToBytecode_t)(VM*, const char*, SaynaaBytecode*);
 typedef double (*vm_time_t)(VM*);
@@ -225,8 +230,7 @@ typedef struct {
   RunString_t RunString_ptr;
   RunStringPcall_t RunStringPcall_ptr;
   RunFile_t RunFile_ptr;
-  RunFileAutoDetect_t RunFileAutoDetect_ptr;
-  LoadScriptAutoDetect_t LoadScriptAutoDetect_ptr;
+  LoadScript_t LoadScript_ptr;
   CompileStringToBytecode_t CompileStringToBytecode_ptr;
   CompileFileToBytecode_t CompileFileToBytecode_ptr;
   vm_time_t vm_time_ptr;
@@ -301,8 +305,7 @@ void ModuleAddSource(VM* vm, Handle* module, const char* source);
 Result RunString(VM* vm, const char* source);
 Result RunStringPcall(VM* vm, const char* source);
 Result RunFile(VM* vm, const char* path);
-Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode);
-char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode, Result* out_status);
+LoadScriptResult LoadScript(VM* vm, const char* path);
 Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out);
 Result CompileFileToBytecode(VM* vm, const char* path, SaynaaBytecode* out);
 double vm_time(VM* vm);

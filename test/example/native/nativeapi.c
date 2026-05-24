@@ -31,8 +31,7 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.RunString_ptr = api->RunString_ptr;
   native_api.RunStringPcall_ptr = api->RunStringPcall_ptr;
   native_api.RunFile_ptr = api->RunFile_ptr;
-  native_api.RunFileAutoDetect_ptr = api->RunFileAutoDetect_ptr;
-  native_api.LoadScriptAutoDetect_ptr = api->LoadScriptAutoDetect_ptr;
+  native_api.LoadScript_ptr = api->LoadScript_ptr;
   native_api.CompileStringToBytecode_ptr = api->CompileStringToBytecode_ptr;
   native_api.CompileFileToBytecode_ptr = api->CompileFileToBytecode_ptr;
   native_api.vm_time_ptr = api->vm_time_ptr;
@@ -169,12 +168,8 @@ Result RunFile(VM* vm, const char* path) {
   return native_api.RunFile_ptr(vm, path);
 }
 
-Result RunFileAutoDetect(VM* vm, const char* path, bool* is_bytecode) {
-  return native_api.RunFileAutoDetect_ptr(vm, path, is_bytecode);
-}
-
-char* LoadScriptAutoDetect(VM* vm, const char* path, bool* is_bytecode, Result* out_status) {
-  return native_api.LoadScriptAutoDetect_ptr(vm, path, is_bytecode, out_status);
+LoadScriptResult LoadScript(VM* vm, const char* path) {
+  return native_api.LoadScript_ptr(vm, path);
 }
 
 Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) {
