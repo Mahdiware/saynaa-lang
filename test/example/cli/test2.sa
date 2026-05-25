@@ -1,1 +1,5 @@
-print(name)
+
+if _name == "@main" then
+  print("this is @main")
+  print(name)
+end

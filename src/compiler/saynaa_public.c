@@ -564,6 +564,7 @@ Result RunFileWithModule(VM* vm, Module* module, const char* path) {
       }
     } else {
       if (load_result.is_bytecode) {
+        initializeModule(vm, module, true);
         SaynaaBytecodeHeader header;
         Result status = saynaa_bytecode_decode_header(
             (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
@@ -580,7 +581,6 @@ Result RunFileWithModule(VM* vm, Module* module, const char* path) {
                                           saynaa_status_message(status), false));
           }
         } else {
-          initializeModule(vm, module, true);
           result = RESULT_SUCCESS;
         }
       } else {
