@@ -782,10 +782,11 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   reader.size = data_size;
   reader.offset = 0;
 
-  if (reader.size - reader.offset >= SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE
-      && memcmp(reader.data + reader.offset, SAYNAA_BYTECODE_PAYLOAD_MAGIC, SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE)
-             == 0) {
-    reader.offset += SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE;
+  int magic_size = (int) SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE;
+  int payload_magic = (int) SAYNAA_BYTECODE_PAYLOAD_MAGIC;
+  if (reader.size - reader.offset >= magic_size
+      && memcmp(reader.data + reader.offset, &payload_magic, magic_size) == 0) {
+    reader.offset += magic_size;
   }
 
   uint8_t version = 0;
