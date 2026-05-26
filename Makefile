@@ -7,7 +7,7 @@ NAME = saynaa
 
 ## MODE can be DEBUG or RELEASE
 ## READLINE can be enable or disable
-MODE 	 ?= RELEASE
+MODE 	 ?= DEBUG
 READLINE = enable
 
 CC        = gcc

@@ -25,6 +25,7 @@
 #endif
 
 typedef struct VM VM;
+typedef struct Module Module;
 typedef struct Handle Handle;
 typedef struct SaynaaBytecode SaynaaBytecode;
 typedef struct Class Class;
@@ -155,6 +156,7 @@ typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
 typedef Result (*RunStringPcall_t)(VM*, const char*);
 typedef Result (*RunFile_t)(VM*, const char*);
+typedef Result (*RunFileWithModule_t)(VM*, Module*, const char*);
 typedef LoadScriptResult (*LoadScript_t)(VM*, const char*);
 typedef Result (*CompileStringToBytecode_t)(VM*, const char*, SaynaaBytecode*);
 typedef Result (*CompileFileToBytecode_t)(VM*, const char*, SaynaaBytecode*);
@@ -230,6 +232,7 @@ typedef struct {
   RunString_t RunString_ptr;
   RunStringPcall_t RunStringPcall_ptr;
   RunFile_t RunFile_ptr;
+  RunFileWithModule_t RunFileWithModule_ptr;
   LoadScript_t LoadScript_ptr;
   CompileStringToBytecode_t CompileStringToBytecode_ptr;
   CompileFileToBytecode_t CompileFileToBytecode_ptr;
@@ -305,6 +308,7 @@ void ModuleAddSource(VM* vm, Handle* module, const char* source);
 Result RunString(VM* vm, const char* source);
 Result RunStringPcall(VM* vm, const char* source);
 Result RunFile(VM* vm, const char* path);
+Result RunFileWithModule(VM* vm, Module* module, const char* path);
 LoadScriptResult LoadScript(VM* vm, const char* path);
 Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out);
 Result CompileFileToBytecode(VM* vm, const char* path, SaynaaBytecode* out);

@@ -564,6 +564,7 @@ Result RunFileWithModule(VM* vm, Module* module, const char* path) {
       }
     } else {
       if (load_result.is_bytecode) {
+        initializeModule(vm, module, true);
         SaynaaBytecodeHeader header;
         Result status = saynaa_bytecode_decode_header(
             (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
@@ -580,7 +581,6 @@ Result RunFileWithModule(VM* vm, Module* module, const char* path) {
                                           saynaa_status_message(status), false));
           }
         } else {
-          initializeModule(vm, module, true);
           result = RESULT_SUCCESS;
         }
       } else {
@@ -628,7 +628,10 @@ Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) 
   vmPushTempRef(vm, &module->_super); // module.
 
   module->path = newString(vm, "@(Bytecode)");
-  Result result = compile(vm, module, source, NULL);
+  CompileOptions options = newCompilerOptions();
+  // runtime flag it allow to compile code that return value to module body,
+  options.runtime = true;
+  Result result = compile(vm, module, source, &options);
 
   if (result == RESULT_SUCCESS) {
     ByteBuffer payload;

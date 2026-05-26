@@ -29,6 +29,7 @@ typedef void (*ModuleAddSource_t)(VM*, Handle*, const char*);
 typedef Result (*RunString_t)(VM*, const char*);
 typedef Result (*RunStringPcall_t)(VM*, const char*);
 typedef Result (*RunFile_t)(VM*, const char*);
+typedef Result (*RunFileWithModule_t)(VM*, Module*, const char*);
 typedef LoadScriptResult (*LoadScript_t)(VM*, const char*);
 typedef Result (*CompileStringToBytecode_t)(VM*, const char*, SaynaaBytecode*);
 typedef Result (*CompileFileToBytecode_t)(VM*, const char*, SaynaaBytecode*);
@@ -104,6 +105,7 @@ typedef struct {
   RunString_t RunString_ptr;
   RunStringPcall_t RunStringPcall_ptr;
   RunFile_t RunFile_ptr;
+  RunFileWithModule_t RunFileWithModule_ptr;
   LoadScript_t LoadScript_ptr;
   CompileStringToBytecode_t CompileStringToBytecode_ptr;
   CompileFileToBytecode_t CompileFileToBytecode_ptr;
@@ -192,6 +194,7 @@ NativeApi MakeNativeAPI() {
   api.RunString_ptr = RunString;
   api.RunStringPcall_ptr = RunStringPcall;
   api.RunFile_ptr = RunFile;
+  api.RunFileWithModule_ptr = RunFileWithModule;
   api.LoadScript_ptr = LoadScript;
   api.CompileStringToBytecode_ptr = CompileStringToBytecode;
   api.CompileFileToBytecode_ptr = CompileFileToBytecode;
