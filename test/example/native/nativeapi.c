@@ -31,6 +31,7 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.RunString_ptr = api->RunString_ptr;
   native_api.RunStringPcall_ptr = api->RunStringPcall_ptr;
   native_api.RunFile_ptr = api->RunFile_ptr;
+  native_api.RunFileWithModule_ptr = api->RunFileWithModule_ptr;
   native_api.LoadScript_ptr = api->LoadScript_ptr;
   native_api.CompileStringToBytecode_ptr = api->CompileStringToBytecode_ptr;
   native_api.CompileFileToBytecode_ptr = api->CompileFileToBytecode_ptr;
@@ -166,6 +167,10 @@ Result RunStringPcall(VM* vm, const char* source) {
 
 Result RunFile(VM* vm, const char* path) {
   return native_api.RunFile_ptr(vm, path);
+}
+
+Result RunFileWithModule(VM* vm, Module* module, const char* path) {
+  return native_api.RunFileWithModule_ptr(vm, module, path);
 }
 
 LoadScriptResult LoadScript(VM* vm, const char* path) {

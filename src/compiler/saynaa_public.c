@@ -628,7 +628,10 @@ Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) 
   vmPushTempRef(vm, &module->_super); // module.
 
   module->path = newString(vm, "@(Bytecode)");
-  Result result = compile(vm, module, source, NULL);
+  CompileOptions options = newCompilerOptions();
+  // runtime flag it allow to compile code that return value to module body,
+  options.runtime = true;
+  Result result = compile(vm, module, source, &options);
 
   if (result == RESULT_SUCCESS) {
     ByteBuffer payload;

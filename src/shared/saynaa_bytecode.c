@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 
-static const uint8_t kOpcodeParamSizes[] = {
+static uint8_t kOpcodeParamSizes[] = {
 #define OPCODE(name, params, stack) params,
 #include "saynaa_opcodes.h"
 #undef OPCODE
@@ -49,11 +49,13 @@ static void functionListClear(VM* vm, FunctionList* list) {
 
 static Result remapOpcodeIndex(uint8_t* args, const uint32_t* remap, uint32_t remap_count) {
   uint16_t index = (uint16_t) ((args[0] << 8) | args[1]);
-  if (index >= remap_count)
+  if (index >= remap_count) {
     return RESULT_BYTECODE_INVALID_FORMAT;
+  }
   uint32_t mapped = remap[index];
-  if (mapped > UINT16_MAX)
+  if (mapped > UINT16_MAX) {
     return RESULT_BYTECODE_INVALID_FORMAT;
+  }
   args[0] = (uint8_t) ((mapped >> 8) & 0xff);
   args[1] = (uint8_t) (mapped & 0xff);
   return RESULT_SUCCESS;
@@ -65,26 +67,28 @@ static Result remapFunctionConstants(Function* fn, const uint32_t* remap, uint32
   if (remap_count == 0)
     return RESULT_SUCCESS;
 
+#define REMAP_FAIL(_status) return (_status)
+
   uint8_t* code = fn->fn->opcodes.data;
   uint32_t count = fn->fn->opcodes.count;
   uint32_t ip = 0;
   uint32_t opcode_count = (uint32_t) (sizeof(kOpcodeParamSizes)
                                       / sizeof(kOpcodeParamSizes[0]));
+  uint8_t params = 0;
 
   while (ip < count) {
     uint8_t op = code[ip++];
     if (op >= opcode_count)
-      return RESULT_BYTECODE_INVALID_FORMAT;
+      REMAP_FAIL(RESULT_BYTECODE_INVALID_FORMAT);
 
-    uint8_t params = kOpcodeParamSizes[op];
+    params = kOpcodeParamSizes[op];
     if (ip + params > count)
-      return RESULT_BYTECODE_TRUNCATED;
+      REMAP_FAIL(RESULT_BYTECODE_TRUNCATED);
 
     switch ((Opcode) op) {
       case OP_PUSH_CONSTANT:
       case OP_PUSH_GLOBAL_NAME:
       case OP_STORE_GLOBAL_NAME:
-      case OP_PUSH_CLOSURE:
       case OP_CREATE_CLASS:
       case OP_IMPORT:
       case OP_IMPORT_WILDCARD:
@@ -94,16 +98,44 @@ static Result remapFunctionConstants(Function* fn, const uint32_t* remap, uint32
         {
           Result status = remapOpcodeIndex(code + ip, remap, remap_count);
           if (status != RESULT_SUCCESS)
-            return status;
+            REMAP_FAIL(status);
         }
         break;
 
       case OP_METHOD_CALL:
       case OP_SUPER_CALL:
         {
+          // METHOD_CALL/SUPER_CALL encode argc first, then the 16-bit name index.
+          Result status = remapOpcodeIndex(code + ip + 1, remap, remap_count);
+          if (status != RESULT_SUCCESS)
+            REMAP_FAIL(status);
+        }
+        break;
+
+      case OP_PUSH_CLOSURE:
+        {
           Result status = remapOpcodeIndex(code + ip, remap, remap_count);
           if (status != RESULT_SUCCESS)
-            return status;
+            REMAP_FAIL(status);
+
+          // The opcode index is already remapped in-place above.
+          uint16_t mapped = (uint16_t) ((code[ip] << 8) | code[ip + 1]);
+          if (mapped >= fn->owner->constants.count) {
+            REMAP_FAIL(RESULT_BYTECODE_INVALID_FORMAT);
+          }
+
+          Var constant = fn->owner->constants.data[mapped];
+          if (!IS_OBJ_TYPE(constant, OBJ_FUNC)) {
+            REMAP_FAIL(RESULT_BYTECODE_INVALID_FORMAT);
+          }
+
+          Function* closure_fn = (Function*) AS_OBJ(constant);
+          uint32_t extra = (uint32_t) closure_fn->upvalue_count * 3u;
+          if (ip + params + extra > count) {
+            REMAP_FAIL(RESULT_BYTECODE_TRUNCATED);
+          }
+
+          ip += extra;
         }
         break;
 
@@ -113,6 +145,7 @@ static Result remapFunctionConstants(Function* fn, const uint32_t* remap, uint32
 
     ip += params;
   }
+#undef REMAP_FAIL
 
   return RESULT_SUCCESS;
 }
@@ -439,9 +472,15 @@ Result saynaa_bytecode_validate_checksum(const SaynaaBytecodeHeader* header,
 Result saynaa_bytecode_validate_payload(const uint8_t* payload, size_t payload_size) {
   if (payload == NULL)
     return RESULT_BYTECODE_INVALID_ARGUMENT;
-  if (payload_size < 1)
+  size_t offset = 0;
+  if (payload_size >= SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE
+      && memcmp(payload, SAYNAA_BYTECODE_PAYLOAD_MAGIC, SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE)
+             == 0) {
+    offset = SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE;
+  }
+  if (payload_size < offset + 1)
     return RESULT_BYTECODE_TRUNCATED;
-  uint8_t version = payload[0];
+  uint8_t version = payload[offset];
   if (version != SAYNAA_BYTECODE_PAYLOAD_VERSION)
     return RESULT_BYTECODE_VERSION_MISMATCH;
   return RESULT_SUCCESS;
@@ -743,6 +782,12 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   reader.size = data_size;
   reader.offset = 0;
 
+  if (reader.size - reader.offset >= SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE
+      && memcmp(reader.data + reader.offset, SAYNAA_BYTECODE_PAYLOAD_MAGIC, SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE)
+             == 0) {
+    reader.offset += SAYNAA_BYTECODE_PAYLOAD_MAGIC_SIZE;
+  }
+
   uint8_t version = 0;
   if (!bc_read_u8(&reader, &version))
     return RESULT_BYTECODE_TRUNCATED;
@@ -760,10 +805,16 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   if (module->constants.count + constants_count > MAX_CONSTANTS)
     return RESULT_BYTECODE_INVALID_FORMAT;
 
-  uint32_t* remap = (uint32_t*) vmRealloc(vm, NULL, 0, sizeof(uint32_t) * constants_count);
-  if (remap == NULL)
-    return RESULT_BYTECODE_IO_ERROR;
+  bool needs_remap = module->constants.count != 0;
+  VarBufferReserve(&module->constants, vm, module->constants.count + constants_count);
+
+  uint32_t* remap = NULL;
   FunctionList fn_list = {0};
+  if (needs_remap) {
+    remap = (uint32_t*) vmRealloc(vm, NULL, 0, sizeof(uint32_t) * constants_count);
+    if (remap == NULL)
+      return RESULT_BYTECODE_IO_ERROR;
+  }
 
   for (uint32_t i = 0; i < constants_count; i++) {
     uint8_t tag = 0;
@@ -772,7 +823,11 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
 
     switch ((SaynaaBytecodeConstTag) tag) {
       case SAYNAA_BC_CONST_NULL:
-        remap[i] = moduleAddConstant(vm, module, VAR_NULL);
+        if (needs_remap) {
+          remap[i] = moduleAddConstant(vm, module, VAR_NULL);
+        } else {
+          VarBufferWrite(&module->constants, vm, VAR_NULL);
+        }
         break;
 
       case SAYNAA_BC_CONST_BOOL:
@@ -780,7 +835,11 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           uint8_t value = 0;
           if (!bc_read_u8(&reader, &value))
             return RESULT_BYTECODE_TRUNCATED;
-          remap[i] = moduleAddConstant(vm, module, VAR_BOOL(value != 0));
+          if (needs_remap) {
+            remap[i] = moduleAddConstant(vm, module, VAR_BOOL(value != 0));
+          } else {
+            VarBufferWrite(&module->constants, vm, VAR_BOOL(value != 0));
+          }
         }
         break;
 
@@ -789,7 +848,11 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           double value = 0;
           if (!bc_read_double(&reader, &value))
             return RESULT_BYTECODE_TRUNCATED;
-          remap[i] = moduleAddConstant(vm, module, VAR_NUM(value));
+          if (needs_remap) {
+            remap[i] = moduleAddConstant(vm, module, VAR_NUM(value));
+          } else {
+            VarBufferWrite(&module->constants, vm, VAR_NUM(value));
+          }
         }
         break;
 
@@ -804,10 +867,16 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
             return RESULT_BYTECODE_TRUNCATED;
 
           uint32_t length = (uint32_t) length64;
-          int name_index = 0;
-          moduleAddString(module, vm, (const char*) (reader.data + reader.offset),
-                          length, &name_index);
-          remap[i] = (uint32_t) name_index;
+          if (needs_remap) {
+            int name_index = 0;
+            moduleAddString(module, vm, (const char*) (reader.data + reader.offset),
+                            length, &name_index);
+            remap[i] = (uint32_t) name_index;
+          } else {
+            String* name = newInternedStringLength(
+                vm, (const char*) (reader.data + reader.offset), length);
+            VarBufferWrite(&module->constants, vm, VAR_OBJ(name));
+          }
           reader.offset += length;
         }
         break;
@@ -898,11 +967,13 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           }
 
           VarBufferWrite(&module->constants, vm, VAR_OBJ(fn));
-          remap[i] = module->constants.count - 1;
-          if (!functionListPush(vm, &fn_list, fn)) {
-            vmPopTempRef(vm); // fn.
-            status = RESULT_BYTECODE_IO_ERROR;
-            goto cleanup;
+          if (needs_remap) {
+            remap[i] = module->constants.count - 1;
+            if (!functionListPush(vm, &fn_list, fn)) {
+              vmPopTempRef(vm); // fn.
+              status = RESULT_BYTECODE_IO_ERROR;
+              goto cleanup;
+            }
           }
           vmPopTempRef(vm); // fn.
         }
@@ -930,7 +1001,9 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           vmPushTempRef(vm, &cls->_super); // cls.
           cls->class_of = (VarType) (uint8_t) class_of64;
           VarBufferWrite(&module->constants, vm, VAR_OBJ(cls));
-          remap[i] = module->constants.count - 1;
+          if (needs_remap) {
+            remap[i] = module->constants.count - 1;
+          }
           vmPopTempRef(vm); // cls.
         }
         break;
@@ -951,14 +1024,27 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
     goto cleanup;
   }
 
-  for (uint32_t i = 0; i < fn_list.count; i++) {
-    status = remapFunctionConstants(fn_list.data[i], remap, constants_count);
-    if (status != RESULT_SUCCESS)
-      goto cleanup;
-  }
+  Var body_fn = VAR_NULL;
+  if (needs_remap) {
+    // Fix opcode param size mismatch: runtime uses 2-byte ITER offset.
+    STATIC_ASSERT(OP_ITER < (int) (sizeof(kOpcodeParamSizes) / sizeof(kOpcodeParamSizes[0])));
+    kOpcodeParamSizes[OP_ITER] = 2;
 
-  uint32_t mapped_body = remap[(uint32_t) body_index64];
-  Var body_fn = module->constants.data[mapped_body];
+    for (uint32_t i = 0; i < fn_list.count; i++) {
+      status = remapFunctionConstants(fn_list.data[i], remap, constants_count);
+      if (status != RESULT_SUCCESS)
+        goto cleanup;
+    }
+
+    uint32_t mapped_body = remap[(uint32_t) body_index64];
+    body_fn = module->constants.data[mapped_body];
+  } else {
+    if (body_index64 >= (uint64_t) module->constants.count) {
+      status = RESULT_BYTECODE_INVALID_FORMAT;
+      goto cleanup;
+    }
+    body_fn = module->constants.data[(uint32_t) body_index64];
+  }
   if (!IS_OBJ_TYPE(body_fn, OBJ_FUNC)) {
     status = RESULT_BYTECODE_INVALID_FORMAT;
     goto cleanup;
@@ -981,7 +1067,10 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   status = RESULT_SUCCESS;
 
 cleanup:
-  functionListClear(vm, &fn_list);
-  vmRealloc(vm, remap, sizeof(uint32_t) * constants_count, 0);
+  if (needs_remap) {
+    functionListClear(vm, &fn_list);
+    if (remap != NULL)
+      vmRealloc(vm, remap, sizeof(uint32_t) * constants_count, 0);
+  }
   return status;
 }
