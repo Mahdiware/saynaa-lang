@@ -436,6 +436,9 @@ PUBLIC bool ValidateSlotInstanceOf(VM* vm, int slot, int cls);
 // and return false.
 PUBLIC bool IsSlotInstanceOf(VM* vm, int inst, int cls, bool* val);
 
+// Returns the next available slot index.
+PUBLIC int nextSlot(VM* vm);
+
 // Make sure the fiber has [count] number of slots to work with (including the
 // arguments).
 PUBLIC void reserveSlots(VM* vm, int count);

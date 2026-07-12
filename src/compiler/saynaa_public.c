@@ -946,11 +946,27 @@ bool IsSlotInstanceOf(VM* vm, int inst, int cls, bool* val) {
   return !VM_HAS_ERROR(vm);
 }
 
+int nextSlot(VM* vm) {
+  Fiber* fiber = vm->fiber;
+
+  ASSERT(fiber->slot_next < fiber->slot_end, "No reserved slots remaining.");
+
+  return fiber->slot_next++;
+}
+
 void reserveSlots(VM* vm, int count) {
   if (vm->fiber == NULL)
     vm->fiber = newFiber(vm, NULL);
-  int needed = (int) (vm->fiber->ret - vm->fiber->stack) + count;
-  vmEnsureStackSize(vm, vm->fiber, needed);
+
+  Fiber* fiber = vm->fiber;
+
+  // First available temporary slot.
+  fiber->slot_next = (int) (fiber->ret - fiber->stack);
+
+  // One past the last reserved slot.
+  fiber->slot_end = fiber->slot_next + count;
+
+  vmEnsureStackSize(vm, fiber, fiber->slot_end);
 }
 
 int GetSlotsCount(VM* vm) {
