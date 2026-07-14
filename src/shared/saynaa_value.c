@@ -626,6 +626,9 @@ Fiber* newFiber(VM* vm, Closure* closure) {
     fiber->frames[0].rbp = fiber->ret;
   }
 
+  UintBufferInit(&fiber->free_slots);
+  fiber->slot_end = 0;
+  fiber->slot_next = 1;
   fiber->open_upvalues = NULL;
   fiber->thiz = VAR_UNDEFINED;
 
@@ -1363,8 +1366,7 @@ static bool _mapFindStringEntry(Map* thiz, String* key, MapEntry** result) {
     } else if (IS_OBJ_TYPE(entry->key, OBJ_STRING)) {
       String* entry_key = (String*) AS_OBJ(entry->key);
       if (entry_key == key
-          || (entry_key->hash == key->hash
-              && entry_key->length == key->length
+          || (entry_key->hash == key->hash && entry_key->length == key->length
               && memcmp(entry_key->data, key->data, key->length) == 0)) {
         *result = entry;
         return true;
@@ -1800,8 +1802,7 @@ static void _moduleRebuildGlobalIndices(VM* vm, Module* module) {
 int moduleGetGlobalIndexByName(VM* vm, Module* module, String* name) {
   ASSERT(vm != NULL && module != NULL && name != NULL, OOPS);
 
-  if (!module->global_indices_dirty
-      && module->global_lookup_name_cache == name) {
+  if (!module->global_indices_dirty && module->global_lookup_name_cache == name) {
     int32_t g_index = module->global_lookup_index_cache;
     if (g_index >= 0 && (uint32_t) g_index < module->globals.count) {
       return g_index;
@@ -1845,8 +1846,8 @@ uint32_t moduleSetGlobal(VM* vm, Module* module, const char* name, uint32_t leng
   if (g_index != -1) {
     ASSERT(g_index < (int) module->globals.count, OOPS);
     module->globals.data[g_index] = value;
-    module->global_lookup_name_cache = moduleGetStringAt(module,
-                                                          (int) module->global_names.data[g_index]);
+    module->global_lookup_name_cache = moduleGetStringAt(
+        module, (int) module->global_names.data[g_index]);
     module->global_lookup_index_cache = g_index;
     if (IS_OBJ(value))
       vmPopTempRef(vm);

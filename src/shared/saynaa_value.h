@@ -554,6 +554,9 @@ struct Fiber {
   // slot_next must never exceed slot_end.
   int slot_end;
 
+  // Buffer of free temporary slots.
+  UintBuffer free_slots;
+
   // Heap allocated array of call frames. Grows as needed.
   CallFrame* frames;
   int frame_capacity; //< Capacity of the frames array.
