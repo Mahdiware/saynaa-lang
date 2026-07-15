@@ -1,0 +1,50 @@
+# Zip example for Saynaa — demonstrates Python-like Zip API
+import Zip
+
+# Create a new ZIP archive and add entries
+z = Zip.ZipFile(".tmp_example.zip", "a")
+z.writestr("greeting.txt", "Hello from Saynaa!")
+# Add an existing file from the repo into the archive
+z.write("test/example/helloworld.sa")
+z.close()
+print("Created .tmp_example.zip")
+
+# Check if a file is a zip
+print("is_zipfile .tmp_example.zip -> ", Zip.is_zipfile(".tmp_example.zip"))
+
+# Open for reading
+r = Zip.ZipFile(".tmp_example.zip", "r")
+print("Names.", r.namelist())
+
+# Read a member directly
+g = r.read("greeting.txt")
+print("Greeting contents.", g)
+
+# Get metadata for a member
+print("Stat for greeting.txt", r.stat("greeting.txt"))
+
+# Locate a member by name
+print("Locate greeting.txt", r.locate("greeting.txt"))
+
+# info list
+print("Info list for archive: ", r.infolist())
+
+# Inspect info list
+for info in r.infolist() do
+  # info is a map with keys. name, compressed_size, uncompressed_size, directory, supported
+  print("- ", info["name"], " (", str(info["uncompressed_size"]), " bytes)")
+end
+
+# Extract all files into a directory
+r.extractall(".tmp_out_zip")
+print("Extracted to .tmp_out_zip/")
+
+# Test archive integrity
+bad = r.testzip()
+if bad != null then
+  print("Corrupt entry.", bad)
+else
+  print("All entries OK")
+end
+
+r.close()
