@@ -946,10 +946,43 @@ bool IsSlotInstanceOf(VM* vm, int inst, int cls, bool* val) {
   return !VM_HAS_ERROR(vm);
 }
 
-int nextSlot(VM* vm) {
+int allocSlot(VM* vm, uint32_t count) {
   Fiber* fiber = vm->fiber;
 
-  ASSERT(fiber->slot_next < fiber->slot_end, "No reserved slots remaining.");
+  int slot_count = fiber->stack_size - (int) (fiber->ret - fiber->stack);
+
+  if (fiber->slot_next + count > slot_count)
+    reserveSlots(vm, fiber->slot_next + count + 16);
+
+  int index = fiber->slot_next;
+  fiber->slot_next += count;
+  return index;
+}
+
+void freeSlot(VM* vm, uint32_t index, uint32_t count) {
+  Fiber* fiber = vm->fiber;
+
+  if (index + count > fiber->slot_next)
+    return;
+
+  for (uint32_t i = 0; i < count; i++) {
+    UintBufferWrite(&fiber->free_slots, vm, index + i);
+  }
+}
+
+int nextSlot(VM* vm, bool use_temporary) {
+  Fiber* fiber = vm->fiber;
+
+  if (use_temporary && fiber->free_slots.count > 0) {
+    uint32_t index = fiber->free_slots.data[fiber->free_slots.count - 1];
+    fiber->free_slots.count -= 1;
+    return (int) index;
+  }
+
+  int slot_count = fiber->stack_size - (int) (fiber->ret - fiber->stack);
+
+  if (fiber->slot_next >= slot_count)
+    reserveSlots(vm, fiber->slot_next + 16);
 
   return fiber->slot_next++;
 }
@@ -960,13 +993,11 @@ void reserveSlots(VM* vm, int count) {
 
   Fiber* fiber = vm->fiber;
 
-  // First available temporary slot.
-  fiber->slot_next = (int) (fiber->ret - fiber->stack);
+  int needed = (int) (vm->fiber->ret - vm->fiber->stack) + count;
 
-  // One past the last reserved slot.
-  fiber->slot_end = fiber->slot_next + count;
+  vmEnsureStackSize(vm, fiber, needed);
 
-  vmEnsureStackSize(vm, fiber, fiber->slot_end);
+  fiber->slot_end = needed;
 }
 
 int GetSlotsCount(VM* vm) {
