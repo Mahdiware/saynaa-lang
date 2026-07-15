@@ -13,6 +13,9 @@ __pycache__/
 saynaa-packages/
 references/
 
+# tmp files
+.tmp_*
+
 ### C ###
 # Prerequisites
 *.d
