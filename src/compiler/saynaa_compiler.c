@@ -667,7 +667,12 @@ static void eatString(Compiler* compiler, bool single_quote) {
       return;
     }
 
-    if (c == '$' && !single_quote) {
+    if (single_quote) {
+      ByteBufferWrite(&buff, parser->vm, c);
+      continue;
+    }
+
+    if (c == '$') {
       if (parser->si_depth < MAX_STR_INTERP_DEPTH) {
         tk_type = TK_STRING_INTERP;
 
@@ -2167,9 +2172,8 @@ static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode,
 
   bool is_arith = (opcode == OP_ADD || opcode == OP_SUBTRACT
                    || opcode == OP_MULTIPLY || opcode == OP_DIVIDE);
-  bool is_compare = (opcode == OP_EQEQ || opcode == OP_NOTEQ
-                     || opcode == OP_LT || opcode == OP_LTEQ
-                     || opcode == OP_GT || opcode == OP_GTEQ);
+  bool is_compare = (opcode == OP_EQEQ || opcode == OP_NOTEQ || opcode == OP_LT
+                     || opcode == OP_LTEQ || opcode == OP_GT || opcode == OP_GTEQ);
 
   if (!is_arith && !is_compare)
     return false;
