@@ -667,12 +667,7 @@ static void eatString(Compiler* compiler, bool single_quote) {
       return;
     }
 
-    if (single_quote) {
-      ByteBufferWrite(&buff, parser->vm, c);
-      continue;
-    }
-
-    if (c == '$') {
+    if (c == '$' && !single_quote) {
       if (parser->si_depth < MAX_STR_INTERP_DEPTH) {
         tk_type = TK_STRING_INTERP;
 
@@ -777,9 +772,13 @@ static void eatString(Compiler* compiler, bool single_quote) {
           // Else fallthrough.
 
         default:
-
-          semanticError(compiler, makeErrToken(parser), "Invalid escape character.");
-          break;
+          if (single_quote) {
+            parser->current_char--;
+            ByteBufferWrite(&buff, parser->vm, c);
+          } else {
+            semanticError(compiler, makeErrToken(parser), "Invalid escape character.");
+            break;
+          }
       }
     } else {
       ByteBufferWrite(&buff, parser->vm, c);
