@@ -998,13 +998,6 @@ saynaa_function(
           vm->config.stderr_write(vm, "Error loading script at \"");
         }
         vm->config.stderr_write(vm, _path);
-        if (load_result.status != RESULT_SUCCESS) {
-          vm->config.stderr_write(vm, "\" (bytecode: ");
-          vm->config.stderr_write(vm, saynaa_status_message(load_result.status));
-          vm->config.stderr_write(vm, ")\n");
-        } else {
-          vm->config.stderr_write(vm, "\"\n");
-        }
       }
     } else {
       if (load_result.is_bytecode) {
