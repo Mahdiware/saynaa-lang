@@ -25,8 +25,6 @@
  *
  **************************************************************************/
 
-
-
 typedef unsigned char mz_validate_uint16[sizeof(mz_uint16) == 2 ? 1 : -1];
 typedef unsigned char mz_validate_uint32[sizeof(mz_uint32) == 4 ? 1 : -1];
 typedef unsigned char mz_validate_uint64[sizeof(mz_uint64) == 8 ? 1 : -1];
@@ -670,8 +668,6 @@ mz_ulong mz_crc32(mz_ulong crc, const mz_uint8 *ptr, size_t buf_len)
  * THE SOFTWARE.
  *
  **************************************************************************/
-
-
 
 #ifndef MINIZ_NO_DEFLATE_APIS
 
@@ -2273,8 +2269,6 @@ static MZ_FORCEINLINE void tdefl_find_match(tdefl_compressor *d, mz_uint lookahe
  *
  **************************************************************************/
 
-
-
 #ifndef MINIZ_NO_INFLATE_APIS
 
 #ifdef __cplusplus
@@ -3051,7 +3045,6 @@ extern "C"
  * THE SOFTWARE.
  *
  **************************************************************************/
-
 
 #ifndef MINIZ_NO_ARCHIVE_APIS
 
@@ -7275,10 +7268,10 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
             {
                 /* src is zip64, dest must be zip64 */
 
-                /* name			uint32_t's */
-                /* id				1 (optional in zip64?) */
-                /* crc			1 */
-                /* comp_size	2 */
+                /* name      uint32_t's */
+                /* id        1 (optional in zip64?) */
+                /* crc      1 */
+                /* comp_size  2 */
                 /* uncomp_size 2 */
                 if (pSource_zip->m_pRead(pSource_zip->m_pIO_opaque, cur_src_file_ofs, pBuf, (sizeof(mz_uint32) * 6)) != (sizeof(mz_uint32) * 6))
                 {

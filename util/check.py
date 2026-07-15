@@ -30,6 +30,8 @@ CHECK_EXTENSIONS = {'.c', '.h', '.sa', '.py', '.js'}
 IGNORE_FILES = {
     "src/runtime/saynaa_native.h",
     "src/optionals/saynaa_opt_term.c",
+    "src/optionals/miniz/miniz.c",
+    "src/optionals/miniz/miniz.h",
 }
 
 IGNORE_FOLDERS = {

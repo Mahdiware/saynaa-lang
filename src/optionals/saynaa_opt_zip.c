@@ -366,8 +366,11 @@ saynaa_function(_zipAdd, "Zip.Archive.add(name:String, data:String, [level:Numbe
   setSlotBool(vm, 0, true);
 }
 
-saynaa_function(_zipAddFile, "Zip.Archive.add_file(source:String, name:String, [level:Number]) -> Bool",
-                "Add a file from disk to a writable archive.") {
+saynaa_function(
+    _zipAddFile,
+    ""
+    "Zip.Archive.add_file(source:String, name:String, [level:Number]) -> Bool",
+    "Add a file from disk to a writable archive.") {
   int argc = GetArgc(vm);
   if (!CheckArgcRange(vm, argc, 2, 3))
     return;
@@ -447,8 +450,11 @@ saynaa_function(_zipExtract, "Zip.Archive.extract(entry:String|Number) -> String
   SetRuntimeError(vm, "Entry must be a string name or number index.");
 }
 
-saynaa_function(_zipExtractFile, "Zip.Archive.extract_file(entry:String|Number, out:String) -> Bool",
-                "Extract an entry from a readable archive to a file.") {
+saynaa_function(
+    _zipExtractFile,
+    ""
+    "Zip.Archive.extract_file(entry:String|Number, out:String) -> Bool",
+    "Extract an entry from a readable archive to a file.") {
   int argc = GetArgc(vm);
   if (!CheckArgcRange(vm, argc, 2, 2))
     return;
