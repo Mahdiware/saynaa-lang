@@ -60,12 +60,12 @@ if errorlevel 1 exit /b 1
 :START
 set "target_dir=%project_root%obj\"
 set "add_defines=/D_CRT_SECURE_NO_WARNINGS /DPCRE2_STATIC"
-set "add_cflags=-W3 -GR /FS -EHsc"
+set "add_cflags=/W3 /GR /FS /EHsc"
 
 if "!enable_debug!"=="false" (
-    set "cflags=-O2 -MD /DNDEBUG"
+    set "cflags=/O2 /MD /DNDEBUG"
 ) else (
-    set "cflags=-MDd -ZI"
+    set "cflags=/MDd /Zi"
     set "add_defines=!add_defines! /DDEBUG"
 )
 

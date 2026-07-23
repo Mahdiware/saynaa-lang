@@ -1,0 +1,3 @@
+import package
+
+print(package.load("preview.sa"))
