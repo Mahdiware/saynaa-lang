@@ -1117,16 +1117,13 @@ Var vmImportModule(VM* vm, String* from, String* path) {
   const char* from_path = (from) ? from->data : NULL;
   Var from_key = (from != NULL) ? VAR_OBJ(from) : VAR_NULL;
   String* resolved = _resolvePathWithCache(vm, from_key, from_path, path);
-  if (resolved == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Cannot import module '@'", path));
+  if (resolved != NULL) {
+    // We use _importResolved which handles cache check for resolved path
+    Module* mod = _importResolved(vm, resolved, path);
+    if (mod != NULL)
+      return VAR_OBJ(mod);
     return VAR_NULL;
   }
-
-  // We use _importResolved which handles cache check for resolved path
-  Module* mod = _importResolved(vm, resolved, path);
-  if (mod != NULL)
-    return VAR_OBJ(mod);
-  return VAR_NULL;
 
   // Searchers Logic
   for (int i = 0; i < vm->searchers->elements.count; i++) {
