@@ -1,3 +1,17 @@
 import package
+import path
 
-print(package.load("preview.sa"))
+print("${dir(path)}")
+
+x = "/home/mahdiware/testing/folder"
+y = path.listdir(x)
+print("Files in /home/mahdiware/testing: ${y}")
+for i in y do
+  if i.isDir then
+    print("Dir: ${i.name}, path: ${i.path}")
+  else
+    print("File: ${i.name}, path: ${i.path}")
+  end
+end
+
+print("Path module tests passed")
