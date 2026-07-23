@@ -1,6 +1,5 @@
 import os
 
-print("OS Name: " + os.name)
 print("Platform: " + os.platform)
 
 cwd = os.getcwd()

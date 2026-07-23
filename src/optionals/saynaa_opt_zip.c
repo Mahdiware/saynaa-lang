@@ -10,7 +10,13 @@
 #include <math.h>
 #include <string.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+// Windows headers
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 typedef enum {
   ZIP_STATE_CLOSED = 0,
