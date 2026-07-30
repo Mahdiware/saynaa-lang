@@ -15,6 +15,7 @@ references/
 
 # tmp files
 .tmp_*
+*.tmp
 
 ### C ###
 # Prerequisites

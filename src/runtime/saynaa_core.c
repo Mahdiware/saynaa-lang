@@ -1101,64 +1101,65 @@ saynaa_function(corePcall, "pcall(fn:Closure, ...args) -> List",
   Fiber* fiber = newFiber(vm, closure);
   fiber->native = vm->fiber;
   vmPushTempRef(vm, &fiber->_super); // fiber.
+  {
+    bool success = vmPrepareFiber(vm, fiber, call_argc, call_argv);
 
-  bool success = vmPrepareFiber(vm, fiber, call_argc, call_argv);
+    List* ret_list = newList(vm, 2);
+    vmPushTempRef(vm, &ret_list->_super); // ret_list.
+    {
+      if (!success) {
+        String* err = vm->fiber->error;
+        vm->fiber->error = NULL; // clear error
 
-  List* ret_list = newList(vm, 2);
-  vmPushTempRef(vm, &ret_list->_super); // ret_list.
+        listAppend(vm, ret_list, VAR_FALSE);
+        listAppend(vm, ret_list, VAR_OBJ(err));
 
-  if (!success) {
-    String* err = vm->fiber->error;
-    vm->fiber->error = NULL; // clear error
-
-    listAppend(vm, ret_list, VAR_FALSE);
-    listAppend(vm, ret_list, VAR_OBJ(err));
-
-  } else {
-    // Suppress error reporting
-    WriteFn old_stderr = vm->config.stderr_write;
-    vm->config.stderr_write = NULL;
-
-    Result result;
-    Fiber* last = vm->fiber;
-
-    if (fiber->closure->fn->is_native) {
-      ASSERT(fiber->closure->fn->native != NULL, "Native function was NULL");
-      vm->fiber = fiber;
-      fiber->closure->fn->native(vm);
-      if (VM_HAS_ERROR(vm)) {
-        result = RESULT_RUNTIME_ERROR;
       } else {
-        result = RESULT_SUCCESS;
+        // Suppress error reporting
+        WriteFn old_stderr = vm->config.stderr_write;
+        vm->config.stderr_write = NULL;
+
+        Result result;
+        Fiber* last = vm->fiber;
+
+        if (fiber->closure->fn->is_native) {
+          ASSERT(fiber->closure->fn->native != NULL,
+                 "Native function was NULL");
+          vm->fiber = fiber;
+          fiber->closure->fn->native(vm);
+          if (VM_HAS_ERROR(vm)) {
+            result = RESULT_RUNTIME_ERROR;
+          } else {
+            result = RESULT_SUCCESS;
+          }
+        } else {
+          result = vmRunFiber(vm, fiber);
+        }
+
+        // Restore stderr
+        vm->config.stderr_write = old_stderr;
+
+        // Restore fiber
+        vm->fiber = last;
+
+        if (result == RESULT_SUCCESS) {
+          listAppend(vm, ret_list, VAR_TRUE);
+          listAppend(vm, ret_list, *fiber->ret);
+        } else {
+          listAppend(vm, ret_list, VAR_FALSE);
+          if (fiber->error) {
+            listAppend(vm, ret_list, VAR_OBJ(fiber->error));
+          } else {
+            listAppend(vm, ret_list, VAR_OBJ(newString(vm, "Unknown Error")));
+          }
+          fiber->error = NULL;
+        }
       }
-    } else {
-      result = vmRunFiber(vm, fiber);
     }
-
-    // Restore stderr
-    vm->config.stderr_write = old_stderr;
-
-    // Restore fiber
-    vm->fiber = last;
-
-    if (result == RESULT_SUCCESS) {
-      listAppend(vm, ret_list, VAR_TRUE);
-      listAppend(vm, ret_list, *fiber->ret);
-    } else {
-      listAppend(vm, ret_list, VAR_FALSE);
-      if (fiber->error) {
-        listAppend(vm, ret_list, VAR_OBJ(fiber->error));
-      } else {
-        listAppend(vm, ret_list, VAR_OBJ(newString(vm, "Unknown Error")));
-      }
-      fiber->error = NULL;
-    }
+    vmPopTempRef(vm); // ret_list.
+    RET(VAR_OBJ(ret_list));
   }
-
-  vmPopTempRef(vm); // ret_list.
   vmPopTempRef(vm); // fiber.
-
-  RET(VAR_OBJ(ret_list));
 }
 
 // List functions.

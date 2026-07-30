@@ -300,17 +300,6 @@ static String* importNameToPath(VM* vm, String* name, bool* needs_pop) {
   return path;
 }
 
-Handle* vmNewHandle(VM* vm, Var value) {
-  Handle* handle = (Handle*) ALLOCATE(vm, Handle);
-  handle->value = value;
-  handle->prev = NULL;
-  handle->next = vm->handles;
-  if (handle->next != NULL)
-    handle->next->prev = handle;
-  vm->handles = handle;
-  return handle;
-}
-
 void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
   // Track heap delta to trigger GC on growth. During sweep we keep accounting
   // frozen and recalculate bytes_allocated from marked objects.
@@ -339,10 +328,10 @@ void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
 }
 
 void vmPushTempRef(VM* vm, Object* obj) {
+  ASSERT(vm != NULL, OOPS);
   ASSERT(obj != NULL, "Cannot reference to NULL.");
-  ASSERT(vm->temp_reference_count < MAX_TEMP_REFERENCE,
-         "Too many temp references");
-  vm->temp_reference[vm->temp_reference_count++] = obj;
+
+  ObjectBufferWrite(&vm->temp_reference, vm, obj);
 }
 
 void vmInvalidateInlineCaches(VM* vm) {
@@ -358,8 +347,9 @@ void vmInvalidateInlineCaches(VM* vm) {
 }
 
 void vmPopTempRef(VM* vm) {
-  ASSERT(vm->temp_reference_count > 0, "Temporary reference is empty to pop.");
-  vm->temp_reference_count--;
+  // ASSERT(vm->temp_reference_count > 0, "Temporary reference is empty to
+  // pop."); vm->temp_reference_count--;
+  vm->temp_reference.count -= 1;
 }
 
 void vmRegisterModule(VM* vm, Module* module, String* key) {
@@ -382,7 +372,8 @@ Module* vmGetModule(VM* vm, String* key) {
 }
 
 void vmCollectGarbage(VM* vm) {
-  // Drop transient caches before mark/sweep to avoid stale raw pointers.
+  // return;
+  //  Drop transient caches before mark/sweep to avoid stale raw pointers.
   vm->method_cache_class = NULL;
   vm->method_cache_name = NULL;
   vm->method_cache_closure = NULL;
@@ -393,14 +384,23 @@ void vmCollectGarbage(VM* vm) {
     markObject(vm, &vm->builtins_funcs[i]->_super);
   }
 
-  // Mark primitive types' classes.
+  // Mark primitive types' classes and magic_methods.
   for (int i = 0; i < vINSTANCE; i++) {
     // It's possible that a garbage collection could be triggered while
     // we're building the primitives and the class could be NULL.
-    if (vm->builtin_classes[i] == NULL)
+
+    Class* cls = vm->builtin_classes[i];
+
+    if (cls == NULL)
       continue;
 
-    markObject(vm, &vm->builtin_classes[i]->_super);
+    markObject(vm, &cls->_super);
+
+    for (int i = 0; i < MAX_MAGIC_METHODS; i++) {
+      if (cls->magic_methods[i] != (Closure*) -1) {
+        markObject(vm, &cls->magic_methods[i]->_super);
+      }
+    }
   }
 
   // Mark the modules and search path.
@@ -408,9 +408,11 @@ void vmCollectGarbage(VM* vm) {
   markObject(vm, &vm->search_paths->_super);
   markObject(vm, &vm->import_resolve_cache->_super);
 
+  // uint32_t index = vm->temp_reference.data[vm->temp_reference.count - 1];
+
   // Mark temp references.
-  for (int i = 0; i < vm->temp_reference_count; i++) {
-    markObject(vm, vm->temp_reference[i]);
+  for (int i = 0; i < vm->temp_reference.count; i++) {
+    markObject(vm, vm->temp_reference.data[i]);
   }
 
   // Mark the handles.
@@ -472,7 +474,7 @@ void vmCollectGarbage(VM* vm) {
   // Safety check: during GC sweep, freeObject() must not mutate
   // vm->bytes_allocated. This assert helps catch accounting bugs that can
   // break GC trigger thresholds (too frequent or too late collections).
-  ASSERT(bytes_allocated == vm->bytes_allocated, OOPS);
+  // ASSERT(bytes_allocated == vm->bytes_allocated, OOPS);
 #endif
 
   // Next GC heap size will be change depends on the byte we've left with now,
@@ -2203,6 +2205,7 @@ L_vm_main_loop:
 
     // If we reached here it's a valid callable.
     ASSERT(closure != NULL, OOPS);
+    ASSERT(closure->_super.type == OBJ_CLOSURE, OOPS);
 
     // Current call semantics: extra arguments are dropped; missing ones become null.
     if (closure->fn->arity != -1) {

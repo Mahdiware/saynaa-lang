@@ -142,6 +142,7 @@ VM* NewVM(Configuration* config) {
   VM* vm = (VM*) config->realloc_fn(NULL, sizeof(VM), config->user_data);
   memset(vm, 0, sizeof(VM));
 
+  ObjectBufferInit(&vm->temp_reference);
   vm->config = *config;
   vm->working_set_count = 0;
   vm->working_set_capacity = MIN_CAPACITY;
@@ -274,7 +275,7 @@ Handle* NewModule(VM* vm, const char* name) {
   Module* module = newModuleInternal(vm, name);
 
   vmPushTempRef(vm, &module->_super); // module.
-  Handle* handle = vmNewHandle(vm, VAR_OBJ(module));
+  Handle* handle = newHandle(vm, VAR_OBJ(module));
   vmPopTempRef(vm); // module.
 
   return handle;
@@ -313,7 +314,7 @@ Handle* NewClass(VM* vm, const char* name, Handle* base_class, Handle* module,
   class_->delete_fn = delete_fn;
 
   vmPushTempRef(vm, &class_->_super); // class_.
-  Handle* handle = vmNewHandle(vm, VAR_OBJ(class_));
+  Handle* handle = newHandle(vm, VAR_OBJ(class_));
   vmPopTempRef(vm); // class_.
   return handle;
 }
@@ -1057,7 +1058,7 @@ void* GetSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor)
 Handle* GetSlotHandle(VM* vm, int index) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(index);
-  return vmNewHandle(vm, SLOT(index));
+  return newHandle(vm, SLOT(index));
 }
 
 void* GetSlotNativeInstance(VM* vm, int index) {

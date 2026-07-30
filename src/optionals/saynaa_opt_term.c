@@ -591,7 +591,7 @@ saynaa_function(_termRun, "term.run(config:Config) -> Null", "Run the main loop.
   // Or just Duck typing? .sa code expect config object with fields.
   // We can just use the handle.
 
-  Handle* config = vmNewHandle(vm, SLOT(1));
+  Handle* config = newHandle(vm, SLOT(1));
 
   // Read config
   setSlotHandle(vm, 0, config);
