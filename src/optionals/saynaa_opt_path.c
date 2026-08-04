@@ -413,6 +413,22 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 
   struct dirent* dir;
 
+#ifdef _WIN32
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
+#else
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+#endif
+
   while ((dir = readdir(dirstream)) != NULL) {
     if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
       continue;
@@ -428,19 +444,15 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 
     const char* type = "unknown";
 
-#ifndef S_ISREG
-#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-#endif
-
+#ifdef S_ISREG
     if (S_ISREG(st.st_mode))
       type = "file";
-
-#ifndef S_ISDIR
-#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 
+#ifdef S_ISDIR
     else if (S_ISDIR(st.st_mode))
       type = "directory";
+#endif
 
 #ifdef S_ISLNK
     else if (S_ISLNK(st.st_mode))
@@ -529,8 +541,11 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 
     // flags
     mapSet(vm, map, VAR_OBJ(newString(vm, "hidden")), VAR_BOOL(hidden));
-#ifndef _OS_WIN_
+#ifndef _WIN32
     mapSet(vm, map, VAR_OBJ(newString(vm, "readonly")), VAR_BOOL(!(st.st_mode & S_IWUSR)));
+#else
+    mapSet(vm, map, VAR_OBJ(newString(vm, "readonly")),
+           VAR_BOOL(_access(fullpath, 2) != 0));
 #endif
     mapSet(vm, map, VAR_OBJ(newString(vm, "canRead")), VAR_BOOL(canRead));
 

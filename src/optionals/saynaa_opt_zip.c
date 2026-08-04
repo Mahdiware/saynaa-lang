@@ -718,11 +718,11 @@ static void ensure_parent_dirs(const char* path) {
     if (*p == '/' || *p == '\\') {
       char old = *p;
       *p = '\0';
-      #if defined(_OS_WIN_)
+#if defined(_WIN32)
       _mkdir(copy);
-      #else
+#else
       mkdir(copy, 0755);
-      #endif
+#endif
       *p = old;
     }
   }
@@ -756,11 +756,11 @@ saynaa_function(_zipExtractAll, "Zip.ZipFile.extractall([path:String]) -> Null",
     snprintf(outpath, sizeof(outpath), "%s/%s", out, stat.m_filename);
 
     if (stat.m_is_directory) {
-      #if defined(_OS_WIN_)
+#if defined(_WIN32)
       _mkdir(outpath);
-      #else
+#else
       mkdir(outpath, 0755);
-      #endif
+#endif
       continue;
     }
 
