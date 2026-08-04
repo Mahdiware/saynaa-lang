@@ -1101,64 +1101,65 @@ saynaa_function(corePcall, "pcall(fn:Closure, ...args) -> List",
   Fiber* fiber = newFiber(vm, closure);
   fiber->native = vm->fiber;
   vmPushTempRef(vm, &fiber->_super); // fiber.
+  {
+    bool success = vmPrepareFiber(vm, fiber, call_argc, call_argv);
 
-  bool success = vmPrepareFiber(vm, fiber, call_argc, call_argv);
+    List* ret_list = newList(vm, 2);
+    vmPushTempRef(vm, &ret_list->_super); // ret_list.
+    {
+      if (!success) {
+        String* err = vm->fiber->error;
+        vm->fiber->error = NULL; // clear error
 
-  List* ret_list = newList(vm, 2);
-  vmPushTempRef(vm, &ret_list->_super); // ret_list.
+        listAppend(vm, ret_list, VAR_FALSE);
+        listAppend(vm, ret_list, VAR_OBJ(err));
 
-  if (!success) {
-    String* err = vm->fiber->error;
-    vm->fiber->error = NULL; // clear error
-
-    listAppend(vm, ret_list, VAR_FALSE);
-    listAppend(vm, ret_list, VAR_OBJ(err));
-
-  } else {
-    // Suppress error reporting
-    WriteFn old_stderr = vm->config.stderr_write;
-    vm->config.stderr_write = NULL;
-
-    Result result;
-    Fiber* last = vm->fiber;
-
-    if (fiber->closure->fn->is_native) {
-      ASSERT(fiber->closure->fn->native != NULL, "Native function was NULL");
-      vm->fiber = fiber;
-      fiber->closure->fn->native(vm);
-      if (VM_HAS_ERROR(vm)) {
-        result = RESULT_RUNTIME_ERROR;
       } else {
-        result = RESULT_SUCCESS;
+        // Suppress error reporting
+        WriteFn old_stderr = vm->config.stderr_write;
+        vm->config.stderr_write = NULL;
+
+        Result result;
+        Fiber* last = vm->fiber;
+
+        if (fiber->closure->fn->is_native) {
+          ASSERT(fiber->closure->fn->native != NULL,
+                 "Native function was NULL");
+          vm->fiber = fiber;
+          fiber->closure->fn->native(vm);
+          if (VM_HAS_ERROR(vm)) {
+            result = RESULT_RUNTIME_ERROR;
+          } else {
+            result = RESULT_SUCCESS;
+          }
+        } else {
+          result = vmRunFiber(vm, fiber);
+        }
+
+        // Restore stderr
+        vm->config.stderr_write = old_stderr;
+
+        // Restore fiber
+        vm->fiber = last;
+
+        if (result == RESULT_SUCCESS) {
+          listAppend(vm, ret_list, VAR_TRUE);
+          listAppend(vm, ret_list, *fiber->ret);
+        } else {
+          listAppend(vm, ret_list, VAR_FALSE);
+          if (fiber->error) {
+            listAppend(vm, ret_list, VAR_OBJ(fiber->error));
+          } else {
+            listAppend(vm, ret_list, VAR_OBJ(newString(vm, "Unknown Error")));
+          }
+          fiber->error = NULL;
+        }
       }
-    } else {
-      result = vmRunFiber(vm, fiber);
     }
-
-    // Restore stderr
-    vm->config.stderr_write = old_stderr;
-
-    // Restore fiber
-    vm->fiber = last;
-
-    if (result == RESULT_SUCCESS) {
-      listAppend(vm, ret_list, VAR_TRUE);
-      listAppend(vm, ret_list, *fiber->ret);
-    } else {
-      listAppend(vm, ret_list, VAR_FALSE);
-      if (fiber->error) {
-        listAppend(vm, ret_list, VAR_OBJ(fiber->error));
-      } else {
-        listAppend(vm, ret_list, VAR_OBJ(newString(vm, "Unknown Error")));
-      }
-      fiber->error = NULL;
-    }
+    vmPopTempRef(vm); // ret_list.
+    RET(VAR_OBJ(ret_list));
   }
-
-  vmPopTempRef(vm); // ret_list.
   vmPopTempRef(vm); // fiber.
-
-  RET(VAR_OBJ(ret_list));
 }
 
 // List functions.
@@ -1400,6 +1401,61 @@ saynaa_function(stdModuleLoad, "package.load(name:String) -> Module",
   RET(module);
 }
 
+saynaa_function(stdModuleLoadFile, "package.loadfile(path:String) -> Module",
+                "Load import the module from the given [path] and returns it. "
+                "It won't be imported to the current scope.") {
+  String* path;
+  if (!validateArgString(vm, 1, &path))
+    return;
+
+  if (vm->config.resolve_path_fn == NULL)
+    return;
+
+  char* from_path = NULL;
+  if (vm->fiber->frame_count > 0) {
+    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    from_path = frame->closure->fn->owner->path == NULL
+                    ? NULL
+                    : frame->closure->fn->owner->path->data;
+  }
+
+  char* resolve_path = vm->config.resolve_path_fn(vm, from_path, path->data);
+  printf("Resolved path: %s\n", resolve_path);
+
+  if (resolve_path == NULL)
+    return;
+
+  // Convert the resolved path to a module name by replacing '/' with '.'
+  String* _name = newString(vm, resolve_path);
+  vmPushTempRef(vm, &_name->_super);
+  for (char* c = _name->data; c < _name->data + _name->length; c++) {
+    if (*c == '/')
+      *c = '.';
+  }
+  _name->hash = utilHashString(_name->data);
+
+  String* resolve = newString(vm, resolve_path);
+  vmPushTempRef(vm, &_name->_super);
+
+  Module* module = vmimportScript(vm, resolve, _name);
+
+  // Check if the module was imported successfully,
+  // if not, pop the temporary references and return.
+  if (VM_HAS_ERROR(vm)) {
+    vmPopTempRef(vm); // _name.
+    vmPopTempRef(vm); // resolve.
+    return;
+  }
+
+  Var ret = VAR_NULL;
+  vmCallFunction(vm, module->body, 0, NULL, &ret);
+
+  vmPopTempRef(vm); // _name.
+  vmPopTempRef(vm); // resolve.
+
+  RET(VAR_OBJ(module));
+}
+
 static void initializeCoreModules(VM* vm) {
 #define MODULE_ADD_FN(module, name, fn, argc) \
   moduleAddFunctionInternal(vm, module, name, fn, argc, DOCSTRING(fn))
@@ -1421,6 +1477,7 @@ static void initializeCoreModules(VM* vm) {
 
   NEW_MODULE(package, "package");
   MODULE_ADD_FN(package, "load", stdModuleLoad, 1);
+  MODULE_ADD_FN(package, "loadfile", stdModuleLoadFile, 1);
   moduleSetGlobal(vm, package, "path", 4, VAR_OBJ(vm->search_paths));
 
   moduleSetGlobal(vm, package, "searchers", 9, VAR_OBJ(vm->searchers));

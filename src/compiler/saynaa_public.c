@@ -16,6 +16,13 @@
 #include <math.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <sys/stat.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 // Path Resolving Functionality Documentation:
 //
 // The core does not implement path resolving functionality directly.
@@ -135,6 +142,7 @@ VM* NewVM(Configuration* config) {
   VM* vm = (VM*) config->realloc_fn(NULL, sizeof(VM), config->user_data);
   memset(vm, 0, sizeof(VM));
 
+  ObjectBufferInit(&vm->temp_reference);
   vm->config = *config;
   vm->working_set_count = 0;
   vm->working_set_capacity = MIN_CAPACITY;
@@ -267,7 +275,7 @@ Handle* NewModule(VM* vm, const char* name) {
   Module* module = newModuleInternal(vm, name);
 
   vmPushTempRef(vm, &module->_super); // module.
-  Handle* handle = vmNewHandle(vm, VAR_OBJ(module));
+  Handle* handle = newHandle(vm, VAR_OBJ(module));
   vmPopTempRef(vm); // module.
 
   return handle;
@@ -306,7 +314,7 @@ Handle* NewClass(VM* vm, const char* name, Handle* base_class, Handle* module,
   class_->delete_fn = delete_fn;
 
   vmPushTempRef(vm, &class_->_super); // class_.
-  Handle* handle = vmNewHandle(vm, VAR_OBJ(class_));
+  Handle* handle = newHandle(vm, VAR_OBJ(class_));
   vmPopTempRef(vm); // class_.
   return handle;
 }
@@ -1050,7 +1058,7 @@ void* GetSlotPointer(VM* vm, int index, void* native_ptr, Destructor destructor)
 Handle* GetSlotHandle(VM* vm, int index) {
   CHECK_FIBER_EXISTS(vm);
   VALIDATE_SLOT_INDEX(index);
-  return vmNewHandle(vm, SLOT(index));
+  return newHandle(vm, SLOT(index));
 }
 
 void* GetSlotNativeInstance(VM* vm, int index) {
@@ -1457,12 +1465,33 @@ static char* stdinRead(VM* vm) {
   return str;
 }
 
+int is_regular_file(const char* path) {
+  struct stat st;
+
+  if (stat(path, &st) != 0)
+    return 0;
+
+#ifdef _WIN32
+  return (st.st_mode & _S_IFREG) != 0;
+#else
+  return S_ISREG(st.st_mode);
+#endif
+}
+
 static uint8_t* readFileRawBytes(VM* vm, const char* path, size_t* out_size) {
   if (out_size)
     *out_size = 0;
   FILE* file = fopen(path, "rb");
   if (file == NULL)
     return NULL;
+
+  // Check if the file is a regular file. This is important to avoid reading from
+  // special files like /dev/null, /dev/zero, etc.
+  // which can cause the program to hang or consume excessive resources.
+  if (!is_regular_file(path)) {
+    fclose(file);
+    return NULL;
+  }
 
   // Get the source length. In windows the ftell will includes the cariage
   // return when using ftell with fseek. But that's not an issue since

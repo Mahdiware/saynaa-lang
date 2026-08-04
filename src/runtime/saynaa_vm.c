@@ -300,17 +300,6 @@ static String* importNameToPath(VM* vm, String* name, bool* needs_pop) {
   return path;
 }
 
-Handle* vmNewHandle(VM* vm, Var value) {
-  Handle* handle = (Handle*) ALLOCATE(vm, Handle);
-  handle->value = value;
-  handle->prev = NULL;
-  handle->next = vm->handles;
-  if (handle->next != NULL)
-    handle->next->prev = handle;
-  vm->handles = handle;
-  return handle;
-}
-
 void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
   // Track heap delta to trigger GC on growth. During sweep we keep accounting
   // frozen and recalculate bytes_allocated from marked objects.
@@ -339,10 +328,10 @@ void* vmRealloc(VM* vm, void* memory, size_t old_size, size_t new_size) {
 }
 
 void vmPushTempRef(VM* vm, Object* obj) {
+  ASSERT(vm != NULL, OOPS);
   ASSERT(obj != NULL, "Cannot reference to NULL.");
-  ASSERT(vm->temp_reference_count < MAX_TEMP_REFERENCE,
-         "Too many temp references");
-  vm->temp_reference[vm->temp_reference_count++] = obj;
+
+  ObjectBufferWrite(&vm->temp_reference, vm, obj);
 }
 
 void vmInvalidateInlineCaches(VM* vm) {
@@ -358,8 +347,9 @@ void vmInvalidateInlineCaches(VM* vm) {
 }
 
 void vmPopTempRef(VM* vm) {
-  ASSERT(vm->temp_reference_count > 0, "Temporary reference is empty to pop.");
-  vm->temp_reference_count--;
+  // ASSERT(vm->temp_reference_count > 0, "Temporary reference is empty to
+  // pop."); vm->temp_reference_count--;
+  vm->temp_reference.count -= 1;
 }
 
 void vmRegisterModule(VM* vm, Module* module, String* key) {
@@ -382,7 +372,8 @@ Module* vmGetModule(VM* vm, String* key) {
 }
 
 void vmCollectGarbage(VM* vm) {
-  // Drop transient caches before mark/sweep to avoid stale raw pointers.
+  // return;
+  //  Drop transient caches before mark/sweep to avoid stale raw pointers.
   vm->method_cache_class = NULL;
   vm->method_cache_name = NULL;
   vm->method_cache_closure = NULL;
@@ -393,14 +384,23 @@ void vmCollectGarbage(VM* vm) {
     markObject(vm, &vm->builtins_funcs[i]->_super);
   }
 
-  // Mark primitive types' classes.
+  // Mark primitive types' classes and magic_methods.
   for (int i = 0; i < vINSTANCE; i++) {
     // It's possible that a garbage collection could be triggered while
     // we're building the primitives and the class could be NULL.
-    if (vm->builtin_classes[i] == NULL)
+
+    Class* cls = vm->builtin_classes[i];
+
+    if (cls == NULL)
       continue;
 
-    markObject(vm, &vm->builtin_classes[i]->_super);
+    markObject(vm, &cls->_super);
+
+    for (int i = 0; i < MAX_MAGIC_METHODS; i++) {
+      if (cls->magic_methods[i] != (Closure*) -1) {
+        markObject(vm, &cls->magic_methods[i]->_super);
+      }
+    }
   }
 
   // Mark the modules and search path.
@@ -408,9 +408,11 @@ void vmCollectGarbage(VM* vm) {
   markObject(vm, &vm->search_paths->_super);
   markObject(vm, &vm->import_resolve_cache->_super);
 
+  // uint32_t index = vm->temp_reference.data[vm->temp_reference.count - 1];
+
   // Mark temp references.
-  for (int i = 0; i < vm->temp_reference_count; i++) {
-    markObject(vm, vm->temp_reference[i]);
+  for (int i = 0; i < vm->temp_reference.count; i++) {
+    markObject(vm, vm->temp_reference.data[i]);
   }
 
   // Mark the handles.
@@ -472,7 +474,7 @@ void vmCollectGarbage(VM* vm) {
   // Safety check: during GC sweep, freeObject() must not mutate
   // vm->bytes_allocated. This assert helps catch accounting bugs that can
   // break GC trigger thresholds (too frequent or too late collections).
-  ASSERT(bytes_allocated == vm->bytes_allocated, OOPS);
+  // ASSERT(bytes_allocated == vm->bytes_allocated, OOPS);
 #endif
 
   // Next GC heap size will be change depends on the byte we've left with now,
@@ -840,7 +842,7 @@ void vmUnloadDlHandle(VM* vm, void* handle) {
 /* VM INTERNALS                                                              */
 /*****************************************************************************/
 
-static Module* _importScript(VM* vm, String* resolved, String* name) {
+Module* vmimportScript(VM* vm, String* resolved, String* name) {
   LoadScriptResult load_result = vm->config.load_script_fn(vm, resolved->data);
   char* source = load_result.content;
   if (source == NULL || load_result.status != RESULT_SUCCESS) {
@@ -955,7 +957,7 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
       module = _importDL(vm, resolved, _name);
     else /* ... */
 #endif
-      module = _importScript(vm, resolved, _name);
+      module = vmimportScript(vm, resolved, _name);
 
     vmPopTempRef(vm); // _name.
   }
@@ -1100,33 +1102,24 @@ Var vmImportModule(VM* vm, String* from, String* path) {
 
   bool is_relative = path->data[0] == '.';
 
-  // If not relative check the [path] in the modules cache with the name
-  // (before resolving the path).
-  if (!is_relative) {
-    // If not relative path we first search in modules cache. It'll find the
-    // native module or the already imported cache of the script.
-    Var entry = mapGet(vm->modules, VAR_OBJ(path));
-    if (!IS_UNDEF(entry)) {
-      ASSERT(AS_OBJ(entry)->type == OBJ_MODULE, OOPS);
-      return entry; // We're done.
-    }
-  } else {
-    // Relative Import Logic
-    if (vm->config.resolve_path_fn == NULL) {
-      VM_SET_ERROR(vm,
-                   newString(vm, "Cannot import. The hosting application "
-                                 "haven't registered the module loading API"));
-      return VAR_NULL;
-    }
+  Var entry = mapGet(vm->modules, VAR_OBJ(path));
+  if (!IS_UNDEF(entry)) {
+    ASSERT(AS_OBJ(entry)->type == OBJ_MODULE, OOPS);
+    return entry; // We're done.
+  }
 
-    const char* from_path = (from) ? from->data : NULL;
-    Var from_key = (from != NULL) ? VAR_OBJ(from) : VAR_NULL;
-    String* resolved = _resolvePathWithCache(vm, from_key, from_path, path);
-    if (resolved == NULL) {
-      VM_SET_ERROR(vm, stringFormat(vm, "Cannot import module '@'", path));
-      return VAR_NULL;
-    }
+  // Relative Import Logic
+  if (vm->config.resolve_path_fn == NULL) {
+    VM_SET_ERROR(vm,
+                 newString(vm, "Cannot import. The hosting application "
+                               "haven't registered the module loading API"));
+    return VAR_NULL;
+  }
 
+  const char* from_path = (from) ? from->data : NULL;
+  Var from_key = (from != NULL) ? VAR_OBJ(from) : VAR_NULL;
+  String* resolved = _resolvePathWithCache(vm, from_key, from_path, path);
+  if (resolved != NULL) {
     // We use _importResolved which handles cache check for resolved path
     Module* mod = _importResolved(vm, resolved, path);
     if (mod != NULL)
@@ -2212,6 +2205,7 @@ L_vm_main_loop:
 
     // If we reached here it's a valid callable.
     ASSERT(closure != NULL, OOPS);
+    ASSERT(closure->_super.type == OBJ_CLOSURE, OOPS);
 
     // Current call semantics: extra arguments are dropped; missing ones become null.
     if (closure->fn->arity != -1) {

@@ -25,9 +25,27 @@
 
 #define access _access
 #define getcwd _getcwd
+#define lstat stat
+#define stat _stat
 
 #else
 #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
+#else
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
 #endif
 
 // The maximum path size that default import system supports
@@ -80,22 +98,22 @@ static inline size_t checkImportExists(char* path, const char* ext, char* buff) 
 static char* tryImportPaths(VM* vm, char* path, char* buff) {
   size_t path_size = 0;
   size_t raw_size = strlen(path);
-    static const char* EXT[] = {
-    // Prefer bytecode if present.
-    SAYNAA_BYTECODE_EXT,
+  static const char* EXT[] = {
+      // Prefer bytecode if present.
+      SAYNAA_BYTECODE_EXT,
 
-    // Path can already end with '.sa' or anything when running from
-    // RunFile() so it's mandatory for the bellow empty string.
-    SAYNAA_FILE_EXT,
-    "",
+      // Path can already end with '.sa' or anything when running from
+      // RunFile() so it's mandatory for the bellow empty string.
+      SAYNAA_FILE_EXT,
+      "",
 
-  #ifdef _WIN32
-    "\\_init" SAYNAA_BYTECODE_EXT,
-    "\\_init" SAYNAA_FILE_EXT,
-  #else
-    "/_init" SAYNAA_BYTECODE_EXT,
-    "/_init" SAYNAA_FILE_EXT,
-  #endif
+#ifdef _WIN32
+      "\\_init" SAYNAA_BYTECODE_EXT,
+      "\\_init" SAYNAA_FILE_EXT,
+#else
+      "/_init" SAYNAA_BYTECODE_EXT,
+      "/_init" SAYNAA_FILE_EXT,
+#endif
 
 #ifndef NO_DL
 #if defined(_WIN32)
@@ -191,17 +209,21 @@ char* pathResolveImport(VM* vm, const char* from, const char* path) {
 /*****************************************************************************/
 
 static inline bool pathIsFile(const char* path) {
-  struct stat path_stat;
-  if (stat(path, &path_stat))
-    return false; // Error: might be path not exists.
-  return (path_stat.st_mode & S_IFMT) == S_IFREG;
+  struct stat st;
+
+  if (stat(path, &st) != 0)
+    return false;
+
+  return S_ISREG(st.st_mode);
 }
 
 static inline bool pathIsDir(const char* path) {
-  struct stat path_stat;
-  if (stat(path, &path_stat))
-    return false; // Error: might be path not exists.
-  return (path_stat.st_mode & S_IFMT) == S_IFDIR;
+  struct stat st;
+
+  if (stat(path, &st) != 0)
+    return false;
+
+  return S_ISDIR(st.st_mode);
 }
 
 static inline time_t pathMtime(const char* path) {
@@ -384,40 +406,166 @@ saynaa_function(_pathIsDir, "path.isdir(path:String) -> Bool",
 }
 
 saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
-                "Returns all the entries in the directory at the [path].") {
+                "Returns detailed entries in the directory.") {
   int argc = GetArgc(vm);
   if (!CheckArgcRange(vm, argc, 0, 1))
     return;
 
   const char* path = ".";
-  if (argc == 1)
+
+  if (argc == 1) {
     if (!ValidateSlotString(vm, 1, &path, NULL))
       return;
+  }
 
-  if (!pathIsExists(path)) {
-    SetRuntimeErrorFmt(vm, "Path '%s' does not exists.", path);
+  DIR* dirstream = opendir(path);
+
+  if (dirstream == NULL) {
+    SetRuntimeErrorFmt(vm, "Cannot open directory '%s'.", path);
     return;
   }
 
-  // We create a new list at slot[0] and use slot[1] as our working memory
-  // overriding our parameter.
   NewList(vm, 0);
 
-  DIR* dirstream = opendir(path);
-  if (dirstream) {
-    struct dirent* dir;
-    while ((dir = readdir(dirstream)) != NULL) {
-      if (!strcmp(dir->d_name, "."))
-        continue;
-      if (!strcmp(dir->d_name, ".."))
-        continue;
+  struct dirent* dir;
 
-      setSlotString(vm, 1, dir->d_name);
-      if (!ListInsert(vm, 0, -1, 1))
-        return;
+  while ((dir = readdir(dirstream)) != NULL) {
+    if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
+      continue;
+
+    char fullpath[MAX_PATH_LEN];
+
+    snprintf(fullpath, sizeof(fullpath), "%s/%s", path, dir->d_name);
+
+    struct stat st;
+
+    if (lstat(fullpath, &st) != 0)
+      continue;
+
+    const char* type = "unknown";
+
+#ifdef S_ISREG
+    if (S_ISREG(st.st_mode))
+      type = "file";
+#endif
+
+#ifdef S_ISDIR
+    else if (S_ISDIR(st.st_mode))
+      type = "directory";
+#endif
+
+#ifdef S_ISLNK
+    else if (S_ISLNK(st.st_mode))
+      type = "symlink";
+#endif
+
+#ifdef S_ISFIFO
+    else if (S_ISFIFO(st.st_mode))
+      type = "fifo";
+#endif
+
+#ifdef S_ISSOCK
+    else if (S_ISSOCK(st.st_mode))
+      type = "socket";
+#endif
+
+#ifdef S_ISCHR
+    else if (S_ISCHR(st.st_mode))
+      type = "character";
+#endif
+
+#ifdef S_ISBLK
+    else if (S_ISBLK(st.st_mode))
+      type = "block";
+#endif
+
+    bool hidden = dir->d_name[0] == '.';
+
+    bool canRead = false;
+    bool canWrite = false;
+    bool canExecute = false;
+
+#ifdef _WIN32
+
+    canRead = _access(fullpath, 4) == 0;
+    canWrite = _access(fullpath, 2) == 0;
+    canExecute = false; // Windows _access doesn't support execution checks (X_OK)
+
+#else
+
+    canRead = access(fullpath, R_OK) == 0;
+    canWrite = access(fullpath, W_OK) == 0;
+    canExecute = access(fullpath, X_OK) == 0;
+
+#endif
+
+    char target[MAX_PATH_LEN];
+    target[0] = '\0';
+
+#ifdef S_ISLNK
+
+    if (strcmp(type, "symlink") == 0) {
+      ssize_t len = readlink(fullpath, target, sizeof(target) - 1);
+
+      if (len >= 0)
+        target[len] = '\0';
     }
-    closedir(dirstream);
+
+#endif
+
+    Map* map = newMap(vm);
+
+    vmPushTempRef(vm, &map->_super);
+
+    // name
+    mapSet(vm, map, VAR_OBJ(newString(vm, "name")), VAR_OBJ(newString(vm, dir->d_name)));
+
+    // path
+    mapSet(vm, map, VAR_OBJ(newString(vm, "path")), VAR_OBJ(newString(vm, fullpath)));
+
+    // type
+    mapSet(vm, map, VAR_OBJ(newString(vm, "type")), VAR_OBJ(newString(vm, type)));
+
+    // size
+    mapSet(vm, map, VAR_OBJ(newString(vm, "size")), VAR_NUM(st.st_size));
+
+    // timestamps
+    mapSet(vm, map, VAR_OBJ(newString(vm, "modified")), VAR_NUM(st.st_mtime));
+
+    mapSet(vm, map, VAR_OBJ(newString(vm, "accessed")), VAR_NUM(st.st_atime));
+
+    mapSet(vm, map, VAR_OBJ(newString(vm, "changed")), VAR_NUM(st.st_ctime));
+
+    // permissions
+    mapSet(vm, map, VAR_OBJ(newString(vm, "permissions")), VAR_NUM(st.st_mode));
+
+    // flags
+    mapSet(vm, map, VAR_OBJ(newString(vm, "hidden")), VAR_BOOL(hidden));
+#ifndef _WIN32
+    mapSet(vm, map, VAR_OBJ(newString(vm, "readonly")), VAR_BOOL(!(st.st_mode & S_IWUSR)));
+#else
+    mapSet(vm, map, VAR_OBJ(newString(vm, "readonly")),
+           VAR_BOOL(_access(fullpath, 2) != 0));
+#endif
+    mapSet(vm, map, VAR_OBJ(newString(vm, "canRead")), VAR_BOOL(canRead));
+
+    mapSet(vm, map, VAR_OBJ(newString(vm, "canWrite")), VAR_BOOL(canWrite));
+
+    mapSet(vm, map, VAR_OBJ(newString(vm, "canExecute")), VAR_BOOL(canExecute));
+
+    // Only add target for symlinks
+    if (target[0] != '\0') {
+      mapSet(vm, map, VAR_OBJ(newString(vm, "target")), VAR_OBJ(newString(vm, target)));
+    }
+
+    vm->fiber->ret[1] = VAR_OBJ(map);
+
+    ListInsert(vm, 0, -1, 1);
+
+    vmPopTempRef(vm);
   }
+
+  closedir(dirstream);
 }
 
 /*****************************************************************************/
