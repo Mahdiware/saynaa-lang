@@ -487,7 +487,7 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 
 #endif
 
-    char target[PATH_MAX];
+    char target[MAX_PATH_LEN];
     target[0] = '\0';
 
 #ifdef S_ISLNK
@@ -529,9 +529,9 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
 
     // flags
     mapSet(vm, map, VAR_OBJ(newString(vm, "hidden")), VAR_BOOL(hidden));
-
+#ifndef _OS_WIN_
     mapSet(vm, map, VAR_OBJ(newString(vm, "readonly")), VAR_BOOL(!(st.st_mode & S_IWUSR)));
-
+#endif
     mapSet(vm, map, VAR_OBJ(newString(vm, "canRead")), VAR_BOOL(canRead));
 
     mapSet(vm, map, VAR_OBJ(newString(vm, "canWrite")), VAR_BOOL(canWrite));
