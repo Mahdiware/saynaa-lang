@@ -32,6 +32,22 @@
 #include <unistd.h>
 #endif
 
+#ifdef _WIN32
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
+#else
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+#endif
+
 // The maximum path size that default import system supports
 // including the null terminator. To be able to support more characters
 // override the functions from the host application. Since this is very much
@@ -412,22 +428,6 @@ saynaa_function(_pathListDir, "path.listdir(path:String='.') -> List",
   NewList(vm, 0);
 
   struct dirent* dir;
-
-#ifdef _WIN32
-#ifndef S_ISDIR
-#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
-#endif
-#ifndef S_ISREG
-#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
-#endif
-#else
-#ifndef S_ISDIR
-#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
-#endif
-#ifndef S_ISREG
-#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-#endif
-#endif
 
   while ((dir = readdir(dirstream)) != NULL) {
     if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
