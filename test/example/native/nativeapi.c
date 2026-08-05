@@ -48,6 +48,9 @@ EXPORT void InitApi(NativeApi* api) {
   native_api.ValidateSlotType_ptr = api->ValidateSlotType_ptr;
   native_api.ValidateSlotInstanceOf_ptr = api->ValidateSlotInstanceOf_ptr;
   native_api.IsSlotInstanceOf_ptr = api->IsSlotInstanceOf_ptr;
+  native_api.nextSlot_ptr = api->nextSlot_ptr;
+  native_api.allocSlot_ptr = api->allocSlot_ptr;
+  native_api.freeSlot_ptr = api->freeSlot_ptr;
   native_api.reserveSlots_ptr = api->reserveSlots_ptr;
   native_api.GetSlotsCount_ptr = api->GetSlotsCount_ptr;
   native_api.GetSlotType_ptr = api->GetSlotType_ptr;
@@ -235,6 +238,18 @@ bool ValidateSlotInstanceOf(VM* vm, int slot, int cls) {
 
 bool IsSlotInstanceOf(VM* vm, int inst, int cls, bool* val) {
   return native_api.IsSlotInstanceOf_ptr(vm, inst, cls, val);
+}
+
+int nextSlot(VM* vm, bool use_temporary) {
+  return native_api.nextSlot_ptr(vm, use_temporary);
+}
+
+int allocSlot(VM* vm, uint32_t count) {
+  return native_api.allocSlot_ptr(vm, count);
+}
+
+void freeSlot(VM* vm, uint32_t index, uint32_t count) {
+  native_api.freeSlot_ptr(vm, index, count);
 }
 
 void reserveSlots(VM* vm, int count) {
