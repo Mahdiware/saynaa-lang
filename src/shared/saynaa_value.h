@@ -156,7 +156,6 @@ typedef struct Var Var;
   ((((uintptr_t)(a)) & 0x00FFFFFFFFFFFFFFULL) == \
    (((uintptr_t)(b)) & 0x00FFFFFFFFFFFFFFULL))
 
-
 // Decode types.
 #define AS_BOOL(value) ((value) == VAR_TRUE)
 #define AS_INT(value) ((int32_t) ((value) & _PAYLOAD_INTEGER))
