@@ -70,43 +70,35 @@ if "!enable_debug!"=="false" (
     set "add_defines=!add_defines! /DDEBUG"
 )
 
-:: Check if optionals directory exists (matches Makefile feq ($(wildcard src/optionals/.),))
+:: Check if optionals directory exists
 if not exist "%project_root%src\optionals" (
     set "add_defines=!add_defines! /DNO_OPTIONALS"
 )
 
-:: Reset object tracking lists
 set "core_objs="
 set "cli_objs="
 
 :: Dynamically process all .c files in src/
 for /f "delims=" %%F in ('dir /b /s "%project_root%src\*.c" 2^>nul') do (
     set "src_file=%%F"
-    
-    :: Calculate relative path from project root (e.g., src\saynaa\saynaa.c)
     set "rel_path=!src_file:%project_root%=!"
-    
     set "skip_file=false"
     
-    :: If optionals folder is missing, skip compiling src\optionals\*
     if not exist "%project_root%src\optionals" (
         echo !rel_path! | findstr /i /c:"src\optionals\" >nul && set "skip_file=true"
     )
     
     if "!skip_file!"=="false" (
-        :: Determine output object path matching folder tree inside obj/
         set "obj_file=%target_dir%!rel_path:.c=.obj!"
         
-        :: Ensure object sub-directory exists
         for %%I in ("!obj_file!") do (
             if not exist "%%~dpI" mkdir "%%~dpI"
         )
         
-        :: Compile individual source file to object file
         cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! /Fo"!obj_file!" "!src_file!"
         if errorlevel 1 goto :FAIL
         
-        :: Classify object file (CLI entry point vs Core engine)
+        :: Route object files based on directory
         echo !rel_path! | findstr /i /c:"src\saynaa\" >nul
         if !errorlevel!==0 (
             set "cli_objs=!cli_objs! "!obj_file!""
@@ -117,7 +109,7 @@ for /f "delims=" %%F in ('dir /b /s "%project_root%src\*.c" 2^>nul') do (
 )
 
 if "!core_objs!"=="" (
-    echo Error: No source files found in src.
+    echo Error: No core source files found in src.
     goto :FAIL
 )
 
@@ -130,7 +122,7 @@ if errorlevel 1 goto :FAIL
 
 :: 3. Final Link
 cd /d "%project_root%"
-cl /nologo !add_defines! !cli_objs! "!mylib!" !pcre2_lib! /Fe"%NAME%.exe"
+cl /nologo !add_defines! !cli_objs! "!mylib!" !pcre2_lib! /link /MACHINE:X64 /Fe"%NAME%.exe"
 if errorlevel 1 goto :FAIL
 
 echo Build Successful: %NAME%.exe created.
