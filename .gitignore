@@ -56,7 +56,7 @@ references/
 *.i*86
 *.x86_64
 *.hex
-saynaa
+/saynaa
 
 # Debug files
 *.dSYM/

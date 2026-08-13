@@ -2222,6 +2222,22 @@ saynaa_function(_listResize, "List.resize(length:Number) -> List",
 }
 
 saynaa_function(
+    _mapSet, "Map.set([key:Var,] value:Var) -> Map",
+    "Sets the value at the key in the map."
+    " If the key is not provided it'll use the next available index.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
+
+  ASSERT(IS_OBJ_TYPE(THIS, OBJ_MAP), OOPS);
+
+  Map* thiz = (Map*) AS_OBJ(THIS);
+  Var key = (ARGC == 1) ? VAR_NUM((double) thiz->next_index) : ARG(1);
+
+  mapSet(vm, thiz, key, ARG(ARGC == 1 ? 1 : 2));
+  RET(THIS);
+}
+
+saynaa_function(
     _mapGet, "Map.get(key:Var, default=Null) -> Var",
     "Returns the key if its in the map, otherwise the default value will "
     "be returned.") {
@@ -2487,6 +2503,7 @@ static void initializePrimitiveClasses(VM* vm) {
   ADD_METHOD(vLIST, "resize", _listResize, 1);
 
   ADD_METHOD(vMAP, "clear", _mapClear, 0);
+  ADD_METHOD(vMAP, "set", _mapSet, -1);
   ADD_METHOD(vMAP, "get", _mapGet, -1);
   ADD_METHOD(vMAP, "has", _mapHas, 1);
   ADD_METHOD(vMAP, "pop", _mapPop, 1);

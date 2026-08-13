@@ -5,7 +5,7 @@
 
 // This file contains all the public function implementations.
 
-#include "../cli/saynaa.h"
+#include "../saynaa/saynaa.h"
 #include "../runtime/saynaa_core.h"
 #include "../runtime/saynaa_vm.h"
 #include "../shared/saynaa_bytecode.h"

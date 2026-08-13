@@ -87,13 +87,13 @@ make benchmark
 python3 util/run.py --app ./saynaa
 
 # compare to a baseline
-python3 util/run.py --app ./saynaa --baseline tests/benchmark/results/latest.json
+python3 util/run.py --app ./saynaa --baseline test/benchmark/results/latest.json
 
 # run a specific benchmark file case
 python3 util/run.py --app ./saynaa --case runtime_function_call.sa
 
 # fail if regression is above 15%
-python3 util/run.py --app ./saynaa --baseline tests/benchmark/results/latest.json --fail-on-regression-pct 15
+python3 util/run.py --app ./saynaa --baseline test/benchmark/results/latest.json --fail-on-regression-pct 15
 
 # CI-oriented quick profile
 make benchmark-ci
@@ -111,7 +111,7 @@ python3 util/compare.py --app1 ./saynaa --name1 local --app2 /usr/local/bin/sayn
 make benchmark-compare BENCH_APP1=./saynaa BENCH_APP2=/usr/local/bin/saynaa
 ```
 
-Benchmark cases are auto-discovered from metadata headers in `tests/benchmark/phases/*.sa`.
+Benchmark cases are auto-discovered from metadata headers in `test/benchmark/phases/*.sa`.
 
 ## Special thanks
 Saynaa was supported by a couple of open-source projects.

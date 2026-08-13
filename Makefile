@@ -1,4 +1,3 @@
-
 ## Copyright (c) 2022-2026 Mohamed Abdifatah. All rights reserved.
 ## Distributed Under The MIT License
 
@@ -15,14 +14,25 @@ CCFLAGS   = -fPIC -MMD -MP
 LDFLAGS   = -lm -ldl -lpcre2-8
 OBJ_DIR   = obj/
 
-# Recursively find all C files in src
-SRCS := $(shell find src -name "*.c")
+# 1. Dynamically check if the optionals folder exists
+ifeq ($(wildcard src/optionals/.),)
+    # Folder is missing! Exclude optionals from compilation and pass the macro
+    CCFLAGS += -DNO_OPTIONALS
+    SRCS := $(shell find src -name "*.c" ! -path "src/optionals/*")
+else
+    # Folder exists! Include everything normally
+    SRCS := $(shell find src -name "*.c")
+endif
+
 OBJS  := $(addprefix $(OBJ_DIR), $(SRCS:.c=.o))
 SOLIB = libsaynaa.so
 
 # Exclude CLI from shared library
 LIB_SRCS = $(filter-out src/cli/saynaa.c, $(SRCS))
 LIB_OBJS = $(addprefix $(OBJ_DIR), $(LIB_SRCS:.c=.o))
+
+# 2. Extract matching dependency (.d) tracking files from our objects
+DEPS := $(OBJS:.o=.d)
 
 ifneq ($(MODE),RELEASE)
 	CFLAGS += $(CCFLAGS) -DDEBUG -g3 -Og
@@ -73,6 +83,10 @@ $(OBJ_DIR)%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# 3. Include the generated dependency trackers into the system
+# The hyphen '-' quietly skips errors on fresh builds when no files exist yet
+-include $(DEPS)
+
 all: $(NAME)
 
 release:
@@ -84,7 +98,7 @@ benchmark: release
 	python3 util/run.py --app ./$(NAME)
 
 benchmark-ci: release
-	python3 util/run.py --app ./$(NAME) --warmup 1 --iterations 3 --json-out tests/benchmark/results/ci-latest.json
+	python3 util/run.py --app ./$(NAME) --warmup 1 --iterations 3 --json-out test/benchmark/results/ci-latest.json
 
 benchmark-compare: release
 	python3 util/compare.py --app1 "$(BENCH_APP1)" --app2 "$(BENCH_APP2)"
