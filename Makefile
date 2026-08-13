@@ -28,7 +28,7 @@ OBJS  := $(addprefix $(OBJ_DIR), $(SRCS:.c=.o))
 SOLIB = libsaynaa.so
 
 # Exclude CLI from shared library
-LIB_SRCS = $(filter-out src/cli/saynaa.c, $(SRCS))
+LIB_SRCS = $(filter-out src/saynaa/saynaa.c, $(SRCS))
 LIB_OBJS = $(addprefix $(OBJ_DIR), $(LIB_SRCS:.c=.o))
 
 # 2. Extract matching dependency (.d) tracking files from our objects

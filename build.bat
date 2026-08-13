@@ -7,6 +7,7 @@ pushd %~dp0
 
 :: Root directory of the project
 set "project_root=%~dp0"
+set "NAME=saynaa"
 
 :: ----------------------------------------------------------------------------
 :: DEPENDENCIES
@@ -69,53 +70,76 @@ if "!enable_debug!"=="false" (
     set "add_defines=!add_defines! /DDEBUG"
 )
 
-:: Create directories
-if not exist "!target_dir!saynaa\" mkdir "!target_dir!saynaa\"
-if not exist "!target_dir!cli\" mkdir "!target_dir!cli\"
-if not exist "!target_dir!lib\" mkdir "!target_dir!lib\"
+:: Check if optionals directory exists (matches Makefile feq ($(wildcard src/optionals/.),))
+if not exist "%project_root%src\optionals" (
+    set "add_defines=!add_defines! /DNO_OPTIONALS"
+)
 
-:: 1. Compile Core
-cd /d "!target_dir!saynaa"
+:: Reset object tracking lists
+set "core_objs="
+set "cli_objs="
 
-set "sources="
-for /r "%project_root%src" %%d in (.) do (
-    set "dir_path=%%~fd"
-    if exist "!dir_path!\*.c" (
-        if /i not "!dir_path!"=="%project_root%src\cli" (
-            set "sources=!sources! "!dir_path!\*.c""
+:: Dynamically process all .c files in src/
+for /f "delims=" %%F in ('dir /b /s "%project_root%src\*.c" 2^>nul') do (
+    set "src_file=%%F"
+    
+    :: Calculate relative path from project root (e.g., src\saynaa\saynaa.c)
+    set "rel_path=!src_file:%project_root%=!"
+    
+    set "skip_file=false"
+    
+    :: If optionals folder is missing, skip compiling src\optionals\*
+    if not exist "%project_root%src\optionals" (
+        echo !rel_path! | findstr /i /c:"src\optionals\" >nul && set "skip_file=true"
+    )
+    
+    if "!skip_file!"=="false" (
+        :: Determine output object path matching folder tree inside obj/
+        set "obj_file=%target_dir%!rel_path:.c=.obj!"
+        
+        :: Ensure object sub-directory exists
+        for %%I in ("!obj_file!") do (
+            if not exist "%%~dpI" mkdir "%%~dpI"
+        )
+        
+        :: Compile individual source file to object file
+        cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! /Fo"!obj_file!" "!src_file!"
+        if errorlevel 1 goto :FAIL
+        
+        :: Classify object file (CLI entry point vs Core engine)
+        echo !rel_path! | findstr /i /c:"src\saynaa\" >nul
+        if !errorlevel!==0 (
+            set "cli_objs=!cli_objs! "!obj_file!""
+        ) else (
+            set "core_objs=!core_objs! "!obj_file!""
         )
     )
 )
 
-if "!sources!"=="" (
+if "!core_objs!"=="" (
     echo Error: No source files found in src.
     goto :FAIL
 )
 
-cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! !sources!
+:: 2. Create Library (libsaynaa.lib)
+if not exist "%target_dir%lib\" mkdir "%target_dir%lib\"
+set "mylib=%target_dir%lib\%NAME%.lib"
+
+lib /nologo /OUT:"!mylib!" !core_objs!
 if errorlevel 1 goto :FAIL
 
-:: 2. Create Library
-set "mylib=!target_dir!lib\saynaa.lib"
-lib /nologo /OUT:"!mylib!" *.obj
+:: 3. Final Link
+cd /d "%project_root%"
+cl /nologo !add_defines! !cli_objs! "!mylib!" !pcre2_lib! /Fe"%NAME%.exe"
 if errorlevel 1 goto :FAIL
 
-:: 3. Compile CLI
-cd /d "!target_dir!cli"
-cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! "!project_root!src\cli\*.c"
-if errorlevel 1 goto :FAIL
-
-:: 4. Final Link
-cd /d "!project_root!"
-cl /nologo !add_defines! "!target_dir!cli\*.obj" "!mylib!" !pcre2_lib! /Fe"saynaa.exe"
-if errorlevel 1 goto :FAIL
-
-echo Build Successful: saynaa.exe created.
+echo Build Successful: %NAME%.exe created.
 goto :END
 
 :CLEAN
 if exist "obj" rmdir /S /Q "obj"
-if exist "saynaa.exe" del "saynaa.exe"
+if exist "%NAME%.exe" del "%NAME%.exe"
+if exist "*.pdb" del "*.pdb"
 goto :END
 
 :FAIL
