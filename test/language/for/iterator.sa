@@ -18,6 +18,6 @@ end
 character = []
 
 for c in StringIter("hello")
-  list_append(character, c)
+  character.append(c)
 end
 assert(character == ["h", "e", "l", "l", "o"])

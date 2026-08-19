@@ -5,6 +5,7 @@
 
 #include "saynaa_vm.h"
 
+#include "../runtime/saynaa_import.h"
 #include "../shared/saynaa_bytecode.h"
 #include "../utils/saynaa_debug.h"
 #include "../utils/saynaa_utils.h"
@@ -668,234 +669,9 @@ Result vmCallFunction(VM* vm, Closure* fn, int argc, Var* argv, Var* ret) {
   return vmCallMethod(vm, VAR_UNDEFINED, fn, argc, argv, ret);
 }
 
-#ifndef NO_DL
-
-struct NativeLibCacheEntry {
-  NativeLibCacheEntry* prev;
-  NativeLibCacheEntry* next;
-  char* path;
-  void* os_handle;
-  uint32_t refs;
-};
-
-static void* _dlCacheAlloc(VM* vm, size_t size) {
-  return vm->config.realloc_fn(NULL, size, vm->config.user_data);
-}
-
-static void _dlCacheFree(VM* vm, void* ptr) {
-  if (ptr != NULL) {
-    vm->config.realloc_fn(ptr, 0, vm->config.user_data);
-  }
-}
-
-static NativeLibCacheEntry* _dlCacheFind(VM* vm, const char* resolved_path) {
-  for (NativeLibCacheEntry* entry = vm->native_dl_cache; entry != NULL;
-       entry = entry->next) {
-    if (strcmp(entry->path, resolved_path) == 0) {
-      return entry;
-    }
-  }
-  return NULL;
-}
-
-static NativeLibCacheEntry* _dlCacheAcquire(VM* vm, String* resolved) {
-  NativeLibCacheEntry* entry = _dlCacheFind(vm, resolved->data);
-  if (entry != NULL) {
-    entry->refs++;
-    return entry;
-  }
-
-  ASSERT(vm->config.load_dl_fn != NULL, OOPS);
-  void* os_handle = vm->config.load_dl_fn(vm, resolved->data);
-  if (os_handle == NULL)
-    return NULL;
-
-  entry = (NativeLibCacheEntry*) _dlCacheAlloc(vm, sizeof(NativeLibCacheEntry));
-  if (entry == NULL) {
-    if (vm->config.unload_dl_fn)
-      vm->config.unload_dl_fn(vm, os_handle);
-    return NULL;
-  }
-
-  char* path = (char*) _dlCacheAlloc(vm, (size_t) resolved->length + 1);
-  if (path == NULL) {
-    _dlCacheFree(vm, entry);
-    if (vm->config.unload_dl_fn)
-      vm->config.unload_dl_fn(vm, os_handle);
-    return NULL;
-  }
-
-  memcpy(path, resolved->data, (size_t) resolved->length);
-  path[resolved->length] = '\0';
-
-  entry->prev = NULL;
-  entry->next = vm->native_dl_cache;
-  if (entry->next != NULL)
-    entry->next->prev = entry;
-  entry->path = path;
-  entry->os_handle = os_handle;
-  entry->refs = 1;
-  vm->native_dl_cache = entry;
-
-  return entry;
-}
-
-static void _dlCacheRelease(VM* vm, NativeLibCacheEntry* entry) {
-  ASSERT(entry != NULL, OOPS);
-  ASSERT(entry->refs > 0, OOPS);
-
-  entry->refs--;
-  if (entry->refs > 0)
-    return;
-
-  if (entry->prev != NULL) {
-    entry->prev->next = entry->next;
-  } else {
-    vm->native_dl_cache = entry->next;
-  }
-
-  if (entry->next != NULL)
-    entry->next->prev = entry->prev;
-
-  if (vm->config.unload_dl_fn != NULL)
-    vm->config.unload_dl_fn(vm, entry->os_handle);
-
-  _dlCacheFree(vm, entry->path);
-  _dlCacheFree(vm, entry);
-}
-
-// Returns true if the path ends with ".dll" or ".so".
-static bool _isPathDL(String* path) {
-  const char* dlext[] = {
-      ".so",
-      ".dll",
-      NULL,
-  };
-
-  for (const char** ext = dlext; *ext != NULL; ext++) {
-    size_t ext_len = strlen(*ext);
-    if ((size_t) path->length < ext_len)
-      continue;
-
-    const char* start = path->data + (path->length - ext_len);
-    if (!strncmp(start, *ext, ext_len))
-      return true;
-  }
-
-  return false;
-}
-
-static Module* _importDL(VM* vm, String* resolved, String* name) {
-  if (vm->config.import_dl_fn == NULL) {
-    VM_SET_ERROR(vm, newString(vm, "Dynamic library importer not provided."));
-    return NULL;
-  }
-
-  NativeLibCacheEntry* lib_entry = _dlCacheAcquire(vm, resolved);
-  if (lib_entry == NULL) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
-    return NULL;
-  }
-
-  // Since the DL library can use stack via slots api, we need to update
-  // ret and then restore it back. We're using offset instead of a pointer
-  // because the stack might be reallocated if it grows.
-  uintptr_t ret_offset = vm->fiber->ret - vm->fiber->stack;
-  vm->fiber->ret = vm->fiber->sp;
-  Handle* lhandle = vm->config.import_dl_fn(vm, lib_entry->os_handle);
-  vm->fiber->ret = vm->fiber->stack + ret_offset;
-
-  if (lhandle == NULL) {
-    vmUnloadDlHandle(vm, lib_entry);
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
-    return NULL;
-  }
-
-  if (!IS_OBJ_TYPE(lhandle->value, OBJ_MODULE)) {
-    releaseHandle(vm, lhandle);
-    vmUnloadDlHandle(vm, lib_entry);
-    VM_SET_ERROR(vm, stringFormat(vm,
-                                  "Returned handle wasn't a "
-                                  "module at \"@\"",
-                                  resolved));
-    return NULL;
-  }
-
-  Module* module = (Module*) AS_OBJ(lhandle->value);
-  module->name = name;
-  module->path = resolved;
-  module->handle = lib_entry;
-  vmRegisterModule(vm, module, resolved);
-
-  releaseHandle(vm, lhandle);
-  return module;
-}
-
-void vmUnloadDlHandle(VM* vm, void* handle) {
-  if (handle == NULL)
-    return;
-  _dlCacheRelease(vm, (NativeLibCacheEntry*) handle);
-}
-#endif // NO_DL
-
 /*****************************************************************************/
 /* VM INTERNALS                                                              */
 /*****************************************************************************/
-
-Module* vmimportScript(VM* vm, String* resolved, String* name) {
-  LoadScriptResult load_result = vm->config.load_script_fn(vm, resolved->data);
-  char* source = load_result.content;
-  if (source == NULL || load_result.status != RESULT_SUCCESS) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
-    if (source != NULL)
-      Realloc(vm, source, 0);
-    return NULL;
-  }
-
-  // Make a new module, compile and cache it.
-  Module* module = newModule(vm);
-  module->path = resolved;
-  module->name = name;
-
-  vmPushTempRef(vm, &module->_super); // module.
-  {
-    bool is_bytecode = load_result.is_bytecode;
-    Result result = RESULT_SUCCESS;
-    if (is_bytecode) {
-      SaynaaBytecodeHeader header;
-      Result status = saynaa_bytecode_decode_header(
-          (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
-      if (status == RESULT_SUCCESS) {
-        const uint8_t* payload = (const uint8_t*) source + SAYNAA_BYTECODE_HEADER_SIZE;
-        status = saynaa_bytecode_deserialize_module(vm, module, payload, header.bytecode_size);
-      }
-
-      if (status != RESULT_SUCCESS) {
-        result = RESULT_COMPILE_ERROR;
-        VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", resolved));
-      } else {
-        initializeModule(vm, module, false);
-      }
-    } else {
-      initializeModule(vm, module, false);
-      result = compile(vm, module, source, NULL);
-    }
-
-    Realloc(vm, source, 0);
-
-    if (result == RESULT_SUCCESS) {
-      vmRegisterModule(vm, module, resolved);
-    } else {
-      if (!VM_HAS_ERROR(vm)) {
-        VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", resolved));
-      }
-      module = NULL; //< set to null to indicate error.
-    }
-  }
-  vmPopTempRef(vm); // module.
-
-  return module;
-}
 
 static Module* _importResolved(VM* vm, String* resolved, String* name) {
   // If the script already imported and cached, return it.
@@ -909,7 +685,7 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
   // api function.
 
 #ifndef NO_DL
-  bool isdl = _isPathDL(resolved);
+  bool isdl = isPathDL(resolved);
   if (isdl && vm->config.load_dl_fn == NULL || vm->config.load_script_fn == NULL) {
 #else
   if (vm->config.load_script_fn == NULL) {
@@ -954,11 +730,13 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
 
 #ifndef NO_DL
     if (isdl)
-      module = _importDL(vm, resolved, _name);
+      module = importDL(vm, resolved, _name);
     else /* ... */
 #endif
-      module = vmimportScript(vm, resolved, _name);
-
+    {
+      module = importScript(vm, resolved, _name);
+      vmRegisterModule(vm, module, resolved);
+    }
     vmPopTempRef(vm); // _name.
   }
   vmPopTempRef(vm); // resolved.
@@ -1989,6 +1767,7 @@ L_vm_main_loop:
       } else if ((Opcode) (*ip) == OP_STORE_GLOBAL_NAME) {
         uint16_t name_index = (uint16_t) ((ip[1] << 8) | ip[2]);
         String* gname = moduleGetStringAt(module, (int) name_index);
+        printf("gname is: %s\n", gname->data);
         if (gname == NULL) {
           RUNTIME_ERROR(
               stringFormat(vm, "Invalid import target name in module data."));
@@ -2004,9 +1783,6 @@ L_vm_main_loop:
     }
 
     // NOTE: _imported could be any value (module, class, function or just true).
-    // We only execute module body if it's a module.
-    // ASSERT(IS_OBJ_TYPE(_imported, OBJ_MODULE), OOPS);
-
     PUSH(_imported);
 
     if (IS_OBJ_TYPE(_imported, OBJ_MODULE)) {

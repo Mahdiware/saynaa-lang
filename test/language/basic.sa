@@ -66,7 +66,7 @@ assert((a or b) == b or a)
 
 ## Recursive str list/map
 l = [1]
-list_append(l, l)
+l.append(l)
 assert(str(l) == '[1, [...]]')
 m = {}
 m['m'] = m
