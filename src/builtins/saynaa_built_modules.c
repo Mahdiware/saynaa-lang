@@ -53,18 +53,41 @@ saynaa_function(stdLangGC, "lang.gc() -> Number",
   RET(VAR_NUM((double) garbage));
 }
 
-saynaa_function(stdLangDisas, "lang.disas(fn:Closure) -> String",
-                "Returns the disassembled opcode of the function [fn].") {
-  // TODO: support dissasemble class constructors and module main body.
+saynaa_function(stdLangDisas, "lang.disas([fn:Closure]) -> String",
+                "Returns the disassembled opcode of [fn]. "
+                "If omitted, disassembles the current module main body.") {
+  int argc = ARGC;
+  if (argc > 1) {
+    RET_ERR(newString(vm, "Invalid argument count."));
+  }
 
-  Closure* closure;
-  if (!validateArgClosure(vm, 1, &closure))
+  Function* fn = NULL;
+  if (argc == 0) {
+    if (vm->fiber == NULL || vm->fiber->frame_count == 0) {
+      RET_ERR(
+          newString(vm, "Cannot disassemble without an active call frame."));
+    }
+
+    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    Module* module = frame->closure->fn->owner;
+    ASSERT(module != NULL, OOPS);
+    ASSERT(module->body != NULL, OOPS);
+    fn = module->body->fn;
+
+  } else {
+    Closure* closure;
+    if (!validateArgClosure(vm, 1, &closure))
+      return;
+    fn = closure->fn;
+  }
+
+  if (!validateCond(vm, !fn->is_native, "Cannot disassemble native functions."))
     return;
 
-  if (!validateCond(vm, !closure->fn->is_native, "Cannot disassemble native functions."))
+  String* out = dumpFunctionCode(vm, fn);
+  if (out == NULL)
     return;
-
-  dumpFunctionCode(vm, closure->fn);
+  RET(VAR_OBJ(out));
 }
 
 saynaa_function(stdLangBackTrace, "lang.backtrace() -> String",
@@ -229,7 +252,7 @@ void initializeBuiltinModules(VM* vm) {
 
   NEW_MODULE(lang, "lang");
   MODULE_ADD_FN(lang, "gc", stdLangGC, 0);
-  MODULE_ADD_FN(lang, "disas", stdLangDisas, 1);
+  MODULE_ADD_FN(lang, "disas", stdLangDisas, -1);
   MODULE_ADD_FN(lang, "backtrace", stdLangBackTrace, 0);
   MODULE_ADD_FN(lang, "modules", stdLangModules, 0);
 #ifdef DEBUG

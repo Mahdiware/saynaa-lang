@@ -1767,7 +1767,7 @@ L_vm_main_loop:
       } else if ((Opcode) (*ip) == OP_STORE_GLOBAL_NAME) {
         uint16_t name_index = (uint16_t) ((ip[1] << 8) | ip[2]);
         String* gname = moduleGetStringAt(module, (int) name_index);
-        printf("gname is: %s\n", gname->data);
+
         if (gname == NULL) {
           RUNTIME_ERROR(
               stringFormat(vm, "Invalid import target name in module data."));
@@ -1780,6 +1780,8 @@ L_vm_main_loop:
           _imported = module->globals.data[g_index];
         }
       }
+      // Skip the STORE_GLOBAL or STORE_GLOBAL_NAME instruction, since we already handled it.
+      // ip += 3; // Skip the STORE_GLOBAL or STORE_GLOBAL_NAME instruction.
     }
 
     // NOTE: _imported could be any value (module, class, function or just true).

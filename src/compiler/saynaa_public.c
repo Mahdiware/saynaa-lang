@@ -6,13 +6,13 @@
 // This file contains all the public function implementations.
 
 #include "../runtime/saynaa_core.h"
+#include "../runtime/saynaa_import.h"
 #include "../runtime/saynaa_vm.h"
 #include "../saynaa/saynaa.h"
 #include "../shared/saynaa_bytecode.h"
 #include "../shared/saynaa_readline.h"
 #include "../shared/saynaa_value.h"
 #include "../utils/saynaa_utils.h"
-#include "../runtime/saynaa_import.h"
 
 #include <math.h>
 #include <time.h>

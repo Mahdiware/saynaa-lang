@@ -5,9 +5,9 @@
 
 #include "saynaa_value.h"
 
+#include "../runtime/saynaa_import.h"
 #include "../runtime/saynaa_vm.h"
 #include "../utils/saynaa_utils.h"
-#include "../runtime/saynaa_import.h"
 
 #include <ctype.h>
 #include <math.h>
