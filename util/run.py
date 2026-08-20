@@ -168,7 +168,7 @@ def build_case_from_script(script: Path, warnings: List[str]) -> BenchCase:
 
 
 def discover_cases(repo_root: Path) -> List[BenchCase]:
-    phases_dir = repo_root / "tests" / "benchmark" / "phases"
+    phases_dir = repo_root / "test" / "benchmark" / "phases"
     if not phases_dir.exists():
         raise FileNotFoundError(f"Benchmark phases directory not found: {phases_dir}")
 
@@ -322,7 +322,7 @@ def resolve_case_selectors(
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     default_app = repo_root / ("saynaa.exe" if platform.system() == "Windows" else "saynaa")
-    default_json = repo_root / "tests" / "benchmark" / "results" / "latest.json"
+    default_json = repo_root / "test" / "benchmark" / "results" / "latest.json"
 
     parser = argparse.ArgumentParser(description="Saynaa benchmark runner")
     parser.add_argument("--app", default=str(default_app), help="Path to saynaa executable")

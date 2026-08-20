@@ -153,8 +153,7 @@ typedef struct Var Var;
 // to compare equal.
 //   (For decoded object pointers.)
 #define PTR_EQ(a, b) \
-  ((((uintptr_t)(a)) & 0x00FFFFFFFFFFFFFFULL) == \
-   (((uintptr_t)(b)) & 0x00FFFFFFFFFFFFFFULL))
+  ((((uintptr_t) (a)) & 0x00FFFFFFFFFFFFFFULL) == (((uintptr_t) (b)) & 0x00FFFFFFFFFFFFFFULL))
 
 // Decode types.
 #define AS_BOOL(value) ((value) == VAR_TRUE)
@@ -274,23 +273,6 @@ void ByteBufferAddString(ByteBuffer* thiz, VM* vm, const char* str, uint32_t len
 
 // Add formated string to the byte buffer.
 void ByteBufferAddStringFmt(ByteBuffer* thiz, VM* vm, const char* fmt, ...);
-
-// Type enums of the heap allocated types.
-typedef enum {
-  OBJ_STRING = 0,
-  OBJ_LIST,
-  OBJ_MAP,
-  OBJ_RANGE,
-  OBJ_MODULE,
-  OBJ_FUNC,
-  OBJ_CLOSURE,
-  OBJ_METHOD_BIND,
-  OBJ_UPVALUE,
-  OBJ_FIBER,
-  OBJ_CLASS,
-  OBJ_POINTER,
-  OBJ_INST, // OBJ_INST should be the last element of this enums (don't move).
-} ObjectType;
 
 // Base struct for all heap allocated objects.
 struct Object {

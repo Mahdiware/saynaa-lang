@@ -44,10 +44,10 @@ jobs:
             --app ./saynaa \
             --warmup 1 \
             --iterations 3 \
-            --json-out tests/benchmark/results/ci-latest.json
+            --json-out test/benchmark/results/ci-latest.json
       - name: Regression gate (optional baseline)
         run: |
-          BASELINE=tests/benchmark/baselines/linux-ci.json
+          BASELINE=test/benchmark/baselines/linux-ci.json
           if [ -f "$BASELINE" ]; then
             python3 util/run.py \
               --app ./saynaa \
@@ -56,7 +56,7 @@ jobs:
               --baseline "$BASELINE" \
               --fail-on-regression-pct 15 \
               --fail-on-missing-baseline \
-              --json-out tests/benchmark/results/ci-gated.json
+              --json-out test/benchmark/results/ci-gated.json
           else
             echo "No baseline found at $BASELINE. Skipping regression gate."
           fi
@@ -64,8 +64,8 @@ jobs:
         with:
           name: saynaa-benchmark-linux
           path: |
-            tests/benchmark/results/ci-latest.json
-            tests/benchmark/results/ci-gated.json
+            test/benchmark/results/ci-latest.json
+            test/benchmark/results/ci-gated.json
           if-no-files-found: warn
 
   windows-build:

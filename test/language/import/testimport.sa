@@ -1,5 +1,5 @@
 
-import package
+import package, lang
 
 function _import(name)
     define(name, "this is a test")
@@ -13,3 +13,4 @@ import custom_import
 print(custom_import) # Should print "this is a test"
 assert(custom_import == "this is a test")
 
+print(lang.disas())

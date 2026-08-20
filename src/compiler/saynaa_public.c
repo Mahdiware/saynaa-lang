@@ -5,9 +5,10 @@
 
 // This file contains all the public function implementations.
 
-#include "../cli/saynaa.h"
 #include "../runtime/saynaa_core.h"
+#include "../runtime/saynaa_import.h"
 #include "../runtime/saynaa_vm.h"
+#include "../saynaa/saynaa.h"
 #include "../shared/saynaa_bytecode.h"
 #include "../shared/saynaa_readline.h"
 #include "../shared/saynaa_value.h"
@@ -119,7 +120,7 @@ Configuration NewConfiguration() {
   config.stderr_write = stderrWrite;
   config.stdin_read = stdinRead;
 #ifndef NO_OPTIONAL
-  config.resolve_path_fn = pathResolveImport;
+  config.resolve_path_fn = resolvePath;
 
 #ifndef NO_DL
   config.load_dl_fn = osLoadDL;

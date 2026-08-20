@@ -3971,7 +3971,12 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
   else {
     // If there is any syntax errors we cannot dump the bytecode
     // (otherwise it'll crash with assertion).
-    dumpFunctionCode(compiler->parser.vm, module->body->fn);
+    {
+      String* dis = dumpFunctionCode(compiler->parser.vm, module->body->fn);
+      if (dis != NULL && compiler->parser.vm->config.stdout_write != NULL) {
+        compiler->parser.vm->config.stdout_write(compiler->parser.vm, dis->data);
+      }
+    }
     DEBUG_BREAK();
   }
 #endif

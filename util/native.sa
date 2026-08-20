@@ -8,7 +8,7 @@ import path
 # ==========================================
 
 # File Paths
-SAYNAA_HEADER_PATH = "src/cli/saynaa.h"
+SAYNAA_HEADER_PATH = "src/saynaa/saynaa.h"
 TARGET_IMP_PATH    = "src/runtime/saynaa_native.h"
 
 # Default Output Paths (can be overridden by CLI args)
@@ -283,7 +283,7 @@ c_content = LICENSE_HEADER + c_includes + gen_init_func(api_functions) + gen_pro
 write_file(target_c_path, c_content)
 
 #    Generate Runtime Implementation (saynaa_native.h)
-imp_header = "#pragma once\n\n#include \"../cli/saynaa.h\"\n"
+imp_header = "#pragma once\n\n#include \"../saynaa/saynaa.h\"\n"
 imp_macros = "#define API_INIT_FN_NAME \"InitApi\" \n#define EXPORT_FN_NAME \"ExportModule\" \n#define CLEANUP_FN_NAME \"CleanupModule\" \n\n"
 imp_types  = "typedef void (*InitApiFn)(" + API_STRUCT_TYPE + "*);\ntypedef Handle* (*ExportModuleFn)(VM*);\n\n"
 imp_impl   = "#ifdef DL_IMPLEMENT\n\n" + gen_make_api_func(api_functions) + "#endif // DL_IMPLEMENT\n"

@@ -5,7 +5,9 @@ Maps are key-value pairs (dictionaries). Keys must be hashable.
 ## Creation
 
 ```ruby
-m = {"name": "Alice", "age": 30}
+# Both do the same thing (quotes on keys are optional):
+m1 = {"name": "Alice"} # String-like key syntax
+m2 = {name: "Alice"}   # Clean symbol key syntax (preferred)
 ```
 
 You can also create a map with value-only entries. Keys are auto-assigned

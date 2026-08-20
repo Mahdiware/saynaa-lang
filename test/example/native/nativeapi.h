@@ -25,6 +25,7 @@
 #endif
 
 typedef struct VM VM;
+typedef struct Object Object;
 typedef struct Module Module;
 typedef struct Handle Handle;
 typedef struct SaynaaBytecode SaynaaBytecode;
@@ -63,6 +64,22 @@ typedef enum VarType {
   vPOINTER,
   vINSTANCE,
 } VarType;
+
+typedef enum ObjectType {
+  OBJ_STRING = 0,
+  OBJ_LIST,
+  OBJ_MAP,
+  OBJ_RANGE,
+  OBJ_MODULE,
+  OBJ_FUNC,
+  OBJ_CLOSURE,
+  OBJ_METHOD_BIND,
+  OBJ_UPVALUE,
+  OBJ_FIBER,
+  OBJ_CLASS,
+  OBJ_POINTER,
+  OBJ_INST, // OBJ_INST should be the last element of this enums (don't move).
+} ObjectType;
 
 typedef enum Result {
   RESULT_SUCCESS = 0, // Successfully finished the execution.

@@ -20,8 +20,8 @@ class CompareError(Exception):
 
 def parse_args() -> Tuple[argparse.Namespace, List[Dict[str, object]]]:
     repo_root = Path(__file__).resolve().parents[1]
-    default_html = repo_root / "tests" / "benchmark" / "results" / "compare.html"
-    default_json = repo_root / "tests" / "benchmark" / "results" / "compare.json"
+    default_html = repo_root / "test" / "benchmark" / "results" / "compare.html"
+    default_json = repo_root / "test" / "benchmark" / "results" / "compare.json"
 
     parser = argparse.ArgumentParser(
         description="Compare multiple Saynaa binaries and generate an HTML report"

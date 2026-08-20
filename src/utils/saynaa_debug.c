@@ -270,15 +270,38 @@ static void dumpValue(VM* vm, Var value) {
   // String repr will be garbage collected - No need to clean.
 }
 
-void dumpFunctionCode(VM* vm, Function* func) {
-  if (!vm->config.stdout_write)
-    return;
+String* dumpFunctionCode(VM* vm, Function* func) {
+  ByteBuffer bb;
+  ByteBufferInit(&bb);
+
+  if (func == NULL) {
+    ASSERT(vm->fiber != NULL && vm->fiber->frame_count > 0, OOPS);
+    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
+    Module* module = frame->closure->fn->owner;
+    ASSERT(module != NULL, OOPS);
+    ASSERT(module->body != NULL, OOPS);
+    func = module->body->fn;
+  }
+
+  if (func->fn == NULL) {
+    return NULL;
+  }
+
+  // Validate function bytecode pointers to avoid crashes when disassembling
+  // potentially corrupted or native functions.
+  if (func->fn->opcodes.data == NULL || func->fn->oplines.data == NULL) {
+    ByteBufferClear(&bb, vm);
+    return newStringLength(vm, "<invalid or empty bytecode>",
+                           (uint32_t) strlen("<invalid or empty bytecode>"));
+  }
 
 #define _INDENTATION "  "
 #define _INT_WIDTH 5 // Width of the integer string to print.
 
-#define PRINT(str) vm->config.stdout_write(vm, str)
-#define NEWLINE() PRINT("\n")
+// Helpers to append into the byte buffer instead of writing to stdout.
+#define PRINT(str) \
+  ByteBufferAddString(&bb, vm, (const uint8_t*) (str), (uint32_t) strlen(str))
+#define NEWLINE() ByteBufferWrite(&bb, vm, '\n')
 
 #define _PRINT_INT(value, width) \
   do { \
@@ -315,23 +338,26 @@ void dumpFunctionCode(VM* vm, Function* func) {
   uint32_t* lines = func->fn->oplines.data;
   uint32_t line = 1, last_line = 0;
 
+  const size_t op_names_count = sizeof(op_names) / sizeof(op_names[0]);
+  const uint32_t oplines_count = func->fn->oplines.count;
+
   // Either path or name should be valid to a module.
   ASSERT(func->owner->path != NULL || func->owner->name != NULL, OOPS);
   const char* path = (func->owner->path) ? func->owner->path->data
                                          : func->owner->name->data;
 
-  // This will print: Instruction Dump of function 'fn' "path."\n
-  PRINT("Instruction Dump of function ");
-  PRINT(func->name);
-  PRINT(" ");
-  PRINT(path);
-  NEWLINE();
+  // Write header: Instruction Dump of function 'fn' "path."\n
+  ByteBufferAddStringFmt(&bb, vm, "Instruction Dump of function %s %s\n", func->name, path);
 
   while (i < func->fn->opcodes.count) {
     ASSERT_INDEX(i, func->fn->opcodes.count);
 
-    // Prints the line number.
-    line = lines[i];
+    // Prints the line number (guarded).
+    if (i < oplines_count) {
+      line = lines[i];
+    } else {
+      line = last_line;
+    }
     if (line != last_line) {
       last_line = line;
       PRINT(_INDENTATION);
@@ -347,14 +373,33 @@ void dumpFunctionCode(VM* vm, Function* func) {
     _PRINT_INT(i, _INT_WIDTH - 1);
     PRINT(_INDENTATION);
 
-    const char* op_name = op_names[opcodes[i]];
+    uint8_t raw_op = opcodes[i];
+    if (raw_op >= op_names_count) {
+      ByteBufferAddStringFmt(&bb, vm, "<invalid-opcode:%u>", raw_op);
+      NEWLINE();
+      i++; // advance past this byte
+      // Truncate if buffer grows too large
+      if (bb.count > (1u << 20)) {
+        ByteBufferAddString(&bb, vm, "<disassembly truncated>",
+                            (uint32_t) strlen("<disassembly truncated>"));
+        NEWLINE();
+        break;
+      }
+      continue;
+    }
+
+    const char* op_name = op_names[raw_op];
     uint32_t op_length = (uint32_t) strlen(op_name);
     PRINT(op_name);
-    for (uint32_t j = 0; j < 16 - op_length; j++) { // Padding.
+    /* Padding: print spaces up to 16 columns after the opcode name. Use a
+       distinct loop variable to avoid shadowing or optimizer-related issues. */
+    uint32_t pad = (op_length < 16) ? (16u - op_length) : 0u;
+    for (uint32_t p = 0; p < pad; ++p) {
       PRINT(" ");
     }
 
-    Opcode op = (Opcode) func->fn->opcodes.data[i++];
+    Opcode op = (Opcode) raw_op;
+    i++;
     switch (op) {
       case OP_PUSH_CONSTANT:
         {
@@ -363,14 +408,19 @@ void dumpFunctionCode(VM* vm, Function* func) {
           Var value = func->owner->constants.data[index];
 
           // Prints: %5d [val]\n
-          PRINT_INT(index);
-          PRINT(" ");
-          dumpValue(vm, value);
+          _PRINT_INT(index, _INT_WIDTH);
+          ByteBufferWrite(&bb, vm, ' ');
+          // Append value repr
+          String* repr = toRepr(vm, value);
+          if (repr == NULL) {
+            ByteBufferClear(&bb, vm);
+            return NULL;
+          }
+          ByteBufferAddString(&bb, vm, (const uint8_t*) repr->data, repr->length);
           NEWLINE();
           break;
         }
 
-      case OP_PUSH_NULL:
       case OP_PUSH_0:
       case OP_PUSH_TRUE:
       case OP_PUSH_FALSE:
@@ -537,7 +587,7 @@ void dumpFunctionCode(VM* vm, Function* func) {
           // Prints: %5d [val]\n
           PRINT_INT(index);
           PRINT(" ");
-          dumpValue(vm, value);
+          PRINT(toRepr(vm, value)->data);
           NEWLINE();
           break;
         }
@@ -552,7 +602,7 @@ void dumpFunctionCode(VM* vm, Function* func) {
           // Prints: %5d [val]\n
           PRINT_INT(index);
           PRINT(" ");
-          dumpValue(vm, value);
+          PRINT(toRepr(vm, value)->data);
           NEWLINE();
           break;
         }
@@ -711,7 +761,10 @@ void dumpFunctionCode(VM* vm, Function* func) {
     }
   }
 
-  NEWLINE();
+  // Convert buffer to String and return
+  String* out = newStringLength(vm, (char*) bb.data, bb.count);
+  ByteBufferClear(&bb, vm);
+  return out;
 
 // Undefin everything defined for this function.
 #undef PRINT

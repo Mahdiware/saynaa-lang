@@ -81,7 +81,7 @@ set "sources="
 for /r "%project_root%src" %%d in (.) do (
     set "dir_path=%%~fd"
     if exist "!dir_path!\*.c" (
-        if /i not "!dir_path!"=="%project_root%src\cli" (
+        if /i not "!dir_path!"=="%project_root%src\saynaa" (
             set "sources=!sources! "!dir_path!\*.c""
         )
     )
@@ -102,7 +102,7 @@ if errorlevel 1 goto :FAIL
 
 :: 3. Compile CLI
 cd /d "!target_dir!cli"
-cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! "!project_root!src\cli\*.c"
+cl /nologo /c !add_defines! !pcre2_inc! !add_cflags! !cflags! "!project_root!src\saynaa\*.c"
 if errorlevel 1 goto :FAIL
 
 :: 4. Final Link
