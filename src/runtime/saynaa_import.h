@@ -40,7 +40,7 @@ static const ImportPattern import_pattern[] = {
 };
 
 char* resolvePath(VM* vm, const char* from, const char* path);
-Module* importScript(VM* vm, String* resolved, String* name);
+bool importScript(VM* vm, Module* module, String* path_resolved, bool is_runtime);
 
 #ifndef NO_DL
 

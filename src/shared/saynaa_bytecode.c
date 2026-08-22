@@ -571,14 +571,16 @@ static Result bc_read_varu(BytecodeReader* reader, uint64_t limit, uint64_t* out
     if (!bc_read_u8(reader, &b))
       return RESULT_BYTECODE_TRUNCATED;
 
-    if (value > shifted_limit)
+    if (value > shifted_limit) {
       return RESULT_BYTECODE_INVALID_FORMAT;
+    }
 
     value = (value << 7) | (uint64_t) (b & 0x7fu);
   } while ((b & 0x80u) != 0);
 
-  if (value > limit)
+  if (value > limit) {
     return RESULT_BYTECODE_INVALID_FORMAT;
+  }
 
   *out = value;
   return RESULT_SUCCESS;
@@ -800,11 +802,6 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   if (status != RESULT_SUCCESS)
     return status;
   uint32_t constants_count = (uint32_t) constants_count64;
-
-  if (constants_count == 0)
-    return RESULT_BYTECODE_INVALID_FORMAT;
-  if (module->constants.count + constants_count > MAX_CONSTANTS)
-    return RESULT_BYTECODE_INVALID_FORMAT;
 
   bool needs_remap = module->constants.count != 0;
   VarBufferReserve(&module->constants, vm, module->constants.count + constants_count);

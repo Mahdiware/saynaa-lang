@@ -219,13 +219,17 @@ saynaa_function(stdModuleLoadFile, "package.loadfile(path:String) -> Module",
   _name->hash = utilHashString(_name->data);
 
   String* resolve = newString(vm, resolve_path);
-  vmPushTempRef(vm, &_name->_super);
+  vmPushTempRef(vm, &resolve->_super);
 
-  Module* module = importScript(vm, resolve, _name);
+  // Make a new module.
+  Module* module = newModule(vm);
+  module->path = resolve;
+  module->name = _name;
 
-  // Check if the module was imported successfully,
-  // if not, pop the temporary references and return.
-  if (VM_HAS_ERROR(vm)) {
+  vmPushTempRef(vm, &module->_super); // module.
+
+  if (!importScript(vm, module, resolve, false)) {
+    vmPopTempRef(vm); // module.
     vmPopTempRef(vm); // _name.
     vmPopTempRef(vm); // resolve.
     return;
@@ -234,6 +238,7 @@ saynaa_function(stdModuleLoadFile, "package.loadfile(path:String) -> Module",
   Var ret = VAR_NULL;
   vmCallFunction(vm, module->body, 0, NULL, &ret);
 
+  vmPopTempRef(vm); // module.
   vmPopTempRef(vm); // _name.
   vmPopTempRef(vm); // resolve.
 

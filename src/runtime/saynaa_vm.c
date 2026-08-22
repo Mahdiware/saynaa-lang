@@ -734,8 +734,23 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
     else /* ... */
 #endif
     {
-      module = importScript(vm, resolved, _name);
-      vmRegisterModule(vm, module, resolved);
+      // Make a new module
+      module = newModule(vm);
+      module->path = resolved;
+      module->name = _name;
+
+      vmPushTempRef(vm, &module->_super); // module.
+      {
+        if (!importScript(vm, module, resolved, false)) {
+          ASSERT(VM_HAS_ERROR(vm), OOPS);
+          vmPopTempRef(vm); // module.
+          vmPopTempRef(vm); // _name.
+          vmPopTempRef(vm); // resolved
+          return NULL;
+        }
+        vmRegisterModule(vm, module, resolved);
+      }
+      vmPopTempRef(vm); // module.
     }
     vmPopTempRef(vm); // _name.
   }

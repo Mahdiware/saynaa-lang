@@ -136,57 +136,50 @@ char* resolvePath(VM* vm, const char* from, const char* path) {
   return NULL;
 }
 
-Module* importScript(VM* vm, String* resolved, String* name) {
-  LoadScriptResult load_result = vm->config.load_script_fn(vm, resolved->data);
+bool importScript(VM* vm, Module* module, String* path_resolved, bool is_runtime) {
+  LoadScriptResult load_result = vm->config.load_script_fn(vm, path_resolved->data);
   char* source = load_result.content;
   if (source == NULL || load_result.status != RESULT_SUCCESS) {
-    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", resolved));
+    VM_SET_ERROR(vm, stringFormat(vm, "Error loading module at \"@\"", path_resolved));
     if (source != NULL)
       Realloc(vm, source, 0);
-    return NULL;
+    return false;
   }
 
-  // Make a new module, compile and cache it.
-  Module* module = newModule(vm);
-  module->path = resolved;
-  module->name = name;
+  bool is_bytecode = load_result.is_bytecode;
+  Result result = RESULT_SUCCESS;
+  if (is_bytecode) {
+    SaynaaBytecodeHeader header;
+    Result status = saynaa_bytecode_decode_header(
+        (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
+    if (status == RESULT_SUCCESS) {
+      const uint8_t* payload = (const uint8_t*) source + SAYNAA_BYTECODE_HEADER_SIZE;
+      status = saynaa_bytecode_deserialize_module(vm, module, payload, header.bytecode_size);
+    }
 
-  vmPushTempRef(vm, &module->_super); // module.
-  {
-    bool is_bytecode = load_result.is_bytecode;
-    Result result = RESULT_SUCCESS;
-    if (is_bytecode) {
-      SaynaaBytecodeHeader header;
-      Result status = saynaa_bytecode_decode_header(
-          (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
-      if (status == RESULT_SUCCESS) {
-        const uint8_t* payload = (const uint8_t*) source + SAYNAA_BYTECODE_HEADER_SIZE;
-        status = saynaa_bytecode_deserialize_module(vm, module, payload, header.bytecode_size);
-      }
-
-      if (status != RESULT_SUCCESS) {
-        result = RESULT_COMPILE_ERROR;
-        VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", resolved));
-      } else {
-        initializeModule(vm, module, false);
-      }
+    if (status != RESULT_SUCCESS) {
+      result = RESULT_COMPILE_ERROR;
+      VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", path_resolved));
     } else {
       initializeModule(vm, module, false);
-      result = compile(vm, module, source, NULL);
     }
-
-    Realloc(vm, source, 0);
-
-    if (result != RESULT_SUCCESS) {
-      if (!VM_HAS_ERROR(vm)) {
-        VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", resolved));
-      }
-      module = NULL; //< set to null to indicate error.
-    }
+  } else {
+    initializeModule(vm, module, false);
+    CompileOptions options = newCompilerOptions();
+    options.runtime = is_runtime;
+    result = compile(vm, module, source, &options);
   }
-  vmPopTempRef(vm); // module.
 
-  return module;
+  Realloc(vm, source, 0);
+
+  if (result != RESULT_SUCCESS) {
+    if (!VM_HAS_ERROR(vm)) {
+      VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", path_resolved));
+    }
+    return false;
+  }
+
+  return true;
 }
 
 #ifndef NO_DL

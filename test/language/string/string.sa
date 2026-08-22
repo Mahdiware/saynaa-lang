@@ -1,34 +1,198 @@
-# expect: string methods ok
-
+# Basic string methods
 assert("  HeLLo \n".strip() == "HeLLo")
 assert("HeLLo".lower() == "hello")
 assert("HeLLo".upper() == "HELLO")
+
+# find()
 assert("hello".find("l") == 2)
 assert("hello".find("l", 3) == 3)
 assert("hello".find("z") == -1)
+
+# rfind()
 assert("hello".rfind("l") == 3)
 assert("hello".rfind("l", 2) == 3)
 assert("hello".rfind("z") == -1)
+
+# replace()
 assert("hello".replace("l", "L") == "heLLo")
 assert("hello".replace("l", "L", 1) == "heLlo")
+
+# split()
 assert("a,b,c".split(",").join("|") == "a|b|c")
 assert("abc".split().join("") == "abc")
+
+# startswith()
 assert("hello".startswith("he") == true)
 assert("hello".startswith(["x", "he"]) == true)
+assert("hello".startswith("hello") == true)
+assert("hello".startswith("hello world") == false)
+
+# endswith()
 assert("hello".endswith("lo") == true)
 assert("hello".endswith(["x", "lo"]) == true)
+assert("hello".endswith("hello") == true)
+assert("hello".endswith("world") == false)
+
+# sub()
 assert("hello".sub(1, 4) == "ell")
 assert("hello".sub(-2) == "lo")
+assert("hello".sub(0, 5) == "hello")
+assert("hello".sub(2, 2) == "")
+
+# reverse()
 assert("world".reverse() == "dlrow")
+
+# rep()
 assert("ha".rep(3) == "hahaha")
 assert("ha".rep(0) == "")
+
+# byte()
+assert("abc".byte(0) == 97)
 assert("abc".byte(1) == 98)
 assert("abc".byte(-1) == 99)
+
+# format()
 assert("name=%s age=%d".format("bob", 5) == "name=bob age=5")
+
+# match()
 assert("hello".match("ll") == "ll")
 assert("hello".match("zz") == null)
+
+# gsub()
 assert("a-b-a".gsub("a", "x") == "x-b-x")
 assert("a-b-a".gsub("a", "x", 1) == "x-b-a")
+
+# gmatch()
 assert("a-b-a".gmatch("a").join(",") == "a,a")
 
+
+
+# UTF-8 / Unicode tests
+x = "Hello 😀"
+
+# Unicode length
+assert(x.length == 7)
+
+# Unicode indexing
+assert(x[0] == "H")
+assert(x[1] == "e")
+assert(x[2] == "l")
+assert(x[3] == "l")
+assert(x[4] == "o")
+assert(x[5] == " ")
+assert(x[6] == "😀")
+
+# Unicode ranges
+assert(x[0..2] == "Hel")
+assert(x[4..6] == "o 😀")
+assert(x[5..6] == " 😀")
+assert(x[6..6] == "😀")
+
+# Unicode sub()
+assert(x.sub(0, 5) == "Hello")
+assert(x.sub(5, 7) == " 😀")
+assert(x.sub(6, 7) == "😀")
+assert(x.sub(-1) == "😀")
+
+# Unicode find()
+assert(x.find("H") == 0)
+assert(x.find("o") == 4)
+assert(x.find("😀") == 6)
+assert(x.find("x") == -1)
+
+# Unicode rfind()
+assert(x.rfind("😀") == 6)
+assert(x.rfind("o") == 4)
+assert(x.rfind("x") == -1)
+
+# Unicode match()
+assert(x.match("Hello") == "Hello")
+assert(x.match("😀") == "😀")
+assert(x.match("xyz") == null)
+
+# Unicode startswith()
+assert(x.startswith("Hello") == true)
+assert(x.startswith("Hello 😀") == true)
+assert(x.startswith("😀") == false)
+assert(x.startswith(["x", "Hello"]) == true)
+
+# Unicode endswith()
+assert(x.endswith("😀") == true)
+assert(x.endswith("Hello") == false)
+assert(x.endswith(["x", "😀"]) == true)
+
+# Unicode reverse()
+assert(x.reverse() == "😀 olleH")
+
+# Unicode repetition
+assert("😀".rep(3) == "😀😀😀")
+
+# Unicode byte()
+# 😀 = F0 9F 98 80
+# Decimal:
+# F0 = 240
+# 9F = 159
+# 98 = 152
+# 80 = 128
+
+assert("😀".byte(0) == 240)
+assert("😀".byte(1) == 159)
+assert("😀".byte(2) == 152)
+assert("😀".byte(3) == 128)
+
+# Multiple Unicode characters
+unicode = "😀😁😂🤣"
+
+assert(unicode.length == 4)
+assert(unicode[0] == "😀")
+assert(unicode[1] == "😁")
+assert(unicode[2] == "😂")
+assert(unicode[3] == "🤣")
+assert(unicode.reverse() == "🤣😂😁😀")
+assert(unicode.sub(1, 3) == "😁😂")
+assert(unicode.find("😂") == 2)
+assert(unicode.rfind("😀") == 0)
+
+# Unicode mixed with ASCII
+mixed = "A😀B😁C"
+
+assert(mixed.length == 5)
+assert(mixed[0] == "A")
+assert(mixed[1] == "😀")
+assert(mixed[2] == "B")
+assert(mixed[3] == "😁")
+assert(mixed[4] == "C")
+assert(mixed[1..2] == "😀B")
+assert(mixed.sub(1, 4) == "😀B😁")
+assert(mixed.find("😀") == 1)
+assert(mixed.find("😁") == 3)
+assert(mixed.reverse() == "C😁B😀A")
+
+# Unicode prefix/suffix
+assert("😀Hello".startswith("😀") == true)
+assert("😀Hello".startswith("😀H") == true)
+assert("Hello😀".endswith("😀") == true)
+assert("Hello😀".endswith("o😀") == true)
+
+# Unicode replace
+assert("😀-😀-😀".replace("😀", "x") == "x-x-x")
+assert("😀-😀-😀".replace("😀", "x", 1) == "x-😀-😀")
+
+# Unicode gsub
+assert("😀-😀-😀".gsub("😀", "x") == "x-x-x")
+assert("😀-😀-😀".gsub("😀", "x", 2) == "x-x-😀")
+
+# Unicode gmatch
+assert("😀-😁-😀".gmatch("😀").join(",") == "😀,😀")
+
+# Empty strings
+assert("".length == 0)
+assert("".reverse() == "")
+assert("".rep(0) == "")
+assert("".startswith("") == true)
+assert("".endswith("") == true)
+assert("hello".startswith("") == true)
+assert("hello".endswith("") == true)
+
+# All tests passed
 print("string methods ok")
