@@ -120,11 +120,11 @@ static Result remapFunctionConstants(Function* fn, const uint32_t* remap, uint32
 
           // The opcode index is already remapped in-place above.
           uint16_t mapped = (uint16_t) ((code[ip] << 8) | code[ip + 1]);
-          if (mapped >= fn->owner->constants.count) {
+          if (mapped >= fn->owner->context->constants.count) {
             REMAP_FAIL(RESULT_BYTECODE_INVALID_FORMAT);
           }
 
-          Var constant = fn->owner->constants.data[mapped];
+          Var constant = fn->owner->context->constants.data[mapped];
           if (!IS_OBJ_TYPE(constant, OBJ_FUNC)) {
             REMAP_FAIL(RESULT_BYTECODE_INVALID_FORMAT);
           }
@@ -608,8 +608,8 @@ static bool bc_read_double(BytecodeReader* reader, double* out) {
 }
 
 static int find_constant_index(Module* module, Var value) {
-  for (uint32_t i = 0; i < module->constants.count; i++) {
-    if (isValuesSame(module->constants.data[i], value))
+  for (uint32_t i = 0; i < module->context->constants.count; i++) {
+    if (isValuesSame(module->context->constants.data[i], value))
       return (int) i;
   }
   return -1;
@@ -644,10 +644,10 @@ Result saynaa_bytecode_serialize_module(VM* vm, Module* module, ByteBuffer* out)
     return RESULT_BYTECODE_INVALID_ARGUMENT;
   bc_write_u8(out, vm, SAYNAA_BYTECODE_PAYLOAD_VERSION);
 
-  bc_write_varu(out, vm, module->constants.count);
+  bc_write_varu(out, vm, module->context->constants.count);
 
-  for (uint32_t i = 0; i < module->constants.count; i++) {
-    Var constant = module->constants.data[i];
+  for (uint32_t i = 0; i < module->context->constants.count; i++) {
+    Var constant = module->context->constants.data[i];
 
     if (IS_NULL(constant)) {
       bc_write_u8(out, vm, SAYNAA_BC_CONST_NULL);
@@ -803,8 +803,8 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
     return status;
   uint32_t constants_count = (uint32_t) constants_count64;
 
-  bool needs_remap = module->constants.count != 0;
-  VarBufferReserve(&module->constants, vm, module->constants.count + constants_count);
+  bool needs_remap = module->context->constants.count != 0;
+  VarBufferReserve(&module->context->constants, vm, module->context->constants.count + constants_count);
 
   uint32_t* remap = NULL;
   FunctionList fn_list = {0};
@@ -824,7 +824,7 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
         if (needs_remap) {
           remap[i] = moduleAddConstant(vm, module, VAR_NULL);
         } else {
-          VarBufferWrite(&module->constants, vm, VAR_NULL);
+          VarBufferWrite(&module->context->constants, vm, VAR_NULL);
         }
         break;
 
@@ -836,7 +836,7 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           if (needs_remap) {
             remap[i] = moduleAddConstant(vm, module, VAR_BOOL(value != 0));
           } else {
-            VarBufferWrite(&module->constants, vm, VAR_BOOL(value != 0));
+            VarBufferWrite(&module->context->constants, vm, VAR_BOOL(value != 0));
           }
         }
         break;
@@ -849,7 +849,7 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           if (needs_remap) {
             remap[i] = moduleAddConstant(vm, module, VAR_NUM(value));
           } else {
-            VarBufferWrite(&module->constants, vm, VAR_NUM(value));
+            VarBufferWrite(&module->context->constants, vm, VAR_NUM(value));
           }
         }
         break;
@@ -873,7 +873,7 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           } else {
             String* name = newInternedStringLength(
                 vm, (const char*) (reader.data + reader.offset), length);
-            VarBufferWrite(&module->constants, vm, VAR_OBJ(name));
+            VarBufferWrite(&module->context->constants, vm, VAR_OBJ(name));
           }
           reader.offset += length;
         }
@@ -964,9 +964,9 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
             fn->fn->oplines.count = oplines_count;
           }
 
-          VarBufferWrite(&module->constants, vm, VAR_OBJ(fn));
+          VarBufferWrite(&module->context->constants, vm, VAR_OBJ(fn));
           if (needs_remap) {
-            remap[i] = module->constants.count - 1;
+            remap[i] = module->context->constants.count - 1;
             if (!functionListPush(vm, &fn_list, fn)) {
               vmPopTempRef(vm); // fn.
               status = RESULT_BYTECODE_IO_ERROR;
@@ -998,9 +998,9 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
           Class* cls = newClassRaw(vm, module, name, doc);
           vmPushTempRef(vm, &cls->_super); // cls.
           cls->class_of = (VarType) (uint8_t) class_of64;
-          VarBufferWrite(&module->constants, vm, VAR_OBJ(cls));
+          VarBufferWrite(&module->context->constants, vm, VAR_OBJ(cls));
           if (needs_remap) {
-            remap[i] = module->constants.count - 1;
+            remap[i] = module->context->constants.count - 1;
           }
           vmPopTempRef(vm); // cls.
         }
@@ -1035,13 +1035,13 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
     }
 
     uint32_t mapped_body = remap[(uint32_t) body_index64];
-    body_fn = module->constants.data[mapped_body];
+    body_fn = module->context->constants.data[mapped_body];
   } else {
-    if (body_index64 >= (uint64_t) module->constants.count) {
+    if (body_index64 >= (uint64_t) module->context->constants.count) {
       status = RESULT_BYTECODE_INVALID_FORMAT;
       goto cleanup;
     }
-    body_fn = module->constants.data[(uint32_t) body_index64];
+    body_fn = module->context->constants.data[(uint32_t) body_index64];
   }
   if (!IS_OBJ_TYPE(body_fn, OBJ_FUNC)) {
     status = RESULT_BYTECODE_INVALID_FORMAT;

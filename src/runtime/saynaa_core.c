@@ -1237,8 +1237,8 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
         // Search in globals.
         int index = moduleGetGlobalIndexByName(vm, module, attrib);
         if (index != -1) {
-          ASSERT_INDEX((uint32_t) index, module->globals.count);
-          return module->globals.data[index];
+          ASSERT_INDEX((uint32_t) index, module->context->globals.count);
+          return module->context->globals.data[index];
         }
       }
       break;

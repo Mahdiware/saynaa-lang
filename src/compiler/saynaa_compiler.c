@@ -436,7 +436,7 @@ struct Compiler {
   // the index of the functions in order to prevent search for them each time.
   int bifn_list_join;
 
-  // Globals defined at compile time (indexes into module->constants).
+  // Globals defined at compile time (indexes into module->context->constants).
   UintBuffer global_names;
 };
 
@@ -1869,7 +1869,7 @@ static void _compileCall(Compiler* compiler, Opcode call_type, int method) {
   emitByte(compiler, argc);
 
   if ((call_type == OP_METHOD_CALL) || (call_type == OP_SUPER_CALL)) {
-    ASSERT_INDEX(method, (int) compiler->module->constants.count);
+    ASSERT_INDEX(method, (int) compiler->module->context->constants.count);
     emitShort(compiler, method);
   }
 
@@ -2199,13 +2199,13 @@ static bool tryFoldBinaryConstants(Compiler* compiler, Opcode opcode,
   uint16_t lhs_index = (uint16_t) ((code->data[lhs_pos + 1] << 8) | code->data[lhs_pos + 2]);
   uint16_t rhs_index = (uint16_t) ((code->data[rhs_pos + 1] << 8) | code->data[rhs_pos + 2]);
 
-  if (lhs_index >= compiler->module->constants.count
-      || rhs_index >= compiler->module->constants.count) {
+  if (lhs_index >= compiler->module->context->constants.count
+      || rhs_index >= compiler->module->context->constants.count) {
     return false;
   }
 
-  Var lhs = compiler->module->constants.data[lhs_index];
-  Var rhs = compiler->module->constants.data[rhs_index];
+  Var lhs = compiler->module->context->constants.data[lhs_index];
+  Var rhs = compiler->module->context->constants.data[rhs_index];
 
   double n1, n2;
   if (!valueToNumber(lhs, &n1) || !valueToNumber(rhs, &n2))
@@ -3942,8 +3942,8 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
 
   // Remember the count of constants, names, and globals, If the compilation
   // failed discard all of them and roll back.
-  uint32_t constants_count = module->constants.count;
-  uint32_t globals_count = module->globals.count;
+  uint32_t constants_count = module->context->constants.count;
+  uint32_t globals_count = module->context->globals.count;
 
   Func curr_fn;
   compilerPushFunc(compiler, &curr_fn, module->body->fn, FUNC_MAIN);
@@ -3964,8 +3964,8 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
 
   // If compilation failed, discard all the invalid functions and globals.
   if (compiler->parser.has_errors) {
-    module->constants.count = constants_count;
-    module->globals.count = module->global_names.count = globals_count;
+    module->context->constants.count = constants_count;
+    module->context->globals.count = module->context->global_names.count = globals_count;
   }
 #if DUMP_BYTECODE
   else {

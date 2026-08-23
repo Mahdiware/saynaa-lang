@@ -684,8 +684,8 @@ Closure* moduleGetMainFunction(VM* vm, Module* module) {
                                         (uint32_t) strlen(IMPLICIT_MAIN_NAME));
   if (main_index == -1)
     return NULL;
-  ASSERT_INDEX(main_index, (int) module->globals.count);
-  Var main_fn = module->globals.data[main_index];
+  ASSERT_INDEX(main_index, (int) module->context->globals.count);
+  Var main_fn = module->context->globals.data[main_index];
   ASSERT(IS_OBJ_TYPE(main_fn, OBJ_CLOSURE), OOPS);
   return (Closure*) AS_OBJ(main_fn);
 }

@@ -186,65 +186,6 @@ saynaa_function(stdModuleLoad, "package.load(name:String) -> Module",
   RET(module);
 }
 
-saynaa_function(stdModuleLoadFile, "package.loadfile(path:String) -> Module",
-                "Load import the module from the given [path] and returns it. "
-                "It won't be imported to the current scope.") {
-  String* path;
-  if (!validateArgString(vm, 1, &path))
-    return;
-
-  if (vm->config.resolve_path_fn == NULL)
-    return;
-
-  char* from_path = NULL;
-  if (vm->fiber->frame_count > 0) {
-    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
-    from_path = frame->closure->fn->owner->path == NULL
-                    ? NULL
-                    : frame->closure->fn->owner->path->data;
-  }
-
-  char* resolve_path = vm->config.resolve_path_fn(vm, from_path, path->data);
-
-  if (resolve_path == NULL)
-    return;
-
-  // Convert the resolved path to a module name by replacing '/' with '.'
-  String* _name = newString(vm, resolve_path);
-  vmPushTempRef(vm, &_name->_super);
-  for (char* c = _name->data; c < _name->data + _name->length; c++) {
-    if (*c == '/')
-      *c = '.';
-  }
-  _name->hash = utilHashString(_name->data);
-
-  String* resolve = newString(vm, resolve_path);
-  vmPushTempRef(vm, &resolve->_super);
-
-  // Make a new module.
-  Module* module = newModule(vm);
-  module->path = resolve;
-  module->name = _name;
-
-  vmPushTempRef(vm, &module->_super); // module.
-
-  if (!importScript(vm, module, resolve, false)) {
-    vmPopTempRef(vm); // module.
-    vmPopTempRef(vm); // _name.
-    vmPopTempRef(vm); // resolve.
-    return;
-  }
-
-  Var ret = VAR_NULL;
-  vmCallFunction(vm, module->body, 0, NULL, &ret);
-
-  vmPopTempRef(vm); // module.
-  vmPopTempRef(vm); // _name.
-  vmPopTempRef(vm); // resolve.
-
-  RET(VAR_OBJ(module));
-}
-
 void initializeBuiltinModules(VM* vm) {
 #define MODULE_ADD_FN(module, name, fn, argc) \
   moduleAddFunctionInternal(vm, module, name, fn, argc, DOCSTRING(fn))
@@ -266,7 +207,6 @@ void initializeBuiltinModules(VM* vm) {
 
   NEW_MODULE(package, "package");
   MODULE_ADD_FN(package, "load", stdModuleLoad, 1);
-  MODULE_ADD_FN(package, "loadfile", stdModuleLoadFile, 1);
   moduleSetGlobal(vm, package, "path", 4, VAR_OBJ(vm->search_paths));
 
   moduleSetGlobal(vm, package, "searchers", 9, VAR_OBJ(vm->searchers));

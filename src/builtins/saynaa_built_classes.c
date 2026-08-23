@@ -1096,12 +1096,12 @@ saynaa_function(
 
   Map* map = newMap(vm);
   vmPushTempRef(vm, &map->_super); // map.
-  for (int i = 0; i < (int) thiz->globals.count; i++) {
-    String* name = moduleGetStringAt(thiz, thiz->global_names.data[i]);
+  for (int i = 0; i < (int) thiz->context->globals.count; i++) {
+    String* name = moduleGetStringAt(thiz, thiz->context->global_names.data[i]);
     if (name->data[0] == SPECIAL_NAME_CHAR) {
       continue;
     }
-    mapSet(vm, map, VAR_OBJ(name), thiz->globals.data[i]);
+    mapSet(vm, map, VAR_OBJ(name), thiz->context->globals.data[i]);
   }
   vmPopTempRef(vm); // map.
 

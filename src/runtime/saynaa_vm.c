@@ -1348,8 +1348,8 @@ L_vm_main_loop:
 #endif
   OPCODE(PUSH_CONSTANT) : {
     uint16_t index = READ_SHORT();
-    ASSERT_INDEX(index, module->constants.count);
-    PUSH(module->constants.data[index]);
+    ASSERT_INDEX(index, module->context->constants.count);
+    PUSH(module->context->constants.data[index]);
     DISPATCH();
   }
 
@@ -1472,8 +1472,8 @@ L_vm_main_loop:
 
   OPCODE(PUSH_GLOBAL) : {
     uint16_t index = READ_SHORT();
-    ASSERT_INDEX(index, module->globals.count);
-    PUSH(module->globals.data[index]);
+    ASSERT_INDEX(index, module->context->globals.count);
+    PUSH(module->context->globals.data[index]);
     DISPATCH();
   }
 
@@ -1489,7 +1489,7 @@ L_vm_main_loop:
       int missing_index = moduleGetGlobalIndex(module, LITS__missing,
                                                (uint32_t) strlen(LITS__missing));
       if (missing_index != -1) {
-        Var missing = module->globals.data[missing_index];
+        Var missing = module->context->globals.data[missing_index];
         if (IS_OBJ_TYPE(missing, OBJ_CLOSURE)) {
           Var args[1] = {VAR_OBJ(name)};
           Var result = VAR_NULL;
@@ -1508,14 +1508,14 @@ L_vm_main_loop:
       RUNTIME_ERROR(stringFormat(vm, "Name '@' is not defined.", name));
     }
 
-    PUSH(module->globals.data[g_index]);
+    PUSH(module->context->globals.data[g_index]);
     DISPATCH();
   }
 
   OPCODE(STORE_GLOBAL) : {
     uint16_t index = READ_SHORT();
-    ASSERT_INDEX(index, module->globals.count);
-    module->globals.data[index] = PEEK(-1);
+    ASSERT_INDEX(index, module->context->globals.count);
+    module->context->globals.data[index] = PEEK(-1);
     DISPATCH();
   }
 
@@ -1559,9 +1559,9 @@ L_vm_main_loop:
 
   OPCODE(PUSH_CLOSURE) : {
     uint16_t index = READ_SHORT();
-    ASSERT_INDEX(index, module->constants.count);
-    ASSERT(IS_OBJ_TYPE(module->constants.data[index], OBJ_FUNC), OOPS);
-    Function* fn = (Function*) AS_OBJ(module->constants.data[index]);
+    ASSERT_INDEX(index, module->context->constants.count);
+    ASSERT(IS_OBJ_TYPE(module->context->constants.data[index], OBJ_FUNC), OOPS);
+    Function* fn = (Function*) AS_OBJ(module->context->constants.data[index]);
 
     Closure* closure = newClosure(vm, fn);
     vmPushTempRef(vm, &closure->_super); // closure.
@@ -1602,10 +1602,10 @@ L_vm_main_loop:
     }
 
     uint16_t index = READ_SHORT();
-    ASSERT_INDEX(index, module->constants.count);
-    ASSERT(IS_OBJ_TYPE(module->constants.data[index], OBJ_CLASS), OOPS);
+    ASSERT_INDEX(index, module->context->constants.count);
+    ASSERT(IS_OBJ_TYPE(module->context->constants.data[index], OBJ_CLASS), OOPS);
 
-    Class* drived = (Class*) AS_OBJ(module->constants.data[index]);
+    Class* drived = (Class*) AS_OBJ(module->context->constants.data[index]);
     drived->super_class = base;
 
     PUSH(VAR_OBJ(drived));
@@ -1717,9 +1717,9 @@ L_vm_main_loop:
       Module* imported = (Module*) AS_OBJ(modules.data[i]);
 
       // Copy public globals from imported module to current module
-      for (uint32_t j = 0; j < imported->global_names.count; j++) {
-        uint32_t name_idx = imported->global_names.data[j];
-        ASSERT(name_idx < imported->constants.count, OOPS);
+      for (uint32_t j = 0; j < imported->context->global_names.count; j++) {
+        uint32_t name_idx = imported->context->global_names.data[j];
+        ASSERT(name_idx < imported->context->constants.count, OOPS);
 
         String* name = moduleGetStringAt(imported, (int) name_idx);
         if (name == NULL) {
@@ -1733,7 +1733,7 @@ L_vm_main_loop:
 
         // Re-fetch the global value from the module's globals buffer
         // Note: The index in 'globals' matches the index in 'global_names' (j)
-        Var value = imported->globals.data[j];
+        Var value = imported->context->globals.data[j];
         moduleSetGlobal(vm, module, name->data, name->length, value);
       }
     }
@@ -1758,7 +1758,7 @@ L_vm_main_loop:
     uint16_t target_global_index = 0;
     if ((Opcode) (*ip) == OP_STORE_GLOBAL) {
       target_global_index = (uint16_t) ((ip[1] << 8) | ip[2]);
-      ASSERT_INDEX(target_global_index, module->globals.count);
+      ASSERT_INDEX(target_global_index, module->context->globals.count);
       has_target_global = true;
     }
 
@@ -1777,7 +1777,7 @@ L_vm_main_loop:
       }
 
       if ((Opcode) (*ip) == OP_STORE_GLOBAL) {
-        _imported = module->globals.data[target_global_index];
+        _imported = module->context->globals.data[target_global_index];
 
       } else if ((Opcode) (*ip) == OP_STORE_GLOBAL_NAME) {
         uint16_t name_index = (uint16_t) ((ip[1] << 8) | ip[2]);
@@ -1792,7 +1792,7 @@ L_vm_main_loop:
         if (g_index == -1) {
           _imported = VAR_NULL;
         } else {
-          _imported = module->globals.data[g_index];
+          _imported = module->context->globals.data[g_index];
         }
       }
       // Skip the STORE_GLOBAL or STORE_GLOBAL_NAME instruction, since we already handled it.

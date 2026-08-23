@@ -404,8 +404,8 @@ String* dumpFunctionCode(VM* vm, Function* func) {
       case OP_PUSH_CONSTANT:
         {
           int index = READ_SHORT();
-          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
-          Var value = func->owner->constants.data[index];
+          ASSERT_INDEX((uint32_t) index, func->owner->context->constants.count);
+          Var value = func->owner->context->constants.data[index];
 
           // Prints: %5d [val]\n
           _PRINT_INT(index, _INT_WIDTH);
@@ -511,11 +511,11 @@ String* dumpFunctionCode(VM* vm, Function* func) {
       case OP_STORE_GLOBAL:
         {
           int index = READ_SHORT();
-          ASSERT_INDEX(index, (int) func->owner->global_names.count);
-          int name_index = func->owner->global_names.data[index];
-          ASSERT_INDEX(name_index, (int) func->owner->constants.count);
+          ASSERT_INDEX(index, (int) func->owner->context->global_names.count);
+          int name_index = func->owner->context->global_names.data[index];
+          ASSERT_INDEX(name_index, (int) func->owner->context->constants.count);
 
-          Var name = func->owner->constants.data[name_index];
+          Var name = func->owner->context->constants.data[name_index];
           ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
 
           // Prints: %5d '%s'\n
@@ -530,8 +530,8 @@ String* dumpFunctionCode(VM* vm, Function* func) {
       case OP_STORE_GLOBAL_NAME:
         {
           int name_index = READ_SHORT();
-          ASSERT_INDEX(name_index, (int) func->owner->constants.count);
-          Var name = func->owner->constants.data[name_index];
+          ASSERT_INDEX(name_index, (int) func->owner->context->constants.count);
+          Var name = func->owner->context->constants.data[name_index];
           ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
 
           // Prints: %5d '%s'\n
@@ -580,8 +580,8 @@ String* dumpFunctionCode(VM* vm, Function* func) {
       case OP_PUSH_CLOSURE:
         {
           int index = READ_SHORT();
-          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
-          Var value = func->owner->constants.data[index];
+          ASSERT_INDEX((uint32_t) index, func->owner->context->constants.count);
+          Var value = func->owner->context->constants.data[index];
           ASSERT(IS_OBJ_TYPE(value, OBJ_FUNC), OOPS);
 
           // Prints: %5d [val]\n
@@ -595,8 +595,8 @@ String* dumpFunctionCode(VM* vm, Function* func) {
       case OP_CREATE_CLASS:
         {
           int index = READ_SHORT();
-          ASSERT_INDEX((uint32_t) index, func->owner->constants.count);
-          Var value = func->owner->constants.data[index];
+          ASSERT_INDEX((uint32_t) index, func->owner->context->constants.count);
+          Var value = func->owner->context->constants.data[index];
           ASSERT(IS_OBJ_TYPE(value, OBJ_CLASS), OOPS);
 
           // Prints: %5d [val]\n
@@ -784,10 +784,10 @@ void dumpGlobalValues(VM* vm) {
   CallFrame* frame = &fiber->frames[frame_ind];
   Module* module = frame->closure->fn->owner;
 
-  for (uint32_t i = 0; i < module->global_names.count; i++) {
-    String* name = moduleGetStringAt(module, module->global_names.data[i]);
+  for (uint32_t i = 0; i < module->context->global_names.count; i++) {
+    String* name = moduleGetStringAt(module, module->context->global_names.data[i]);
     ASSERT(name != NULL, OOPS);
-    Var value = module->globals.data[i];
+    Var value = module->context->globals.data[i];
     printf("%10s = ", name->data);
     dumpValue(vm, value);
     printf("\n");

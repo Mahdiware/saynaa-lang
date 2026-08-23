@@ -132,8 +132,8 @@ saynaa_function(coreDir, "dir(v:Var) -> List[String]",
         Module* m = (Module*) AS_OBJ(v);
         List* list = newList(vm, 8);
         vmPushTempRef(vm, &list->_super); // list.
-        for (uint32_t i = 0; i < m->globals.count; i++) {
-          Var name = m->constants.data[m->global_names.data[i]];
+        for (uint32_t i = 0; i < m->context->globals.count; i++) {
+          Var name = m->context->constants.data[m->context->global_names.data[i]];
           ASSERT(IS_OBJ_TYPE(name, OBJ_STRING), OOPS);
           if (((String*) AS_OBJ(name))->data[0] == SPECIAL_NAME_CHAR) {
             continue;
@@ -480,9 +480,12 @@ saynaa_function(coreEval, "eval(expression:String) -> Var",
     vmPushTempRef(vm, &new_module->_super); // new_module.
     {
       // let global variables become available
-      VarBufferConcat(&new_module->constants, vm, &current_module->constants);
-      VarBufferConcat(&new_module->globals, vm, &current_module->globals);
-      UintBufferConcat(&new_module->global_names, vm, &current_module->global_names);
+      VarBufferConcat(&new_module->context->constants, vm,
+                      &current_module->context->constants);
+      VarBufferConcat(&new_module->context->globals, vm,
+                      &current_module->context->globals);
+      UintBufferConcat(&new_module->context->global_names, vm,
+                       &current_module->context->global_names);
 
       CompileOptions options = newCompilerOptions();
       options.runtime = true;
@@ -529,12 +532,12 @@ saynaa_function(
     CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
     current_module = frame->closure->fn->owner;
   } else if (argc == 2) {
+    // argc == 2, the first argument is either a module or a path,
+    // and the second is either a path or a mode.
+
     Var v1 = ARG(1);
     Var v2 = ARG(2);
 
-    // the result will be two way
-    // arg1 is module, arg2 is path
-    // or arg1 is path, arg2 is mode
     if (IS_OBJ_TYPE(v1, OBJ_MODULE) && IS_OBJ_TYPE(v2, OBJ_STRING)) {
       // arg1 is module, arg2 is path
       current_module = (Module*) AS_OBJ(v1);
@@ -545,13 +548,10 @@ saynaa_function(
       current_module = frame->closure->fn->owner;
       path = (String*) AS_OBJ(v1);
       mode = (int64_t) AS_NUM(v2);
-      if (mode < 0 || mode > 2) {
-        RET_ERR(newString(
-            vm, "Invalid mode. Expected 0: CLONE, 1: SHARED or 2: NEW."));
-      }
     } else {
-      RET_ERR(newString(vm, "Invalid argument types. Expected (Module, String) "
-                            "or (String, Number)."));
+      RET_ERR(newString(
+          vm, "loadfile: Invalid argument types. Expected (Module, String) "
+              "or (String, Number)."));
     }
   } else if (argc == 3) {
     // argc == 3, the first argument is the module, the second is the path, and the third is the mode.
@@ -563,27 +563,35 @@ saynaa_function(
     if (!validateInteger(vm, ARG(3), &mode, "Argument 3"))
       return;
 
-    if (mode < 0 || mode > 2) {
-      RET_ERR(newString(
-          vm, "Invalid mode. Expected 0: CLONE, 1: SHARED or 2: NEW."));
-    }
   } else {
-    RET_ERR(
-        newString(vm, "Invalid argument count. Expected 1 to 3 arguments."));
+    RET_ERR(newString(
+        vm, "loadfile: Invalid argument count. Expected 1 to 3 arguments."));
+  }
+
+  if (mode < 0 || mode > 2) {
+    RET_ERR(newString(
+        vm, "loadfile: invalid mode. Expected 0: CLONE, 1: SHARED or 2: NEW."));
   }
 
   Module* new_module = newModule(vm);
+  if (new_module == NULL)
+    RET_ERR(newString(vm, "Failed to create a new module."));
+
   vmPushTempRef(vm, &new_module->_super); // new_module.
+  Context* restore_context = new_module->context;
+
   {
-    if (mode == 0 || mode == 1) {
-      // Initialize new_module with parent's constants/globals so compiled
-      // code resolves against the same literal pool.
-      VarBufferConcat(&new_module->constants, vm, &current_module->constants);
-      VarBufferConcat(&new_module->globals, vm, &current_module->globals);
-      UintBufferConcat(&new_module->global_names, vm, &current_module->global_names);
+    Context* current_context = current_module->context;
+    if (mode == 0) {
+      VarBufferConcat(&new_module->context->constants, vm, &current_context->constants);
+      VarBufferConcat(&new_module->context->globals, vm, &current_context->globals);
+      UintBufferConcat(&new_module->context->global_names, vm, &current_context->global_names);
+    } else if (mode == 1) {
+      new_module->context = current_context;
     }
 
     if (vm->config.resolve_path_fn == NULL) {
+      new_module->context = restore_context;
       vmPopTempRef(vm); // new_module.
       return;
     }
@@ -627,8 +635,8 @@ saynaa_function(
         vmPopTempRef(vm); // resolve.
       if (_name != NULL)
         vmPopTempRef(vm); // _name.
-      if (new_module != NULL)
-        vmPopTempRef(vm); // new_module.
+      new_module->context = restore_context;
+      vmPopTempRef(vm); // new_module.
       return;
     }
 
@@ -641,120 +649,14 @@ saynaa_function(
       ARG(0) = ret;
     }
 
-    // If we compiled into a temporary module for SHARED mode, merge the
-    // temporary module into the actual current module using bytecode
-    // serialization/deserialization which handles remapping of constant
-    // indices safely.
-    if (mode == 1) {
-      ByteBuffer payload;
-      ByteBufferInit(&payload);
-      Result s = saynaa_bytecode_serialize_module(vm, new_module, &payload);
-      if (s == RESULT_SUCCESS) {
-        Result d = saynaa_bytecode_deserialize_module(vm, current_module,
-                                                      payload.data, payload.count);
-        if (d != RESULT_SUCCESS) {
-          if (!VM_HAS_ERROR(vm)) {
-            VM_SET_ERROR(vm, stringFormat(vm, "Bytecode merge failed: $",
-                                          saynaa_status_message(d), false));
-          }
-        }
-      } else {
-        if (!VM_HAS_ERROR(vm)) {
-          VM_SET_ERROR(vm, stringFormat(vm, "Bytecode serialize failed: $",
-                                        saynaa_status_message(s), false));
-        }
-      }
-      ByteBufferClear(&payload, vm);
-    }
-
     if (resolve != NULL)
       vmPopTempRef(vm); // resolve.
     if (_name != NULL)
       vmPopTempRef(vm); // _name.
   }
-
-  vmPopTempRef(vm); // new_module.
-}
-
-saynaa_function(
-    coreLoad, "load([module:Module], path:String) -> Var",
-    "Loads and executes a script at the given [path]. "
-    "If [module] is provided, it'll be used as the module context for the "
-    "loaded script, otherwise it'll use the current module context. The return "
-    "value would be the return value of the loaded script's body.") {
-  int argc = ARGC;
-  if (argc > 2) {
-    RET_ERR(newString(vm, "Invalid argument count."));
-  }
-
-  String* path;
-  Module* current_module;
-  if (argc == 1) {
-    if (!validateArgString(vm, 1, &path))
-      return;
-
-    CallFrame* frame = &vm->fiber->frames[vm->fiber->frame_count - 1];
-    current_module = frame->closure->fn->owner;
-  } else if (argc == 2) {
-    if (!validateArgModule(vm, 1, &current_module))
-      return;
-    if (!validateArgString(vm, 2, &path))
-      return;
-  }
-  Module* new_module = newModule(vm);
-  vmPushTempRef(vm, &new_module->_super); // new_module.
-  {
-    // let global variables become available
-    VarBufferConcat(&new_module->constants, vm, &current_module->constants);
-    VarBufferConcat(&new_module->globals, vm, &current_module->globals);
-    UintBufferConcat(&new_module->global_names, vm, &current_module->global_names);
-
-    Result result = RESULT_SUCCESS;
-    char* resolve_path = vm->config.resolve_path_fn(vm, NULL, path->data);
-    LoadScriptResult load_result = vm->config.load_script_fn(vm, resolve_path);
-    char* source = load_result.content;
-    if (source == NULL) {
-      result = RESULT_COMPILE_ERROR;
-      if (vm->config.stderr_write != NULL) {
-        if (vm->config.use_ansi_escape) {
-          vm->config.stderr_write(vm,
-                                  "\x1b[31mError\x1b[0m loading script at \"");
-        } else {
-          vm->config.stderr_write(vm, "Error loading script at \"");
-        }
-        vm->config.stderr_write(vm, path->data);
-        vm->config.stderr_write(vm, "\"");
-      }
-    } else {
-      if (load_result.is_bytecode) {
-        SaynaaBytecodeHeader header;
-        Result status = saynaa_bytecode_decode_header(
-            (const uint8_t*) source, SAYNAA_BYTECODE_HEADER_SIZE, &header);
-        if (status == RESULT_SUCCESS) {
-          const uint8_t* payload = (const uint8_t*) source + SAYNAA_BYTECODE_HEADER_SIZE;
-          status = saynaa_bytecode_deserialize_module(vm, new_module, payload,
-                                                      header.bytecode_size);
-        }
-
-        if (status != RESULT_SUCCESS) {
-          result = RESULT_COMPILE_ERROR;
-          if (!VM_HAS_ERROR(vm)) {
-            VM_SET_ERROR(vm, stringFormat(vm, "Bytecode deserialize failed: $",
-                                          saynaa_status_message(status), false));
-          }
-        }
-      } else {
-        CompileOptions options = newCompilerOptions();
-        options.runtime = true;
-        result = compile(vm, new_module, source, &options);
-      }
-    }
-    if (result == RESULT_SUCCESS) {
-      Var ret = VAR_NULL;
-      vmCallFunction(vm, new_module->body, 0, NULL, &ret);
-      ARG(0) = ret;
-    }
-  }
+  // avoid double free of context when the module is freed,
+  // restore the context to the original context of the new module.
+  new_module->context = restore_context;
   vmPopTempRef(vm); // new_module.
 }
 
@@ -888,7 +790,7 @@ saynaa_function(corePcall, "pcall(fn:Closure, ...args) -> List",
   vmPopTempRef(vm); // fiber.
 }
 
-saynaa_function(_coreHashable, "types.hashable(value:Var) -> Bool",
+saynaa_function(_coreHashable, "hashable(value:Var) -> Bool",
                 "Returns true if the [value] is hashable.") {
   // Get argument 1 directly.
   ASSERT(vm->fiber != NULL, OOPS);
@@ -901,7 +803,7 @@ saynaa_function(_coreHashable, "types.hashable(value:Var) -> Bool",
     setSlotBool(vm, 0, isObjectHashable(AS_OBJ(value)->type));
 }
 
-saynaa_function(_coreHash, "types.hash(value:Var) -> Number", "Returns the hash of the [value]") {
+saynaa_function(_coreHash, "hash(value:Var) -> Number", "Returns the hash of the [value]") {
   // Get argument 1 directly.
   ASSERT(vm->fiber != NULL, OOPS);
   ASSERT(1 < GetSlotsCount(vm), OOPS);
@@ -971,7 +873,6 @@ void initializeBuiltinFunctions(VM* vm) {
   INITIALIZE_BUILTIN_FN("input", coreInput, -1);
   INITIALIZE_BUILTIN_FN("exit", coreExit, -1);
   INITIALIZE_BUILTIN_FN("eval", coreEval, 1);
-  INITIALIZE_BUILTIN_FN("load", coreLoad, -1);
   INITIALIZE_BUILTIN_FN("loadfile", coreLoadFile, -1);
   INITIALIZE_BUILTIN_FN("define", coreDefine, 2);
   INITIALIZE_BUILTIN_FN("delete", coreDelete, 1);
