@@ -804,7 +804,8 @@ Result saynaa_bytecode_deserialize_module(VM* vm, Module* module,
   uint32_t constants_count = (uint32_t) constants_count64;
 
   bool needs_remap = module->context->constants.count != 0;
-  VarBufferReserve(&module->context->constants, vm, module->context->constants.count + constants_count);
+  VarBufferReserve(&module->context->constants, vm,
+                   module->context->constants.count + constants_count);
 
   uint32_t* remap = NULL;
   FunctionList fn_list = {0};
