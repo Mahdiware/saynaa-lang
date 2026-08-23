@@ -741,7 +741,7 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
 
       vmPushTempRef(vm, &module->_super); // module.
       {
-        if (!importScript(vm, module, resolved, false)) {
+        if (!importScript(vm, module, resolved, false, false)) {
           ASSERT(VM_HAS_ERROR(vm), OOPS);
           vmPopTempRef(vm); // module.
           vmPopTempRef(vm); // _name.

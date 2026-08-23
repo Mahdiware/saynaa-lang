@@ -3784,7 +3784,7 @@ static void compileStatement(Compiler* compiler) {
       // is_last_call would be true by now.
       if (compiler->is_last_call) {
         // Tail call optimization disabled at debug mode.
-        if (compiler->options && !compiler->options->debug) {
+        if (compiler->options && compiler->options->debug) {
           ASSERT(_FN->opcodes.count >= 2, OOPS); // OP_CALL, argc
           ASSERT(_FN->opcodes.data[_FN->opcodes.count - 2] == OP_CALL, OOPS);
           _FN->opcodes.data[_FN->opcodes.count - 2] = OP_TAIL_CALL;
@@ -3904,7 +3904,7 @@ static void compileTopLevelStatement(Compiler* compiler) {
 }
 
 CompileOptions newCompilerOptions() {
-  CompileOptions options;
+  CompileOptions options = {0};
   options.debug = false;
   options.repl_mode = false;
   options.runtime = false;

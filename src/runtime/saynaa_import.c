@@ -136,7 +136,7 @@ char* resolvePath(VM* vm, const char* from, const char* path) {
   return NULL;
 }
 
-bool importScript(VM* vm, Module* module, String* path_resolved, bool is_runtime) {
+bool importScript(VM* vm, Module* module, String* path_resolved, bool is_runtime, bool is_main) {
   LoadScriptResult load_result = vm->config.load_script_fn(vm, path_resolved->data);
   char* source = load_result.content;
   if (source == NULL || load_result.status != RESULT_SUCCESS) {
@@ -161,10 +161,10 @@ bool importScript(VM* vm, Module* module, String* path_resolved, bool is_runtime
       result = RESULT_COMPILE_ERROR;
       VM_SET_ERROR(vm, stringFormat(vm, "Error compiling module at \"@\"", path_resolved));
     } else {
-      initializeModule(vm, module, false);
+      initializeModule(vm, module, is_main);
     }
   } else {
-    initializeModule(vm, module, false);
+    initializeModule(vm, module, is_main);
     CompileOptions options = newCompilerOptions();
     options.runtime = is_runtime;
     result = compile(vm, module, source, &options);

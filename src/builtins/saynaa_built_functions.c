@@ -630,7 +630,7 @@ saynaa_function(
     new_module->name = new_module->name == NULL ? _name : new_module->name;
     new_module->path = new_module->path == NULL ? resolve : new_module->path;
 
-    if (!importScript(vm, new_module, resolve, true)) {
+    if (!importScript(vm, new_module, resolve, true, false)) {
       if (resolve != NULL)
         vmPopTempRef(vm); // resolve.
       if (_name != NULL)

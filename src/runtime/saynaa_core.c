@@ -1225,6 +1225,25 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
       {
         Module* module = (Module*) obj;
 
+        switch (attrib->hash) {
+          case CHECK_HASH("globals", 0x1577cde7):
+            {
+              Map* map = newMap(vm);
+              vmPushTempRef(vm, &map->_super); // map.
+              for (int i = 0; i < (int) module->context->globals.count; i++) {
+                String* name = moduleGetStringAt(
+                    module, module->context->global_names.data[i]);
+                if (name->data[0] == SPECIAL_NAME_CHAR) {
+                  continue;
+                }
+                mapSet(vm, map, VAR_OBJ(name), module->context->globals.data[i]);
+              }
+              vmPopTempRef(vm); // map.
+
+              return VAR_OBJ(map);
+            }
+        }
+
         // For generic attribute access, prefer module methods over globals.
         // Callable path already resolved methods in getMethod().
         if (!callable) {

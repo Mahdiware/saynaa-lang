@@ -1088,26 +1088,6 @@ saynaa_function(_classMethods, "Class.methods() -> List",
   RET(VAR_OBJ(list));
 }
 
-saynaa_function(
-    _moduleGlobals, "Module.globals() -> Map",
-    "Returns a map of all the globals in the module. Since classes and "
-    "functions are also globals to a module it'll contain them too.") {
-  Module* thiz = (Module*) AS_OBJ(THIS);
-
-  Map* map = newMap(vm);
-  vmPushTempRef(vm, &map->_super); // map.
-  for (int i = 0; i < (int) thiz->context->globals.count; i++) {
-    String* name = moduleGetStringAt(thiz, thiz->context->global_names.data[i]);
-    if (name->data[0] == SPECIAL_NAME_CHAR) {
-      continue;
-    }
-    mapSet(vm, map, VAR_OBJ(name), thiz->context->globals.data[i]);
-  }
-  vmPopTempRef(vm); // map.
-
-  RET(VAR_OBJ(map));
-}
-
 saynaa_function(_moduleDefine, "Module.define(variable:String, value:Var) -> Null",
                 "Define a global variable in the module."
                 " with the name [variable] and value [value]") {
@@ -1284,7 +1264,6 @@ void initializeBuiltinClasses(VM* vm) {
 
   ADD_METHOD(vCLASS, "methods", _classMethods, 0);
 
-  ADD_METHOD(vMODULE, "globals", _moduleGlobals, 0);
   ADD_METHOD(vMODULE, "define", _moduleDefine, 2);
   ADD_METHOD(vMODULE, "delete", _moduleDelete, 1);
 
