@@ -12,9 +12,9 @@ assert(ok[0] == false)
 
 m = package.load("package")
 m.define("y", 10)
-assert(m.globals()["y"] == 10)
+assert(m.globals["y"] == 10)
 
 m.delete("y")
-assert(m.globals().has("y") == false)
+assert(m.globals.has("y") == false)
 
 print("Package delete tests passed")

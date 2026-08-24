@@ -6,13 +6,14 @@ NAME = saynaa
 
 ## MODE can be DEBUG or RELEASE
 ## READLINE can be enable or disable
-MODE 	 ?= DEBUG
-READLINE = enable
+MODE 	      ?= DEBUG
+COMPUTED_GOTO ?= enable
+READLINE       = enable
 
-CC        = gcc
-CCFLAGS   = -fPIC -MMD -MP
-LDFLAGS   = -lm -ldl -lpcre2-8
-OBJ_DIR   = obj/
+CC             = gcc
+CCFLAGS        = -fPIC -MMD -MP
+LDFLAGS        = -lm -ldl -lpcre2-8
+OBJ_DIR        = obj/
 
 # 1. Dynamically check if the optionals folder exists
 ifeq ($(wildcard src/optionals/.),)
@@ -64,6 +65,10 @@ ifeq ($(READLINE),enable)
 	LDFLAGS += -lreadline
 endif
 
+ifneq ($(COMPUTED_GOTO), enable)
+    CFLAGS += -DNO_COMPUTED_GOTO
+endif
+
 .PHONY: all clean release perf benchmark benchmark-ci benchmark-compare
 
 BENCH_APP1 ?= ./$(NAME)
@@ -93,6 +98,9 @@ release:
 	$(MAKE) MODE=RELEASE all
 
 perf: release
+
+no-computed-goto:
+	$(MAKE) COMPUTED_GOTO=disable
 
 benchmark: release
 	python3 util/run.py --app ./$(NAME)

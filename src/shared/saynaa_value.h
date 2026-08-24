@@ -248,6 +248,7 @@ typedef struct List List;
 typedef struct Map Map;
 typedef struct Range Range;
 typedef struct Module Module;
+typedef struct Context Context;
 typedef struct Function Function;
 typedef struct Closure Closure;
 typedef struct MethodBind MethodBind;
@@ -322,6 +323,22 @@ struct Range {
   double to;   //< End of the range exclusive.
 };
 
+struct Context {
+  Object _super;
+
+  // The constant pool of the module, which contains literal values like
+  // numbers, strings, and functions which are considered constants to
+  // a moduel as well as classes.
+  VarBuffer constants;
+
+  // Globals is an array of global variables of the module. All the names
+  // (including global variables) are stored in the constant pool of the
+  // module. The (i)th global variable's names is located at index (j)
+  // in the constant pool where j = global_names[i].
+  VarBuffer globals;
+  UintBuffer global_names;
+};
+
 // Module is a collection of globals, functions, classes and top
 // level statements, they can be imported in other modules generally a
 // script will compiled to a module.
@@ -337,17 +354,7 @@ struct Module {
   String* name;
   String* path;
 
-  // The constant pool of the module, which contains literal values like
-  // numbers, strings, and functions which are considered constants to
-  // a moduel as well as classes.
-  VarBuffer constants;
-
-  // Globals is an array of global variables of the module. All the names
-  // (including global variables) are stored in the constant pool of the
-  // module. The (i)th global variable's names is located at index (j)
-  // in the constant pool where j = global_names[i].
-  VarBuffer globals;
-  UintBuffer global_names;
+  Context* context;
 
   // Cache for global name -> global index lookup. Rebuilt lazily when dirty.
   Map* global_indices;

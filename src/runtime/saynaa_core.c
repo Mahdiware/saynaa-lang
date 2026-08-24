@@ -1145,7 +1145,7 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
         String* str = (String*) obj;
         switch (attrib->hash) {
           case CHECK_HASH("length", 0x83d03615):
-            return VAR_NUM((double) (str->length));
+            return VAR_NUM(utf8_length(str->data));
         }
       }
       break;
@@ -1225,6 +1225,25 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
       {
         Module* module = (Module*) obj;
 
+        switch (attrib->hash) {
+          case CHECK_HASH("globals", 0x1577cde7):
+            {
+              Map* map = newMap(vm);
+              vmPushTempRef(vm, &map->_super); // map.
+              for (int i = 0; i < (int) module->context->globals.count; i++) {
+                String* name = moduleGetStringAt(
+                    module, module->context->global_names.data[i]);
+                if (name->data[0] == SPECIAL_NAME_CHAR) {
+                  continue;
+                }
+                mapSet(vm, map, VAR_OBJ(name), module->context->globals.data[i]);
+              }
+              vmPopTempRef(vm); // map.
+
+              return VAR_OBJ(map);
+            }
+        }
+
         // For generic attribute access, prefer module methods over globals.
         // Callable path already resolved methods in getMethod().
         if (!callable) {
@@ -1237,8 +1256,8 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
         // Search in globals.
         int index = moduleGetGlobalIndexByName(vm, module, attrib);
         if (index != -1) {
-          ASSERT_INDEX((uint32_t) index, module->globals.count);
-          return module->globals.data[index];
+          ASSERT_INDEX((uint32_t) index, module->context->globals.count);
+          return module->context->globals.data[index];
         }
       }
       break;
@@ -1525,28 +1544,28 @@ static bool _normalizeSliceRange(VM* vm, Range* range, uint32_t count,
 // Slice the string with the [range] and reutrn it. On error it'll set
 // an error and return NULL.
 static String* _sliceString(VM* vm, String* str, Range* range) {
-  int32_t start, length;
+  int32_t start;
+  int32_t length;
   bool reversed;
-  if (!_normalizeSliceRange(vm, range, str->length, &start, &length, &reversed)) {
+
+  int char_length = utf8_length(str->data);
+
+  if (char_length < 0) {
+    VM_SET_ERROR(vm, newString(vm, "Invalid UTF-8 string."));
     return NULL;
   }
 
-  // Optimize case.
-  if (start == 0 && length == str->length && !reversed)
-    return str;
-
-  // TODO: check if length is 1 and return pre allocated character string.
-
-  String* slice = newStringLength(vm, str->data + start, length);
-  if (!reversed)
-    return slice;
-
-  for (int32_t i = 0; i < length / 2; i++) {
-    char tmp = slice->data[i];
-    slice->data[i] = slice->data[length - i - 1];
-    slice->data[length - i - 1] = tmp;
+  if (!_normalizeSliceRange(vm, range, char_length, &start, &length, &reversed)) {
+    return NULL;
   }
-  slice->hash = utilHashString(slice->data);
+
+  String* slice = utf8_slice(vm, str->data, start, length, reversed);
+
+  if (slice == NULL) {
+    VM_SET_ERROR(vm, newString(vm, "Invalid UTF-8 string."));
+    return NULL;
+  }
+
   return slice;
 }
 
@@ -1582,25 +1601,50 @@ Var varGetSubscript(VM* vm, Var on, Var key) {
     case OBJ_STRING:
       {
         int64_t index;
-        String* str = ((String*) obj);
+        String* str = (String*) obj;
 
         if (isInteger(key, &index)) {
-          // Normalize index.
+          // str->length is BYTE length.
+          // We need CHARACTER length here.
+          size_t char_length = utf8_length(str->data);
+
+          // Normalize negative index.
           if (index < 0)
-            index = str->length + index;
-          if (index >= str->length || index < 0) {
+            index = (int64_t) char_length + index;
+
+          // Bounds check against Unicode characters.
+          if (index < 0 || index >= (int64_t) char_length) {
             VM_SET_ERROR(vm, newString(vm, "String index out of bound."));
             return VAR_NULL;
           }
-          // FIXME: Add static VM characters instead of allocating here.
-          String* c = newStringLength(vm, str->data + index, 1);
+
+          int value;
+
+          int byte_index = utf8_charAt(str->data, (size_t) index, &value);
+
+          if (byte_index < 0) {
+            VM_SET_ERROR(vm, newString(vm, "Invalid UTF-8 string."));
+            return VAR_NULL;
+          }
+
+          int byte_count = utf8_encodeBytesCount(value);
+
+          if (byte_count <= 0) {
+            VM_SET_ERROR(vm, newString(vm, "Invalid Unicode code point."));
+            return VAR_NULL;
+          }
+
+          String* c = newStringLength(vm, str->data + byte_index, byte_count);
+
           return VAR_OBJ(c);
         }
 
         if (IS_OBJ_TYPE(key, OBJ_RANGE)) {
           String* subs = _sliceString(vm, str, (Range*) AS_OBJ(key));
+
           if (subs != NULL)
             return VAR_OBJ(subs);
+
           return VAR_NULL;
         }
       }

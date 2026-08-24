@@ -225,9 +225,7 @@ saynaa_function(_numberIsbyte, "Number.isbyte() -> bool",
   RET(VAR_BOOL((floor(n) == n) && (0x00 <= n && n <= 0xff)));
 }
 
-saynaa_function(_stringFind, "String.find(sub:String[, start:Number=0]) -> Number",
-                "Returns the first index of the substring [sub] found from the "
-                "[start] index") {
+saynaa_function(_stringFind, "String.find(sub:String[, start:Number=0]) -> Number", "Returns the first index of the substring [sub] found from the [start] index") {
   if (!CheckArgcRange(vm, ARGC, 1, 2))
     return;
 
@@ -236,6 +234,7 @@ saynaa_function(_stringFind, "String.find(sub:String[, start:Number=0]) -> Numbe
     return;
 
   int64_t start = 0;
+
   if (ARGC == 2) {
     if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
       return;
@@ -243,76 +242,190 @@ saynaa_function(_stringFind, "String.find(sub:String[, start:Number=0]) -> Numbe
 
   String* thiz = (String*) AS_OBJ(THIS);
 
-  if (thiz->length <= start) {
-    RET(VAR_NUM((double) -1));
+  int char_length = utf8_length(thiz->data);
+
+  if (char_length < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
   }
 
-  // Use utilMemMem because strings may contain embedded null bytes.
-  const char* match = (const char*) utilMemMem(thiz->data + start, thiz->length - start,
-                                               sub->data, sub->length);
-
-  if (match == NULL)
-    RET(VAR_NUM((double) -1));
-
-  ASSERT_INDEX(match - thiz->data, thiz->capacity);
-  RET(VAR_NUM((double) (match - thiz->data)));
-}
-
-saynaa_function(_stringRFind, "String.rfind(sub:String[, start:Number=0]) -> Number",
-                "Returns the last index of the substring [sub] found from the "
-                "[start] index") {
-  if (!CheckArgcRange(vm, ARGC, 1, 2))
-    return;
-
-  String* sub;
-  if (!validateArgString(vm, 1, &sub))
-    return;
-
-  int64_t start = 0;
-  if (ARGC == 2) {
-    if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
-      return;
-  }
-
-  String* thiz = (String*) AS_OBJ(THIS);
-
-  if ((int64_t) thiz->length <= start) {
-    RET(VAR_NUM((double) -1));
-  }
+  if (start < 0)
+    start = char_length + start;
 
   if (start < 0)
     start = 0;
 
-  const char* haystack = thiz->data + start;
-  size_t haystack_len = thiz->length - start;
-  const char* needle = sub->data;
+  if (start > char_length)
+    RET(VAR_NUM(-1));
+
+  int start_byte = utf8_byteOffset(thiz->data, (size_t) start);
+
+  if (start_byte < 0)
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+
+  // Search bytes, but return a Unicode character index.
+  const char* match = (const char*) utilMemMem(thiz->data + start_byte,
+                                               thiz->length - (size_t) start_byte,
+                                               sub->data, sub->length);
+
+  if (match == NULL)
+    RET(VAR_NUM(-1));
+
+  size_t match_byte = (size_t) (match - thiz->data);
+
+  int result = utf8_length(thiz->data);
+
+  if (result < 0)
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+
+  // Count characters before the match.
+  size_t pos = 0;
+  int char_index = 0;
+
+  while (pos < match_byte) {
+    int value;
+
+    int bytes = utf8_decodeBytes((const uint8_t*) (thiz->data + pos), &value);
+
+    if (bytes <= 0)
+      RET_ERR(newString(vm, "Invalid UTF-8 string."));
+
+    pos += bytes;
+    char_index++;
+  }
+
+  RET(VAR_NUM((double) char_index));
+}
+
+saynaa_function(_stringRFind, "String.rfind(sub:String[, start:Number=0]) -> Number",
+                "Returns the last index of the "
+                "substring [sub] found from the "
+                "[start] index") {
+  if (!CheckArgcRange(vm, ARGC, 1, 2))
+    return;
+
+  String* sub;
+
+  if (!validateArgString(vm, 1, &sub))
+    return;
+
+  int64_t start = 0;
+
+  if (ARGC == 2) {
+    if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
+      return;
+  }
+
+  String* thiz = (String*) AS_OBJ(THIS);
+
+  /*
+   * String indexes are Unicode character indexes.
+   *
+   * Example:
+   *
+   * "Hello 😀"
+   *
+   * character indexes:
+   *
+   * 0 1 2 3 4 5 6
+   * H e l l o   😀
+   */
+  int char_length = utf8_length(thiz->data);
+
+  if (char_length < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  /*
+   * Normalize negative start.
+   */
+  if (start < 0)
+    start = (int64_t) char_length + start;
+
+  if (start < 0)
+    start = 0;
+
+  /*
+   * start points to the first character where
+   * searching is allowed.
+   */
+  if (start >= char_length) {
+    RET(VAR_NUM(-1));
+  }
+
+  /*
+   * Convert Unicode character index to byte offset.
+   */
+  int start_byte = utf8_byteOffset(thiz->data, (size_t) start);
+
+  if (start_byte < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  /*
+   * Empty substring.
+   *
+   * The last possible position from the search range
+   * is the end of the string.
+   */
+  if (sub->length == 0) {
+    RET(VAR_NUM((double) char_length));
+  }
+
+  /*
+   * We search bytes internally because UTF-8 is variable-length.
+   */
+  const char* haystack = thiz->data + start_byte;
+
+  size_t haystack_len = thiz->length - (size_t) start_byte;
+
   size_t needle_len = sub->length;
 
   if (needle_len > haystack_len) {
-    RET(VAR_NUM((double) -1));
+    RET(VAR_NUM(-1));
   }
 
-  if (needle_len == 0) {
-    // Matches behavior of empty needle at end of string?
-    // Mimicking finding last "" could be at end of string.
-    // But we searched from `start`.
-    // If start=0, full string. Last "" is at length.
-    RET(VAR_NUM((double) thiz->length));
-  }
+  /*
+   * Search backwards.
+   */
+  for (size_t i = haystack_len - needle_len + 1; i > 0; i--) {
+    size_t offset = i - 1;
 
-  const char* match = NULL;
-  // Naive reverse search
-  for (long i = (long) (haystack_len - needle_len); i >= 0; i--) {
-    if (memcmp(haystack + i, needle, needle_len) == 0) {
-      match = haystack + i;
-      break;
+    if (memcmp(haystack + offset, sub->data, needle_len) != 0) {
+      continue;
     }
+
+    /*
+     * We found a byte match.
+     *
+     * Make sure the match starts on a UTF-8
+     * character boundary.
+     */
+    size_t match_byte = (size_t) (haystack - thiz->data) + offset;
+
+    int result = utf8_charIndexAtByteOffset(thiz->data, match_byte);
+
+    if (result < 0) {
+      /*
+       * The byte sequence matched in the middle
+       * of a UTF-8 character. Do not treat it as
+       * a valid String match.
+       */
+      continue;
+    }
+
+    /*
+     * Also make sure the substring ends on a
+     * UTF-8 character boundary.
+     */
+    int end_result = utf8_charIndexAtByteOffset(thiz->data, match_byte + needle_len);
+
+    if (end_result < 0)
+      continue;
+
+    RET(VAR_NUM((double) result));
   }
 
-  if (match == NULL)
-    RET(VAR_NUM((double) -1));
-
-  RET(VAR_NUM((double) (match - thiz->data)));
+  RET(VAR_NUM(-1));
 }
 
 saynaa_function(
@@ -321,44 +434,62 @@ saynaa_function(
   if (!CheckArgcRange(vm, ARGC, 1, 2))
     return;
 
-  int64_t start = 0;
+  int64_t start;
+
   if (!validateInteger(vm, ARG(1), &start, "Argument 1"))
     return;
 
   String* thiz = (String*) AS_OBJ(THIS);
-  int64_t end = (int64_t) thiz->length;
+
+  int char_length = utf8_length(thiz->data);
+
+  if (char_length < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  int64_t end = char_length;
+
   if (ARGC == 2) {
     if (!validateInteger(vm, ARG(2), &end, "Argument 2"))
       return;
   }
 
   if (start < 0)
-    start = (int64_t) thiz->length + start;
+    start = char_length + start;
+
   if (end < 0)
-    end = (int64_t) thiz->length + end;
+    end = char_length + end;
 
   if (start < 0)
     start = 0;
-  if (end > (int64_t) thiz->length)
-    end = (int64_t) thiz->length;
+
+  if (end > char_length)
+    end = char_length;
 
   if (start >= end)
     RET(VAR_OBJ(newStringLength(vm, NULL, 0)));
 
-  uint32_t length = (uint32_t) (end - start);
-  RET(VAR_OBJ(newStringLength(vm, thiz->data + start, length)));
+  int start_byte = utf8_byteOffset(thiz->data, (size_t) start);
+
+  int end_byte = utf8_byteOffset(thiz->data, (size_t) end);
+
+  if (start_byte < 0 || end_byte < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  RET(VAR_OBJ(newStringLength(vm, thiz->data + start_byte, (uint32_t) (end_byte - start_byte))));
 }
 
-saynaa_function(_stringReverse, "String.reverse() -> String",
-                "Returns a copy of the string with reversed bytes.") {
+saynaa_function(_stringReverse, "String.reverse() -> String", "Returns a copy of the string with reversed Unicode characters.") {
   String* thiz = (String*) AS_OBJ(THIS);
+
   if (thiz->length == 0)
     RET(THIS);
 
   char* buff = (char*) Realloc(vm, NULL, thiz->length);
-  for (uint32_t i = 0; i < thiz->length; i++) {
-    buff[i] = thiz->data[thiz->length - i - 1];
-  }
+  memcpy(buff, thiz->data, thiz->length);
+  utf8_reverse(buff, thiz->length);
+
   String* out = newStringLength(vm, buff, thiz->length);
   Realloc(vm, buff, 0);
   RET(VAR_OBJ(out));
@@ -394,7 +525,7 @@ saynaa_function(_stringRep, "String.rep(count:Number) -> String",
 }
 
 saynaa_function(_stringByte, "String.byte(index:Number) -> Number",
-                "Returns the byte value at [index].") {
+                " Returns the UTF - 8 byte value at[index].") {
   int64_t index = 0;
   if (!validateInteger(vm, ARG(1), &index, "Argument 1"))
     return;
@@ -428,23 +559,47 @@ saynaa_function(_stringMatch, "String.match(sub:String[, start:Number=0]) -> Str
     return;
 
   String* sub;
+
   if (!validateArgString(vm, 1, &sub))
     return;
 
   int64_t start = 0;
+
   if (ARGC == 2) {
     if (!validateInteger(vm, ARG(2), &start, "Argument 2"))
       return;
   }
 
   String* thiz = (String*) AS_OBJ(THIS);
+
+  int char_length = utf8_length(thiz->data);
+
+  if (char_length < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  // Normalize negative index.
+  if (start < 0)
+    start = (int64_t) char_length + start;
+
   if (start < 0)
     start = 0;
-  if (start >= (int64_t) thiz->length)
-    RET(VAR_NULL);
 
-  const char* match = (const char*) utilMemMem(thiz->data + start, thiz->length - start,
+  if (start >= char_length) {
+    RET(VAR_NULL);
+  }
+
+  // Convert character index -> byte offset.
+  int start_byte = utf8_byteOffset(thiz->data, (size_t) start);
+
+  if (start_byte < 0) {
+    RET_ERR(newString(vm, "Invalid UTF-8 string."));
+  }
+
+  const char* match = (const char*) utilMemMem(thiz->data + start_byte,
+                                               thiz->length - (size_t) start_byte,
                                                sub->data, sub->length);
+
   if (match == NULL)
     RET(VAR_NULL);
 
@@ -472,7 +627,14 @@ saynaa_function(_stringGSub, "String.gsub(old:String, new:String[, count:Number=
   }
 
   String* thiz = (String*) AS_OBJ(THIS);
-  RET(VAR_OBJ(stringReplace(vm, thiz, old, new_, (int32_t) count)));
+
+  String* result = stringReplace(vm, thiz, old, new_, (int32_t) count);
+  if (result == NULL) {
+    RET_ERR(newString(vm, "Failed to replace string."));
+  }
+
+  String* out = newStringLength(vm, result->data, result->length);
+  RET(VAR_OBJ(out));
 }
 
 saynaa_function(_stringGMatch, "String.gmatch(sub:String) -> List",
@@ -533,7 +695,13 @@ saynaa_function(
     }
   }
 
-  RET(VAR_OBJ(stringReplace(vm, thiz, old, new_, (int32_t) count)));
+  String* result = stringReplace(vm, thiz, old, new_, (int32_t) count);
+  if (result == NULL) {
+    RET_ERR(newString(vm, "Failed to replace string."));
+  }
+
+  String* out = newStringLength(vm, result->data, result->length);
+  RET(VAR_OBJ(out));
 }
 
 saynaa_function(_stringSplit, "String.split([sep:String]) -> List",
@@ -569,70 +737,135 @@ saynaa_function(
   RET(VAR_OBJ(stringUpper(vm, (String*) AS_OBJ(THIS))));
 }
 
-saynaa_function(_stingStartswith, "String.startswith(prefix: String | List) -> Bool",
-                "Returns true if the string starts the specified prefix.") {
+saynaa_function(_stringStartswith,
+                "String.startswith(prefix: String | List) -> Bool", "Returns true if the string starts with the specified prefix.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 1))
+    return;
+
   Var prefix = ARG(1);
   String* thiz = (String*) AS_OBJ(THIS);
 
+  /*
+   * String prefix.
+   *
+   * UTF-8 is stored as bytes, so comparing the complete
+   * UTF-8 byte sequence is safe here.
+   */
   if (IS_OBJ_TYPE(prefix, OBJ_STRING)) {
     String* pre = (String*) AS_OBJ(prefix);
+
     if (pre->length > thiz->length)
       RET(VAR_FALSE);
-    RET(VAR_BOOL((strncmp(thiz->data, pre->data, pre->length) == 0)));
 
-  } else if (IS_OBJ_TYPE(prefix, OBJ_LIST)) {
+    if (pre->length == 0)
+      RET(VAR_TRUE);
+
+    RET(VAR_BOOL(memcmp(thiz->data, pre->data, pre->length) == 0));
+  }
+
+  /*
+   * List of prefixes.
+   */
+  if (IS_OBJ_TYPE(prefix, OBJ_LIST)) {
     List* prefixes = (List*) AS_OBJ(prefix);
+
     for (uint32_t i = 0; i < prefixes->elements.count; i++) {
       Var pre_var = prefixes->elements.data[i];
+
       if (!IS_OBJ_TYPE(pre_var, OBJ_STRING)) {
         RET_ERR(newString(vm, "Expected a String for prefix."));
       }
-      String* pre = (String*) AS_OBJ(pre_var);
-      if (pre->length > thiz->length)
-        RET(VAR_FALSE);
-      if (strncmp(thiz->data, pre->data, pre->length) == 0)
-        RET(VAR_TRUE);
-    }
-    RET(VAR_FALSE);
 
-  } else {
-    RET_ERR(newString(vm, "Expected a String or a List of prifiexes."));
+      String* pre = (String*) AS_OBJ(pre_var);
+
+      /*
+       * This prefix cannot match, but another prefix
+       * in the list might.
+       */
+      if (pre->length > thiz->length)
+        continue;
+
+      /*
+       * Empty string always matches.
+       */
+      if (pre->length == 0)
+        RET(VAR_TRUE);
+
+      if (memcmp(thiz->data, pre->data, pre->length) == 0) {
+        RET(VAR_TRUE);
+      }
+    }
+
+    RET(VAR_FALSE);
   }
+
+  RET_ERR(newString(vm, "Expected a String or a List of prefixes."));
 }
 
-saynaa_function(_stingEndswith, "String.endswith(suffix: String | List) -> Bool",
+saynaa_function(_stringEndswith, "String.endswith(suffix: String | List) -> Bool",
                 "Returns true if the string ends with the specified suffix.") {
+  if (!CheckArgcRange(vm, ARGC, 1, 1))
+    return;
+
   Var suffix = ARG(1);
   String* thiz = (String*) AS_OBJ(THIS);
 
+  /*
+   * String suffix.
+   */
   if (IS_OBJ_TYPE(suffix, OBJ_STRING)) {
     String* suf = (String*) AS_OBJ(suffix);
+
     if (suf->length > thiz->length)
       RET(VAR_FALSE);
 
-    const char* start = (thiz->data + (thiz->length - suf->length));
-    RET(VAR_BOOL((strncmp(start, suf->data, suf->length) == 0)));
+    if (suf->length == 0)
+      RET(VAR_TRUE);
 
-  } else if (IS_OBJ_TYPE(suffix, OBJ_LIST)) {
+    const char* start = thiz->data + (thiz->length - suf->length);
+
+    RET(VAR_BOOL(memcmp(start, suf->data, suf->length) == 0));
+  }
+
+  /*
+   * List of suffixes.
+   */
+  if (IS_OBJ_TYPE(suffix, OBJ_LIST)) {
     List* suffixes = (List*) AS_OBJ(suffix);
+
     for (uint32_t i = 0; i < suffixes->elements.count; i++) {
       Var suff_var = suffixes->elements.data[i];
+
       if (!IS_OBJ_TYPE(suff_var, OBJ_STRING)) {
         RET_ERR(newString(vm, "Expected a String for suffix."));
       }
+
       String* suf = (String*) AS_OBJ(suff_var);
+
+      /*
+       * This suffix cannot match, but another suffix
+       * in the list might.
+       */
       if (suf->length > thiz->length)
-        RET(VAR_FALSE);
+        continue;
 
-      const char* start = (thiz->data + (thiz->length - suf->length));
-      if (strncmp(start, suf->data, suf->length) == 0)
+      /*
+       * Empty string always matches.
+       */
+      if (suf->length == 0)
         RET(VAR_TRUE);
-    }
-    RET(VAR_FALSE);
 
-  } else {
-    RET_ERR(newString(vm, "Expected a String or a List of suffixes."));
+      const char* start = thiz->data + (thiz->length - suf->length);
+
+      if (memcmp(start, suf->data, suf->length) == 0) {
+        RET(VAR_TRUE);
+      }
+    }
+
+    RET(VAR_FALSE);
   }
+
+  RET_ERR(newString(vm, "Expected a String or a List of suffixes."));
 }
 
 saynaa_function(_listAppend, "List.append(value:Var) -> List",
@@ -855,26 +1088,6 @@ saynaa_function(_classMethods, "Class.methods() -> List",
   RET(VAR_OBJ(list));
 }
 
-saynaa_function(
-    _moduleGlobals, "Module.globals() -> Map",
-    "Returns a map of all the globals in the module. Since classes and "
-    "functions are also globals to a module it'll contain them too.") {
-  Module* thiz = (Module*) AS_OBJ(THIS);
-
-  Map* map = newMap(vm);
-  vmPushTempRef(vm, &map->_super); // map.
-  for (int i = 0; i < (int) thiz->globals.count; i++) {
-    String* name = moduleGetStringAt(thiz, thiz->global_names.data[i]);
-    if (name->data[0] == SPECIAL_NAME_CHAR) {
-      continue;
-    }
-    mapSet(vm, map, VAR_OBJ(name), thiz->globals.data[i]);
-  }
-  vmPopTempRef(vm); // map.
-
-  RET(VAR_OBJ(map));
-}
-
 saynaa_function(_moduleDefine, "Module.define(variable:String, value:Var) -> Null",
                 "Define a global variable in the module."
                 " with the name [variable] and value [value]") {
@@ -1022,8 +1235,8 @@ void initializeBuiltinClasses(VM* vm) {
   ADD_METHOD(vSTRING, "rfind", _stringRFind, -1);
   ADD_METHOD(vSTRING, "replace", _stringReplace, -1);
   ADD_METHOD(vSTRING, "split", _stringSplit, -1);
-  ADD_METHOD(vSTRING, "startswith", _stingStartswith, 1);
-  ADD_METHOD(vSTRING, "endswith", _stingEndswith, 1);
+  ADD_METHOD(vSTRING, "startswith", _stringStartswith, 1);
+  ADD_METHOD(vSTRING, "endswith", _stringEndswith, 1);
   ADD_METHOD(vSTRING, "sub", _stringSub, -1);
   ADD_METHOD(vSTRING, "reverse", _stringReverse, 0);
   ADD_METHOD(vSTRING, "rep", _stringRep, 1);
@@ -1051,7 +1264,6 @@ void initializeBuiltinClasses(VM* vm) {
 
   ADD_METHOD(vCLASS, "methods", _classMethods, 0);
 
-  ADD_METHOD(vMODULE, "globals", _moduleGlobals, 0);
   ADD_METHOD(vMODULE, "define", _moduleDefine, 2);
   ADD_METHOD(vMODULE, "delete", _moduleDelete, 1);
 

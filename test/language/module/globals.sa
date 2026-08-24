@@ -4,7 +4,7 @@
 x = 100
 y = "hello string"
 
-g = _module.globals()
+g = _module.globals
 
 assert(g["x"] == x)
 assert(g["y"] == y)

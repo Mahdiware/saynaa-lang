@@ -9,6 +9,7 @@ function funt1(arg1)
 end
 
 res = funt1("world")
+print(res)
 assert(res == "args: world, hello")
 
 print("Nested function declaration tests passed")
