@@ -21,6 +21,7 @@ Module* newModuleInternal(VM* vm, const char* name) {
   }
 
   Module* module = newModule(vm);
+  module->context = newContext(vm);
   module->name = _name;
   module->initialized = true;
   vmPopTempRef(vm); // _name

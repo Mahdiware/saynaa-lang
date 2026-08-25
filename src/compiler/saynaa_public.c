@@ -420,6 +420,7 @@ Result RunString(VM* vm, const char* source) {
 
   // Create a temproary module for the source.
   Module* module = newModule(vm);
+  module->context = newContext(vm);
   vmPushTempRef(vm, &module->_super); // module.
   {
     module->path = newString(vm, "@(String)");
@@ -451,6 +452,7 @@ Result RunStringPcall(VM* vm, const char* source) {
 
   // Create a temporary module for the source.
   Module* module = newModule(vm);
+  module->context = newContext(vm);
   vmPushTempRef(vm, &module->_super); // module.
   {
     module->path = newString(vm, "@(String)");
@@ -540,6 +542,7 @@ Result RunFileWithModule(VM* vm, Module* module, const char* path) {
 
   if (is_null_module) {
     module = newModule(vm);
+    module->context = newContext(vm);
     vmPushTempRef(vm, &module->_super); // module.
   }
   {
@@ -585,6 +588,7 @@ Result CompileStringToBytecode(VM* vm, const char* source, SaynaaBytecode* out) 
   saynaa_bytecode_init(out);
 
   Module* module = newModule(vm);
+  module->context = newContext(vm);
   vmPushTempRef(vm, &module->_super); // module.
 
   module->path = newString(vm, "@(Bytecode)");

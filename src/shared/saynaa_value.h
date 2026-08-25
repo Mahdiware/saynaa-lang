@@ -325,7 +325,6 @@ struct Range {
 
 struct Context {
   Object _super;
-
   // The constant pool of the module, which contains literal values like
   // numbers, strings, and functions which are considered constants to
   // a moduel as well as classes.
@@ -337,6 +336,14 @@ struct Context {
   // in the constant pool where j = global_names[i].
   VarBuffer globals;
   UintBuffer global_names;
+
+  // Cache for global name -> global index lookup. Rebuilt lazily when dirty.
+  Map* global_indices;
+  bool global_indices_dirty;
+
+  // Hot lookup cache for repeated global-name access on the same module.
+  String* global_lookup_name_cache;
+  int32_t global_lookup_index_cache;
 };
 
 // Module is a collection of globals, functions, classes and top
@@ -355,14 +362,6 @@ struct Module {
   String* path;
 
   Context* context;
-
-  // Cache for global name -> global index lookup. Rebuilt lazily when dirty.
-  Map* global_indices;
-  bool global_indices_dirty;
-
-  // Hot lookup cache for repeated global-name access on the same module.
-  String* global_lookup_name_cache;
-  int32_t global_lookup_index_cache;
 
   // Top level statements of a module are compiled to an implicit function
   // body which will be executed if it's imported for the first time.
@@ -719,6 +718,8 @@ List* newList(VM* vm, uint32_t size);
 Map* newMap(VM* vm);
 
 Range* newRange(VM* vm, double from, double to);
+
+Context* newContext(VM* vm);
 
 Module* newModule(VM* vm);
 

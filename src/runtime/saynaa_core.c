@@ -1230,6 +1230,7 @@ Var varGetAttrib(VM* vm, Var on, String* attrib, bool skipGetter, bool callable)
             {
               Map* map = newMap(vm);
               vmPushTempRef(vm, &map->_super); // map.
+              printf("count: %d\n", module->context->globals.count);
               for (int i = 0; i < (int) module->context->globals.count; i++) {
                 String* name = moduleGetStringAt(
                     module, module->context->global_names.data[i]);
