@@ -245,6 +245,7 @@ Result saynaa_bytecode_run(VM* vm, const SaynaaBytecode* bytecode) {
   }
 
   Module* module = newModule(vm);
+  module->context = newContext(vm);
   vmPushTempRef(vm, &module->_super); // module.
 
   module->path = newString(vm, "@(Bytecode)");

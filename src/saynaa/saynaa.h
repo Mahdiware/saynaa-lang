@@ -202,6 +202,7 @@ typedef enum ObjectType {
   OBJ_FIBER,
   OBJ_CLASS,
   OBJ_POINTER,
+  OBJ_CONTEXT,
   OBJ_INST, // OBJ_INST should be the last element of this enums (don't move).
 } ObjectType;
 

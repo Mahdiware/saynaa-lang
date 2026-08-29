@@ -477,6 +477,7 @@ saynaa_function(coreEval, "eval(expression:String) -> Var",
     Module* current_module = frame->closure->fn->owner;
 
     Module* new_module = newModule(vm);
+    new_module->context = newContext(vm);
     vmPushTempRef(vm, &new_module->_super); // new_module.
     {
       // let global variables become available
@@ -573,25 +574,28 @@ saynaa_function(
         vm, "loadfile: invalid mode. Expected 0: CLONE, 1: SHARED or 2: NEW."));
   }
 
-  Module* new_module = newModule(vm);
-  if (new_module == NULL)
-    RET_ERR(newString(vm, "Failed to create a new module."));
+  Module* new_module;
+  if (mode == 1) {
+    new_module = newModule(vm);
+    new_module->context = current_module->context;
+  } else {
+    new_module = newModule(vm);
+    new_module->context = newContext(vm);
+  }
 
   vmPushTempRef(vm, &new_module->_super); // new_module.
-  Context* restore_context = new_module->context;
-
   {
-    Context* current_context = current_module->context;
     if (mode == 0) {
-      VarBufferConcat(&new_module->context->constants, vm, &current_context->constants);
-      VarBufferConcat(&new_module->context->globals, vm, &current_context->globals);
-      UintBufferConcat(&new_module->context->global_names, vm, &current_context->global_names);
-    } else if (mode == 1) {
-      new_module->context = current_context;
+      VarBufferConcat(&new_module->context->constants, vm,
+                      &current_module->context->constants);
+      VarBufferConcat(&new_module->context->globals, vm,
+                      &current_module->context->globals);
+      UintBufferConcat(&new_module->context->global_names, vm,
+                       &current_module->context->global_names);
     }
 
     if (vm->config.resolve_path_fn == NULL) {
-      new_module->context = restore_context;
+      new_module->context = NULL;
       vmPopTempRef(vm); // new_module.
       return;
     }
@@ -635,8 +639,7 @@ saynaa_function(
         vmPopTempRef(vm); // resolve.
       if (_name != NULL)
         vmPopTempRef(vm); // _name.
-      new_module->context = restore_context;
-      vmPopTempRef(vm); // new_module.
+      vmPopTempRef(vm);   // new_module.
       return;
     }
 
@@ -648,15 +651,11 @@ saynaa_function(
     } else {
       ARG(0) = ret;
     }
-
     if (resolve != NULL)
       vmPopTempRef(vm); // resolve.
     if (_name != NULL)
       vmPopTempRef(vm); // _name.
   }
-  // avoid double free of context when the module is freed,
-  // restore the context to the original context of the new module.
-  new_module->context = restore_context;
   vmPopTempRef(vm); // new_module.
 }
 

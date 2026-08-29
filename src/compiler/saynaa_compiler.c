@@ -3944,6 +3944,7 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
   // failed discard all of them and roll back.
   uint32_t constants_count = module->context->constants.count;
   uint32_t globals_count = module->context->globals.count;
+  uint32_t global_names_count = module->context->global_names.count;
 
   Func curr_fn;
   compilerPushFunc(compiler, &curr_fn, module->body->fn, FUNC_MAIN);
@@ -3965,7 +3966,8 @@ Result compile(VM* vm, Module* module, const char* source, const CompileOptions*
   // If compilation failed, discard all the invalid functions and globals.
   if (compiler->parser.has_errors) {
     module->context->constants.count = constants_count;
-    module->context->globals.count = module->context->global_names.count = globals_count;
+    module->context->globals.count = globals_count;
+    module->context->global_names.count = global_names_count;
   }
 #if DUMP_BYTECODE
   else {

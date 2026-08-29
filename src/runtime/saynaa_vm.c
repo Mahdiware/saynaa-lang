@@ -736,6 +736,7 @@ static Module* _importResolved(VM* vm, String* resolved, String* name) {
     {
       // Make a new module
       module = newModule(vm);
+      module->context = newContext(vm);
       module->path = resolved;
       module->name = _name;
 
