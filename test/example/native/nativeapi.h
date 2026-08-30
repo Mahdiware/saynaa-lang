@@ -31,6 +31,7 @@ typedef struct Handle Handle;
 typedef struct SaynaaBytecode SaynaaBytecode;
 typedef struct Class Class;
 typedef struct Configuration Configuration;
+typedef struct LoadScriptResult LoadScriptResult;
 
 typedef void (*nativeFn)(VM* vm);
 typedef void* (*ReallocFn)(void* memory, size_t new_size, void* user_data);
@@ -62,6 +63,7 @@ typedef enum VarType {
   vFIBER,
   vCLASS,
   vPOINTER,
+  vCONTEXT,
   vINSTANCE,
 } VarType;
 
@@ -78,6 +80,7 @@ typedef enum ObjectType {
   OBJ_FIBER,
   OBJ_CLASS,
   OBJ_POINTER,
+  OBJ_CONTEXT,
   OBJ_INST, // OBJ_INST should be the last element of this enums (don't move).
 } ObjectType;
 
@@ -109,7 +112,7 @@ typedef enum Result {
   RESULT_BYTECODE_IO_ERROR,
 } Result;
 
-typedef struct {
+typedef struct LoadScriptResult {
   char* content;    // script source or bytecode buffer
   bool is_bytecode; // 1 = bytecode, 0 = source
   Result status;    // execution / load status

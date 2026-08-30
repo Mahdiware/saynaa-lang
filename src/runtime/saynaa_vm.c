@@ -373,7 +373,6 @@ Module* vmGetModule(VM* vm, String* key) {
 }
 
 void vmCollectGarbage(VM* vm) {
-  // return;
   //  Drop transient caches before mark/sweep to avoid stale raw pointers.
   vm->method_cache_class = NULL;
   vm->method_cache_name = NULL;
