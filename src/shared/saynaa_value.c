@@ -2039,6 +2039,8 @@ ObjectType getVarObjType(VarType type) {
       return OBJ_CLASS;
     case vPOINTER:
       return OBJ_POINTER;
+    case vCONTEXT:
+      return OBJ_CONTEXT;
     case vINSTANCE:
       return OBJ_INST;
   }
@@ -2091,6 +2093,8 @@ const char* getObjectTypeName(ObjectType type) {
       return "Class";
     case OBJ_POINTER:
       return "Pointer";
+    case OBJ_CONTEXT:
+      return "Context";
     case OBJ_INST:
       return "Inst";
   }
@@ -2119,7 +2123,7 @@ const char* varTypeName(Var v) {
 }
 
 VarType getVarType(Var v) {
-  if (IS_NULL(v))
+  if (IS_NULL(v) || IS_UNDEF(v))
     return vNULL;
   if (IS_BOOL(v))
     return vBOOL;

@@ -230,7 +230,7 @@ def main():
                 else:
                     print(f"{Colors.WARNING}Warning: Test path not found: {t}{Colors.ENDC}")
     else:
-        # Default: everything in tests/
+        # Default: everything in test/
         test_dir = root_dir / 'test'
         if not test_dir.exists():
              print(f"{Colors.FAIL}Error: 'test' directory not found at {test_dir}{Colors.ENDC}")
